@@ -1,4 +1,4 @@
-import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Camera } from "lucide-react";
+import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor } from "lucide-react";
 import React from "react";
 import SettingsApp from "@/app/apps/settings";
 import FileExplorerApp from "@/app/apps/file-explorer";
@@ -17,6 +17,8 @@ export type App = {
 };
 
 const MailApp = () => React.createElement('div', { className: 'p-4' }, 'Mail App Content');
+const CollaborationApp = () => React.createElement('div', { className: 'p-4 flex items-center justify-center h-full text-muted-foreground' }, 'Real-time Collaboration features would be here.');
+const VirtualMachineApp = () => React.createElement('div', { className: 'p-4 flex items-center justify-center h-full text-muted-foreground' }, 'Embedded VM would be displayed here.');
 
 
 export const APPS: App[] = [
@@ -58,9 +60,23 @@ export const APPS: App[] = [
   {
     id: "pixel-streamer",
     name: "Pixel Streamer",
-    Icon: Camera,
+    Icon: Layers,
     component: PixelStreamerApp,
     defaultSize: { width: 600, height: 450 },
+  },
+  {
+    id: 'collaboration',
+    name: 'Collaboration',
+    Icon: Users,
+    component: CollaborationApp,
+    defaultSize: { width: 900, height: 650 },
+  },
+  {
+    id: 'virtual-machine',
+    name: 'Virtual Machine',
+    Icon: Monitor,
+    component: VirtualMachineApp,
+    defaultSize: { width: 1024, height: 768 },
   },
   {
     id: "mail",

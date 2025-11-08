@@ -11,6 +11,7 @@ import CommandPalette from "./command-palette";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "../ui/button";
 import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
+import { cn } from "@/lib/utils";
 
 export type WindowInstance = {
   id: number;
@@ -42,8 +43,6 @@ export default function Desktop() {
   }, []);
   
   const arrangeWindows = () => {
-    // A more sophisticated implementation would tile the windows.
-    // For now, it just brings the code editor and browser to the front.
     const codeEditor = openApps.find(a => a.app.id === 'code-editor');
     const browser = openApps.find(a => a.app.id === 'browser');
 
@@ -81,6 +80,12 @@ export default function Desktop() {
   }, [focusedAppId, openApps, toast]);
 
   const openApp = useCallback((app: App) => {
+    const existingApp = openApps.find(a => a.app.id === app.id);
+    if (existingApp) {
+        focusApp(existingApp.id);
+        return;
+    }
+
     const currentId = nextId.current;
     setHighestZIndex((prev) => prev + 1);
     const newWindow: WindowInstance = {
@@ -94,7 +99,7 @@ export default function Desktop() {
     setOpenApps((prev) => [...prev, newWindow]);
     setFocusedAppId(currentId);
     nextId.current += 1;
-  }, [highestZIndex]);
+  }, [highestZIndex, openApps]);
   
   const closeApp = (id: number) => {
     setOpenApps((prev) => prev.filter((app) => app.id !== id));
@@ -104,7 +109,7 @@ export default function Desktop() {
     setFocusedAppId(id);
 
     const appInstance = openApps.find(app => app.id === id);
-    if (appInstance?.zIndex === highestZIndex) return;
+    if (appInstance?.zIndex === highestZIndex && !appInstance?.isMinimized) return;
     
     setHighestZIndex((prev) => prev + 1);
     setOpenApps((prev) =>
@@ -125,13 +130,14 @@ export default function Desktop() {
   const toggleMinimize = (id: number) => {
      setOpenApps(prev => prev.map(app => app.id === id ? {...app, isMinimized: !app.isMinimized} : app));
      if(focusedAppId === id) {
-       setFocusedAppId(null);
+       const nextApp = openApps.filter(app => app.id !== id && !app.isMinimized).sort((a,b) => b.zIndex - a.zIndex)[0];
+       setFocusedAppId(nextApp ? nextApp.id : null);
      }
   }
 
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background font-body">
+    <div className="h-screen w-screen overflow-hidden bg-background font-body flex flex-col">
       {wallpaper && (
         <Image
           src={wallpaper.imageUrl}
@@ -143,7 +149,7 @@ export default function Desktop() {
           priority
         />
       )}
-      <div className="relative z-10 h-full w-full flex flex-col">
+      <div className="relative z-10 flex-grow w-full flex flex-col">
         <TopBar />
         <div className="flex-grow relative" >
           {openApps.map((window) => (

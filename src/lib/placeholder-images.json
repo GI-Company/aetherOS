@@ -1,3 +1,16 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "aether-os-wallpaper",
+      "description": "Abstract futuristic digital landscape for AetherOS wallpaper.",
+      "imageUrl": "https://images.unsplash.com/photo-1641007820537-ac57e28aa502?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxhYnN0cmFjdCUyMGZ1dHVyaXN0aWN8ZW58MHx8fHwxNzYyNTk4Mzc0fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "abstract futuristic"
+    },
+    {
+      "id": "pixel-streamer-bg",
+      "description": "Abstract colorful neural network visualization.",
+      "imageUrl": "https://images.unsplash.com/photo-1761223956849-c6912f2179aa?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxhYnN0cmFjdCUyMG5ldXJhbHxlbnwwfHx8fDE3NjI2NDQ0NjB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "abstract neural"
+    }
+  ]
 }

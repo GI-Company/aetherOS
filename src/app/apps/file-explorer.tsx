@@ -1,0 +1,113 @@
+"use client";
+
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Folder, File, Search, Loader2 } from "lucide-react";
+import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
+import { useToast } from "@/hooks/use-toast";
+
+const initialFiles = [
+  { name: "Projects", type: "folder", size: "12.5 GB", modified: "2024-05-20" },
+  { name: "Documents", type: "folder", size: "2.1 GB", modified: "2024-05-18" },
+  { name: "Photos", type: "folder", size: "50.8 GB", modified: "2024-05-15" },
+  { name: "aether_os_whitepaper.pdf", type: "file", size: "2.3 MB", modified: "2024-04-30" },
+  { name: "system_boot.log", type: "file", size: "15 KB", modified: "2024-05-21" },
+  { name: "q2_earnings_report.docx", type: "file", size: "850 KB", modified: "2024-04-12" },
+  { name: "vacation_photos_hawaii", type: "folder", size: "15.2 GB", modified: "2024-03-05" },
+];
+
+export default function FileExplorerApp() {
+  const [files, setFiles] = useState(initialFiles);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery) {
+      setFiles(initialFiles); // Reset to all files if search is cleared
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // In a real app, we would use the results to fetch file details.
+      // Here, we'll just simulate by filtering the existing file list.
+      const result = await semanticFileSearch({ query: searchQuery });
+      const foundFileNames = result.results;
+      
+      // DEMO: Filter based on keywords in filename for illustrative purposes
+      const keywords = searchQuery.split(' ');
+      const filteredFiles = initialFiles.filter(file => 
+        keywords.some(keyword => file.name.toLowerCase().includes(keyword.toLowerCase()))
+      );
+
+      if (filteredFiles.length > 0) {
+        setFiles(filteredFiles);
+        toast({ title: "Search Complete", description: `Found ${filteredFiles.length} items.` });
+      } else {
+        setFiles([]);
+        toast({ title: "Search Complete", description: "No items matched your semantic query." });
+      }
+      
+    } catch (error) {
+      console.error("Semantic search failed:", error);
+      toast({ title: "Search Failed", description: "The AI search service is unavailable.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-2 border-b">
+        <form onSubmit={handleSearch}>
+          <div className="relative">
+            {isLoading ? (
+              <Loader2 className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground animate-spin" />
+            ) : (
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            )}
+            <Input 
+              placeholder="Semantic Search (e.g., 'documents about Q2 earnings')" 
+              className="pl-9 bg-background/50"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </form>
+      </div>
+      <ScrollArea className="flex-grow">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[400px]">Name</TableHead>
+              <TableHead>Size</TableHead>
+              <TableHead>Last Modified</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {files.map((file) => (
+              <TableRow key={file.name}>
+                <TableCell className="font-medium flex items-center gap-2">
+                  {file.type === 'folder' ? <Folder className="h-4 w-4 text-accent" /> : <File className="h-4 w-4 text-muted-foreground" />}
+                  {file.name}
+                </TableCell>
+                <TableCell>{file.size}</TableCell>
+                <TableCell>{file.modified}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        {files.length === 0 && !isLoading && (
+          <div className="text-center p-8 text-muted-foreground">No files found.</div>
+        )}
+      </ScrollArea>
+      <div className="p-2 border-t text-xs text-muted-foreground">
+        {files.length} items
+      </div>
+    </div>
+  );
+}

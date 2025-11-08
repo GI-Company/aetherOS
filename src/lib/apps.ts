@@ -1,4 +1,5 @@
 import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Camera } from "lucide-react";
+import React from "react";
 import SettingsApp from "@/app/apps/settings";
 import FileExplorerApp from "@/app/apps/file-explorer";
 import CodeEditorApp from "@/app/apps/code-editor";
@@ -14,6 +15,9 @@ export type App = {
   component: React.ComponentType;
   defaultSize: { width: number; height: number };
 };
+
+const MailApp = () => React.createElement('div', { className: 'p-4' }, 'Mail App Content');
+
 
 export const APPS: App[] = [
   {
@@ -62,7 +66,7 @@ export const APPS: App[] = [
     id: "mail",
     name: "Mail",
     Icon: Mail,
-    component: () => <div className="p-4">Mail App Content</div>,
+    component: MailApp,
     defaultSize: { width: 800, height: 600 },
   },
   {

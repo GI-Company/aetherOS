@@ -5,6 +5,7 @@ import { X, Minus, Square } from "lucide-react";
 import Draggable from "react-draggable";
 import type { WindowInstance } from "./desktop";
 import { cn } from "@/lib/utils";
+import React from "react";
 
 type WindowProps = {
   instance: WindowInstance;
@@ -18,15 +19,18 @@ type WindowProps = {
 export default function Window({ instance, onClose, onFocus, onMinimize, onMove, isFocused }: WindowProps) {
   const { app, position, size, zIndex, isMinimized } = instance;
   const AppContent = app.component;
+  const nodeRef = React.useRef(null);
 
   return (
     <Draggable
+      nodeRef={nodeRef}
       handle=".drag-handle"
       onStop={(e, data) => onMove({ x: data.x, y: data.y })}
       position={position}
       bounds="parent"
     >
       <div
+        ref={nodeRef}
         className={cn(
           "absolute rounded-lg shadow-2xl transition-all duration-300 ease-in-out animate-in fade-in-50 zoom-in-90",
           isMinimized && "opacity-0 pointer-events-none scale-90 -translate-y-4",

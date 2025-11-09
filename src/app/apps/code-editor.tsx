@@ -120,7 +120,12 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       });
       return;
     }
-    setIsLoading("save");
+    
+    // UI feedback for saving
+    toast({
+        title: "Saving...",
+        description: `${filePath} is being saved to your cloud storage.`,
+    });
 
     const fileRef = ref(storage, filePath);
     
@@ -128,20 +133,20 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       .then(() => {
         toast({
           title: "File Saved!",
-          description: `${filePath} has been saved to your cloud storage.`,
+          description: `${filePath} has been saved successfully.`,
         });
         osEvent.emit('file-system-change', undefined);
       })
       .catch((serverError) => {
+        // The permission error is emitted globally, so we don't need a specific toast here
+        // as the developer overlay will show the detailed error.
+        console.error("Save failed:", serverError);
         const permissionError = new FirestorePermissionError({
           path: fileRef.fullPath,
-          operation: 'write',
+          operation: 'write', // Using 'write' for storage operations
           requestResourceData: `(file content of ${currentCode.length} bytes)`,
         });
         errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
-         setIsLoading(null);
       });
   }
 

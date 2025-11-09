@@ -58,7 +58,11 @@ export default function PixelStreamerApp() {
       return;
     }
 
-    setIsLoading("save");
+    toast({
+        title: "Saving Image...",
+        description: "Your new creation is being saved to the File Explorer."
+    });
+    
     try {
       // Create a filename from the prompt
       const safePrompt = prompt.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 50);
@@ -86,9 +90,6 @@ export default function PixelStreamerApp() {
             requestResourceData: '(image data)',
           });
           errorEmitter.emit('permission-error', permissionError);
-        })
-        .finally(() => {
-           setIsLoading(null);
         });
 
     } catch (error) {
@@ -98,7 +99,6 @@ export default function PixelStreamerApp() {
             description: "An unexpected error occurred while preparing the image.",
             variant: "destructive"
         });
-        setIsLoading(null);
     }
   };
 

@@ -5,35 +5,46 @@ import {
   CommandDialog,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
 import { App, APPS } from "@/lib/apps";
-import { Settings, Power, Layout, Command, BrainCircuit, Loader2 } from "lucide-react";
+import { Settings, Power, Layout, Command, BrainCircuit, Loader2, File } from "lucide-react";
 import { agenticToolUser } from "@/ai/flows/agenticToolUser";
 import React, { useEffect, useState, useCallback } from "react";
 import { WindowInstance } from "./desktop";
+import { getStorage, ref, listAll } from "firebase/storage";
+import { useFirebase } from "@/firebase";
+
+type FileSearchResult = {
+    path: string;
+}
 
 type CommandPaletteProps = {
     open: boolean;
     setOpen: (open: boolean) => void;
-    onOpenApp: (app: App) => void;
+    onOpenApp: (app: App, props?: Record<string, any>) => void;
     openApps: WindowInstance[];
     onArrangeWindows: () => void;
+    onOpenFile: (filePath: string) => void;
 }
 
-export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onArrangeWindows }: CommandPaletteProps) {
+export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onArrangeWindows, onOpenFile }: CommandPaletteProps) {
   const settingsApp = APPS.find(app => app.id === 'settings');
   const [searchValue, setSearchValue] = useState("");
   const [agentResponse, setAgentResponse] = useState<string | null>(null);
+  const [fileSearchResults, setFileSearchResults] = useState<FileSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { user } = useFirebase();
 
   const handleValueChange = (value: string) => {
     setSearchValue(value);
     if (agentResponse) {
       setAgentResponse(null);
+    }
+    if (fileSearchResults.length > 0) {
+        setFileSearchResults([]);
     }
   }
 
@@ -48,34 +59,61 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     }
     setOpen(false);
   }
+
+  const handleOpenFile = (path: string) => {
+      onOpenFile(path);
+      setOpen(false);
+  }
   
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchValue) return;
+    if (!searchValue || !user) return;
     
     setIsLoading(true);
     setAgentResponse(null);
+    setFileSearchResults([]);
 
     try {
+      // Fetch all files to provide context to the agent
+      const storage = getStorage();
+      const basePath = `users/${user.uid}`;
+      const listRef = ref(storage, basePath);
+      const res = await listAll(listRef);
+      const allFiles = res.items.map(item => item.fullPath);
+
       const openAppNames = openApps.map(a => a.app.name);
-      const response = await agenticToolUser(searchValue, openAppNames);
+      
+      const response = await agenticToolUser(searchValue, {
+          openApps: openAppNames,
+          allFiles: allFiles,
+      });
 
       const toolCalls = response.toolCalls();
       let shouldClose = true;
 
       if (toolCalls.length > 0) {
         for (const toolCall of toolCalls) {
-          if (toolCall.toolName === 'openApp') {
-            const appId = (toolCall.input as any).appId;
-            const appToOpen = APPS.find(a => a.id === appId);
-            if (appToOpen) {
-              onOpenApp(appToOpen);
-            }
-          } else if (toolCall.toolName === 'arrangeWindows') {
-            onArrangeWindows();
-          } else {
-            // A tool other than opening/arranging was called, so we probably want to see the text response.
-            shouldClose = false;
+          switch (toolCall.toolName) {
+            case 'openApp':
+                const appId = (toolCall.input as any).appId;
+                const appToOpen = APPS.find(a => a.id === appId);
+                if (appToOpen) {
+                  onOpenApp(appToOpen);
+                }
+                break;
+            case 'arrangeWindows':
+                onArrangeWindows();
+                break;
+            case 'searchFiles':
+                const searchResults = (toolCall.output as any).results;
+                if(searchResults && searchResults.length > 0) {
+                    setFileSearchResults(searchResults.map((path: string) => ({ path })));
+                    shouldClose = false; // Keep palette open to show results
+                }
+                break;
+            default:
+                shouldClose = false;
+                break;
           }
         }
       }
@@ -97,12 +135,13 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     } finally {
       setIsLoading(false);
     }
-  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows]);
+  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile]);
 
   useEffect(() => {
     if (!open) {
       setSearchValue("");
       setAgentResponse(null);
+      setFileSearchResults([]);
       setIsLoading(false);
     }
   }, [open]);
@@ -111,72 +150,98 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
       !searchValue || app.name.toLowerCase().includes(searchValue.toLowerCase())
   );
 
+  const renderContent = () => {
+    if(isLoading) {
+        return (
+            <div className="flex justify-center items-center p-4">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span>Aether is thinking...</span>
+            </div>
+        );
+    }
+
+    if (agentResponse) {
+        return <div className="p-4 text-sm text-center">{agentResponse}</div>;
+    }
+    
+    if (fileSearchResults.length > 0) {
+        return (
+            <CommandGroup heading="Found Files">
+                {fileSearchResults.map(file => (
+                     <CommandItem key={file.path} onSelect={() => handleOpenFile(file.path)}>
+                        <File className="mr-2 h-4 w-4" />
+                        <span>{file.path.split('/').pop()}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{file.path.replace(`users/${user?.uid}/`, '~/')}</span>
+                    </CommandItem>
+                ))}
+            </CommandGroup>
+        )
+    }
+
+    if (searchValue && filteredApps.length === 0) {
+        return <CommandEmpty>No results found. Press Enter to ask AI.</CommandEmpty>
+    }
+
+    return (
+        <>
+            {searchValue && filteredApps.length > 0 ? (
+                <CommandGroup heading="Apps">
+                    {filteredApps.map(app => (
+                        <CommandItem key={app.id} onSelect={() => handleOpenApp(app)}>
+                            <app.Icon className="mr-2 h-4 w-4" />
+                            <span>{app.name}</span>
+                        </CommandItem>
+                    ))}
+                </CommandGroup>
+            ) : !searchValue ? (
+                <CommandGroup heading="Suggestions">
+                <CommandItem onSelect={() => {setSearchValue("Open the code editor"); handleSubmit(new Event('submit') as any);}}>
+                    <Command className="mr-2 h-4 w-4" />
+                    <span>Open the code editor</span>
+                </CommandItem>
+                 <CommandItem onSelect={() => {setSearchValue("find my auth form component"); handleSubmit(new Event('submit') as any);}}>
+                  <File className="mr-2 h-4 w-4" />
+                  <span>Find a file...</span>
+                </CommandItem>
+                <CommandItem onSelect={() => {setSearchValue("What applications are running?"); handleSubmit(new Event('submit') as any);}}>
+                    <BrainCircuit className="mr-2 h-4 w-4" />
+                    <span>What applications are running?</span>
+                </CommandItem>
+                <CommandItem onSelect={handleOpenSettings}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Open Settings</span>
+                </CommandItem>
+                </CommandGroup>
+            ) : null}
+
+            { (filteredApps.length > 0 || !searchValue) && <CommandSeparator /> }
+            
+            <CommandGroup heading="System">
+            <CommandItem onSelect={() => { onArrangeWindows(); setOpen(false); }}>
+                <Layout className="mr-2 h-4 w-4" />
+                <span>Arrange Windows</span>
+            </CommandItem>
+            <CommandItem onSelect={() => setOpen(false)}>
+                <Power className="mr-2 h-4 w-4" />
+                <span>Shutdown</span>
+            </CommandItem>
+            </CommandGroup>
+        </>
+    );
+  }
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <form onSubmit={handleSubmit}>
         <CommandInput 
-          placeholder="Ask AI or search apps..." 
+          placeholder="Ask AI or search apps & files..." 
           value={searchValue}
           onValueChange={handleValueChange}
+          disabled={isLoading}
         />
       </form>
       <CommandList>
-        <CommandEmpty>
-            {isLoading ? (
-                <div className="flex justify-center items-center p-4">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    <span>Aether is thinking...</span>
-                </div>
-            ) : agentResponse ? (
-                <div className="p-4 text-sm text-center">{agentResponse}</div>
-            ) : (
-                "No results found. Press Enter to ask AI."
-            )}
-        </CommandEmpty>
-        
-        {!isLoading && !agentResponse && (
-            <>
-                {searchValue && filteredApps.length > 0 ? (
-                  <CommandGroup heading="Apps">
-                      {filteredApps.map(app => (
-                          <CommandItem key={app.id} onSelect={() => handleOpenApp(app)}>
-                              <app.Icon className="mr-2 h-4 w-4" />
-                              <span>{app.name}</span>
-                          </CommandItem>
-                      ))}
-                  </CommandGroup>
-                ) : !searchValue ? (
-                  <CommandGroup heading="Suggestions">
-                    <CommandItem onSelect={() => {setSearchValue("Open the code editor"); handleSubmit(new Event('submit') as any);}}>
-                      <Command className="mr-2 h-4 w-4" />
-                      <span>Open the code editor</span>
-                    </CommandItem>
-                     <CommandItem onSelect={() => {setSearchValue("What applications are running?"); handleSubmit(new Event('submit') as any);}}>
-                      <BrainCircuit className="mr-2 h-4 w-4" />
-                      <span>What applications are running?</span>
-                    </CommandItem>
-                    <CommandItem onSelect={handleOpenSettings}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Open Settings</span>
-                    </CommandItem>
-                  </CommandGroup>
-                ) : null}
-
-                { (filteredApps.length > 0 || !searchValue) && <CommandSeparator /> }
-                
-                <CommandGroup heading="System">
-                <CommandItem onSelect={() => { onArrangeWindows(); setOpen(false); }}>
-                    <Layout className="mr-2 h-4 w-4" />
-                    <span>Arrange Windows</span>
-                </CommandItem>
-                <CommandItem onSelect={() => setOpen(false)}>
-                    <Power className="mr-2 h-4 w-4" />
-                    <span>Shutdown</span>
-                </CommandItem>
-                </CommandGroup>
-            </>
-        )}
-        
+        {renderContent()}
       </CommandList>
     </CommandDialog>
   );

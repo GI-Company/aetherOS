@@ -382,6 +382,7 @@ export default function Desktop() {
         onOpenApp={openApp}
         openApps={openApps}
         onArrangeWindows={arrangeWindows}
+        onOpenFile={openFile}
       />
     </div>
   );

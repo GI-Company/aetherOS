@@ -37,9 +37,9 @@ const prompt = ai.definePrompt({
   name: 'semanticFileSearchPrompt',
   input: {schema: SemanticFileSearchInputSchema},
   output: {schema: SemanticFileSearchOutputSchema},
-  prompt: `You are an AI assistant that helps users find files on their system.
+  prompt: `You are an AI file system assistant. Your job is to help users find files based on a natural language query.
 
-  Based on the user's query, return a list of file paths that match the query.
+  Based on the user's query, return a list of file paths that are most relevant.
 
   Query: {{{query}}}
   `,

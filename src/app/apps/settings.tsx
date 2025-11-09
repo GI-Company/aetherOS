@@ -1,3 +1,4 @@
+
 'use client';
 
 import {Button} from '@/components/ui/button';
@@ -39,9 +40,10 @@ import { setDocumentNonBlocking } from '@/firebase';
 
 interface SettingsAppProps {
   onOpenApp?: (app: App) => void;
+  defaultTab?: string;
 }
 
-export default function SettingsApp({onOpenApp}: SettingsAppProps) {
+export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
   const [themePrompt, setThemePrompt] = useState('');
   const [accentPrompt, setAccentPrompt] = useState('');
   const [isLoading, setIsLoading] = useState<'theme' | 'accent' | 'otp' | null>(
@@ -390,7 +392,7 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
   return (
     <div className="p-4 h-full">
       <h2 className="text-2xl font-headline mb-4">Settings</h2>
-      <Tabs defaultValue="appearance" className="w-full">
+      <Tabs defaultValue={defaultTab || "appearance"} className="w-full">
         <TabsList>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -11,8 +12,6 @@ import { Send, Loader2, Users, UserPlus } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { APPS, App } from '@/lib/apps';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 
 interface ChatMessage {
   id: string;
@@ -33,7 +32,7 @@ interface UserPresence {
 }
 
 interface CollaborationAppProps {
-  onOpenApp?: (app: App) => void;
+  onOpenApp?: (app: App, props?: Record<string, any>) => void;
 }
 
 const getInitials = (name?: string | null) => {
@@ -153,9 +152,8 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const openSettingsToAccountTab = () => {
     const settingsApp = APPS.find(app => app.id === 'settings');
     if (settingsApp && onOpenApp) {
-      onOpenApp(settingsApp);
-      // We would ideally pass a prop to open a specific tab,
-      // but for now, just opening the app is a good first step.
+      // Pass props to indicate which tab to open
+      onOpenApp(settingsApp, { defaultTab: 'account' });
     }
   }
 

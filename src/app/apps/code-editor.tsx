@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ref, uploadString } from 'firebase/storage';
 import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { osEvent } from "@/lib/events";
 
 interface CodeEditorAppProps {
   filePath?: string;
@@ -100,6 +101,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
           title: "File Saved!",
           description: `${filePath} has been saved to your cloud storage.`,
         });
+        osEvent.emit('file-system-change', undefined);
       })
       .catch((serverError) => {
         // Create the rich, contextual error

@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Folder, File, Search, Loader2, Upload, FolderPlus, ArrowUp } from "lucide-react";
+import { Folder, File, Search, Loader2, Upload, FolderPlus, ArrowUp, RefreshCw } from "lucide-react";
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { formatBytes } from "@/lib/utils";
+import { osEvent } from "@/lib/events";
 
 type FileItem = {
   name: string;
@@ -30,7 +31,7 @@ const useStorageFiles = (currentPath: string) => {
     const [error, setError] = useState<Error | null>(null);
 
     const refresh = useCallback(async () => {
-        if (!user) return;
+        if (!user || !currentPath) return;
         setIsLoading(true);
         setError(null);
         try {
@@ -78,6 +79,18 @@ const useStorageFiles = (currentPath: string) => {
 
     useEffect(() => {
         refresh();
+        
+        // Subscribe to file system changes
+        const handleFileSystemChange = () => {
+            console.log("File system change detected, refreshing explorer...");
+            refresh();
+        };
+
+        osEvent.on('file-system-change', handleFileSystemChange);
+
+        return () => {
+            osEvent.off('file-system-change', handleFileSystemChange);
+        };
     }, [refresh]);
 
     return { allFiles, isLoading, error, refresh };
@@ -107,8 +120,10 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
   const { toast } = useToast();
   
   useEffect(() => {
+    if (basePath && !currentPath) {
       setCurrentPath(basePath);
-  }, [basePath])
+    }
+  }, [basePath, currentPath])
 
   useEffect(() => {
     // By default, display all files from storage.
@@ -162,7 +177,7 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
         await uploadBytes(storageRef, uploadFile);
         setUploadProgress(100);
         toast({ title: "Upload Complete", description: `${uploadFile.name} has been uploaded.` });
-        refresh();
+        osEvent.emit('file-system-change', undefined);
     } catch(err: any) {
         console.error(err);
         toast({ title: "Upload Failed", description: err.message, variant: "destructive"});
@@ -187,7 +202,7 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
           toast({ title: 'Folder Created', description: `Folder "${folderName}" was created.` });
           setNewFolderName('');
           setIsCreatingFolder(false);
-          refresh();
+          osEvent.emit('file-system-change', undefined);
       } catch (err: any) {
           console.error("Error creating folder:", err);
           toast({ title: "Folder Creation Failed", description: err.message, variant: "destructive" });
@@ -204,8 +219,11 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="p-2 border-b flex items-center gap-2 flex-wrap">
-        <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={currentPath === basePath}>
+        <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={currentPath === basePath || isLoading}>
             <ArrowUp className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={refresh} disabled={isLoading}>
+            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
         </Button>
          <form onSubmit={handleSearch} className="relative flex-grow">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -276,7 +294,7 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
         </Table>
       </ScrollArea>
       <div className="p-2 border-t text-xs text-muted-foreground">
-        {isLoading ? 'Loading...' : `${displayedFiles.length} of ${allFiles.length} items`} | Path: {currentPath.replace(basePath, '~')}
+        {isLoading ? 'Loading...' : `${allFiles.length} items`} | Path: {currentPath.replace(basePath, '~')}
       </div>
     </div>
   );

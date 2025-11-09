@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Layers, Loader2, Wand2, Save } from "lucide-react";
 import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { ref, uploadBytes } from "firebase/storage";
+import { osEvent } from "@/lib/events";
 
 export default function PixelStreamerApp() {
   const [prompt, setPrompt] = useState("");
@@ -76,6 +77,7 @@ export default function PixelStreamerApp() {
             title: "Image Saved!",
             description: `${fileName} has been saved to your File Explorer.`
           });
+          osEvent.emit('file-system-change', undefined);
         })
         .catch((serverError) => {
           const permissionError = new FirestorePermissionError({

@@ -71,49 +71,44 @@ export default function Window({
   }, [isMinimized, position, size, api]);
 
   const bind = useDrag(
-    ({ down, movement: [mx, my], offset: [ox, oy], pinching, tap, event, memo }) => {
+    ({ down, movement: [mx, my], last, memo, event }) => {
       event.stopPropagation();
-      
-      const isResizeEvent = (event.target as HTMLElement)?.dataset?.resize === 'true';
-
-      if (pinching || (tap && !isResizeEvent)) return;
+      const target = event.target as HTMLElement;
+      const isResizeHandle = target.dataset.resize === 'true';
 
       if (!memo) {
         memo = {
-          isResizing: isResizeEvent,
+          initial: [x.get(), y.get()],
           initialSize: [width.get(), height.get()],
-          initialPos: [x.get(), y.get()],
+          isResizing: isResizeHandle,
         };
       }
-      
+
       if (memo.isResizing) {
         const newWidth = Math.max(MIN_WIDTH, memo.initialSize[0] + mx);
         const newHeight = Math.max(MIN_HEIGHT, memo.initialSize[1] + my);
-        api.start({ width: newWidth, height: newHeight });
-        if (!down) {
+        api.start({ width: newWidth, height: newHeight, immediate: down });
+        if (last) {
             updateSize(id, { width: newWidth, height: newHeight });
         }
-      } else {
-        api.start({ x: ox, y: oy });
-        if (!down) {
-          updatePosition(id, { x: ox, y: oy });
+      } else { // Dragging
+        api.start({ x: memo.initial[0] + mx, y: memo.initial[1] + my, immediate: down });
+        if (last) {
+          updatePosition(id, { x: memo.initial[0] + mx, y: memo.initial[1] + my });
         }
       }
-
       return memo;
     },
     {
       from: () => [x.get(), y.get()],
       bounds,
-      handle: headerRef,
       filterTaps: true,
+      enabled: !isMinimized && !isMaximized,
       pointer: { capture: false },
-      enabled: !isMinimized,
-      // Configuration for the resize handle
-      eventOptions: { passive: false },
-      drag: {
-        // Allows drag to be triggered by the resize handle as well
-        filter: (event) => (event.target as HTMLElement)?.dataset?.resize === 'true'
+      // Only allow dragging from the header or resizing from the handle
+      filter: ({ event }) => {
+        const target = event.target as HTMLElement;
+        return target.dataset.resize === 'true' || headerRef.current?.contains(target);
       }
     }
   );

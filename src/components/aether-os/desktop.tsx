@@ -1,5 +1,5 @@
 
-"use client";
+'use client';
 
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -12,7 +12,6 @@ import CommandPalette from "./command-palette";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "../ui/toast";
 import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
-import { cn } from "@/lib/utils";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2 } from "lucide-react";
@@ -304,8 +303,7 @@ export default function Desktop() {
             const nextApp = prev.filter(a => a.id !== id && !a.isMinimized).sort((a,b) => b.zIndex - a.zIndex)[0];
             setFocusedAppId(nextApp ? nextApp.id : null);
           } else if (!isNowMinimized) {
-            setFocusedAppId(id);
-            setHighestZIndex(prevZ => prevZ + 1);
+            focusApp(id);
             return { ...app, isMinimized: false, zIndex: highestZIndex + 1 };
           }
           return { ...app, isMinimized: isNowMinimized, isMaximized: false };
@@ -428,3 +426,5 @@ export default function Desktop() {
     </div>
   );
 }
+
+    

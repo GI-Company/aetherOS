@@ -9,7 +9,7 @@ import { generateAdaptivePalette } from "@/ai/flows/adaptive-color-palettes";
 import { generateAccentColor } from "@/ai/flows/generate-accent-color";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Wand2, Loader2, Palette, Sparkles, User } from "lucide-react";
+import { Wand2, Loader2, Palette, Sparkles, User, PartyPopper } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/use-theme";
 import { useFirebase } from "@/firebase";
@@ -71,6 +71,15 @@ export default function SettingsApp() {
       setIsLoading(null);
     }
   }
+  
+  const onAccountLinked = () => {
+    toast({
+        title: "Account Upgraded!",
+        description: "Your settings and themes are now saved to your permanent account.",
+        icon: <PartyPopper className="h-5 w-5 text-green-500" />,
+    });
+  };
+
 
   const renderAccountContent = () => {
     if (user?.isAnonymous) {
@@ -78,8 +87,8 @@ export default function SettingsApp() {
         <div className="text-center mt-8">
           <User className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium">You are in Trial Mode</h3>
-          <p className="text-sm text-muted-foreground mb-4">Sign in to create a permanent account and save your settings.</p>
-          <AuthForm allowAnonymous={false} />
+          <p className="text-sm text-muted-foreground mb-4">Upgrade to a permanent account to save your settings.</p>
+          <AuthForm allowAnonymous={false} onLinkSuccess={onAccountLinked} />
         </div>
       )
     }

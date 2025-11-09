@@ -1,7 +1,7 @@
 
 'use client';
 
-import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -35,9 +35,10 @@ function GoogleIcon() {
 
 interface AuthFormProps {
   allowAnonymous?: boolean;
+  onLinkSuccess?: () => void;
 }
 
-export default function AuthForm({ allowAnonymous = true }: AuthFormProps) {
+export default function AuthForm({ allowAnonymous = true, onLinkSuccess }: AuthFormProps) {
   const auth = getAuth();
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
@@ -45,11 +46,22 @@ export default function AuthForm({ allowAnonymous = true }: AuthFormProps) {
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      toast({
-        title: 'Authentication Successful',
-        description: 'Welcome to AetherOS.',
-      });
+      if (auth.currentUser?.isAnonymous) {
+        // User is anonymous, link the account
+        await linkWithPopup(auth.currentUser, provider);
+        toast({
+          title: 'Account Upgraded!',
+          description: 'Your trial account is now a permanent Google account.',
+        });
+        if (onLinkSuccess) onLinkSuccess();
+      } else {
+        // New user, sign in normally
+        await signInWithPopup(auth, provider);
+        toast({
+          title: 'Authentication Successful',
+          description: 'Welcome to AetherOS.',
+        });
+      }
     } catch (error: any) {
       console.error(error);
       toast({
@@ -99,7 +111,7 @@ export default function AuthForm({ allowAnonymous = true }: AuthFormProps) {
         <CardContent className="flex flex-col gap-4">
           <Button className="w-full" onClick={handleGoogleSignIn}>
             <GoogleIcon />
-            Sign in with Google
+            {auth.currentUser?.isAnonymous ? 'Upgrade with Google' : 'Sign in with Google'}
           </Button>
 
           {allowAnonymous && (

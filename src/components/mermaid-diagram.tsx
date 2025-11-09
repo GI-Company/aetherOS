@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { MermaidConfig } from 'mermaid';
-import { useTheme } from 'next-themes';
 
 // This component dynamically imports mermaid to avoid SSR issues.
 const MermaidDiagram = ({ chart }: { chart: string }) => {

@@ -13,10 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "../ui/toast";
 import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/firebase";
+import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
+import { doc } from "firebase/firestore";
 
 export type WindowInstance = {
   id: number;
@@ -35,9 +36,20 @@ export type WindowInstance = {
 export default function Desktop() {
   const { user, isUserLoading } = useUser();
   const { applyTheme } = useTheme();
+  const firestore = useFirestore();
 
-  // TODO: Use a useUserPreferences hook to get the theme from firestore
-  // and apply it here.
+  const userPreferencesRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid) return null;
+    return doc(firestore, 'userPreferences', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: userPreferences, isLoading: isPreferencesLoading } = useDoc(userPreferencesRef);
+  
+  useEffect(() => {
+    if (userPreferences) {
+      applyTheme(userPreferences as any, false);
+    }
+  }, [userPreferences, applyTheme]);
   
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   const [openApps, setOpenApps] = useState<WindowInstance[]>([]);
@@ -260,7 +272,7 @@ export default function Desktop() {
     }));
   };
 
-  if (isUserLoading) {
+  if (isUserLoading || (user && isPreferencesLoading)) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />

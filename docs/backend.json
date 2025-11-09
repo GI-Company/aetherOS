@@ -20,6 +20,44 @@
           "format": "uri"
         }
       }
+    },
+    "userPreference": {
+      "title": "User Preference",
+      "description": "Stores user-specific preferences, such as UI theme.",
+      "type": "object",
+      "properties": {
+        "palette": {
+          "type": "object",
+          "properties": {
+            "primaryColor": {
+              "type": "string"
+            },
+            "secondaryColor": {
+              "type": "string"
+            },
+            "backgroundColor": {
+              "type": "string"
+            },
+            "textColor": {
+              "type": "string"
+            },
+            "accentColor": {
+              "type": "string"
+            }
+          }
+        },
+        "accent": {
+          "type": "object",
+          "properties": {
+            "accentColor": {
+              "type": "string"
+            },
+            "accentForegroundColor": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   },
   "auth": {
@@ -33,6 +71,12 @@
         "$ref": "#/entities/user"
       },
       "description": "User profile information."
+    },
+    "/userPreferences/{userId}": {
+      "schema": {
+        "$ref": "#/entities/userPreference"
+      },
+      "description": "Stores user-specific preferences, such as UI theme."
     }
   }
 }

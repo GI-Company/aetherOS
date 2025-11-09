@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useCallback } from "react";
+import { useFirebase } from "@/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { FirestorePermissionError } from "@/firebase/errors";
+import { errorEmitter } from "@/firebase/error-emitter";
 
 export type Palette = {
     primaryColor: string;
@@ -13,6 +17,11 @@ export type Palette = {
 export type Accent = {
     accentColor: string;
     accentForegroundColor: string;
+}
+
+export type ThemeSettings = {
+    palette?: Palette;
+    accent?: Accent;
 }
 
 function hexToHsl(H: string): [number, number, number] | null {
@@ -59,10 +68,9 @@ const applyHsl = (variable: string, hex: string) => {
 }
 
 export function useTheme() {
-    const [palette, setPalette] = useState<Palette | null>(null);
-    const [accent, setAccent] = useState<Accent | null>(null);
+    const { firestore, user } = useFirebase();
 
-    const applyTheme = useCallback((theme: { palette?: Palette, accent?: Accent }) => {
+    const applyTheme = useCallback((theme: ThemeSettings, shouldSave: boolean = true) => {
         if (theme.palette) {
             applyHsl('--background', theme.palette.backgroundColor);
             applyHsl('--foreground', theme.palette.textColor);
@@ -76,7 +84,6 @@ export function useTheme() {
             applyHsl('--muted-foreground', theme.palette.textColor);
             applyHsl('--border', theme.palette.primaryColor);
             applyHsl('--input', theme.palette.primaryColor);
-            setPalette(theme.palette);
         }
         if (theme.accent) {
             applyHsl('--primary', theme.accent.accentColor);
@@ -84,9 +91,20 @@ export function useTheme() {
             applyHsl('--ring', theme.accent.accentColor);
             applyHsl('--primary-foreground', theme.accent.accentForegroundColor);
             applyHsl('--accent-foreground', theme.accent.accentForegroundColor);
-            setAccent(theme.accent);
         }
-    }, []);
+
+        if (shouldSave && firestore && user) {
+            const prefRef = doc(firestore, 'userPreferences', user.uid);
+            setDoc(prefRef, theme, { merge: true }).catch((e) => {
+                const permissionError = new FirestorePermissionError({
+                    path: prefRef.path,
+                    operation: 'update',
+                    requestResourceData: theme,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
+        }
+    }, [firestore, user]);
 
     const setScheme = useCallback((scheme: 'light' | 'dark') => {
         if (typeof document !== 'undefined') {
@@ -96,5 +114,5 @@ export function useTheme() {
     }, []);
 
 
-    return { palette, accent, applyTheme, setScheme };
+    return { applyTheme, setScheme };
 }

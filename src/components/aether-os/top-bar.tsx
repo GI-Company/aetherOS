@@ -53,10 +53,20 @@ export default function TopBar() {
 
     if (user.isAnonymous) {
       return (
-        <div className="flex items-center gap-2 text-sm text-yellow-400">
-          <Shield className="h-4 w-4" />
-          <span>Trial Mode: {formattedTime}</span>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-2 text-sm text-yellow-400 outline-none">
+            <Shield className="h-4 w-4" />
+            <span>Trial Mode: {formattedTime}</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Guest Session</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => signOut(auth)}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sign out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       );
     }
 

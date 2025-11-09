@@ -16,8 +16,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
-import { doc, serverTimestamp } from "firebase/firestore";
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { doc } from "firebase/firestore";
 import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 
 
@@ -52,7 +51,7 @@ export default function Desktop() {
     if (!firestore || !user?.uid || !user.isAnonymous) return null;
     return doc(firestore, 'trialUsers', user.uid);
   }, [firestore, user?.uid, user?.isAnonymous]);
-  const { data: trialData } = useDoc(trialUserRef);
+  useDoc(trialUserRef);
 
 
   useEffect(() => {
@@ -70,16 +69,6 @@ export default function Desktop() {
   const { toast } = useToast();
   const desktopRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
-
-  // When an anonymous user logs in, create a trial document for them
-  useEffect(() => {
-    // This condition is now more stringent to prevent race conditions.
-    // It will ONLY run if the user is explicitly anonymous and the trial data hasn't loaded yet.
-    if (user && user.isAnonymous === true && firestore && !trialData) {
-      const trialRef = doc(firestore, 'trialUsers', user.uid);
-      setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
-    }
-  }, [user, firestore, trialData]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -338,7 +327,7 @@ export default function Desktop() {
 
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background font-body flex flex-col">
+    <div className="h-screen w-screen overflow-hidden bg-background font-body flex flex-col" ref={desktopRef}>
       {wallpaper && (
         <Image
           src={wallpaper.imageUrl}

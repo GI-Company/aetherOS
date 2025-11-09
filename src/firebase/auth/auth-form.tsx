@@ -160,7 +160,12 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess }: AuthF
   
   const handleAnonymousSignIn = async () => {
     try {
-      await signInAnonymously(auth);
+      const userCredential = await signInAnonymously(auth);
+      
+      // Create the trial document immediately after anonymous sign-in
+      const trialRef = doc(firestore, 'trialUsers', userCredential.user.uid);
+      setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
+      
       toast({
         title: 'Entering Trial Mode',
         description: 'You have 15 minutes to explore AetherOS.',

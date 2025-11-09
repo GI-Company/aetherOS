@@ -10,8 +10,8 @@ import { useState, useEffect }from "react";
 import { Wand2, Sparkles, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { getStorage, ref, uploadString } from 'firebase/storage';
-import { useFirebase } from "@/firebase";
+import { ref, uploadString } from 'firebase/storage';
+import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
 
 interface CodeEditorAppProps {
   filePath?: string;
@@ -25,6 +25,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
   const [isLoading, setIsLoading] = useState<"generate" | "refactor" | "save" | null>(null);
   const { toast } = useToast();
   const { user } = useFirebase();
+  const storage = useStorage();
   
   useEffect(() => {
     if (initialFilePath) {
@@ -79,8 +80,8 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
     }
   }
 
-  const handleSave = async () => {
-     if (!user || !filePath || filePath === '/untitled') {
+  const handleSave = () => {
+     if (!user || !filePath || filePath === '/untitled' || !storage) {
       toast({
         title: "Cannot Save",
         description: "Please open a valid file from the explorer before saving.",
@@ -89,24 +90,38 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       return;
     }
     setIsLoading("save");
-    try {
-      const storage = getStorage();
-      const fileRef = ref(storage, filePath);
-      await uploadString(fileRef, code);
-      toast({
-        title: "File Saved!",
-        description: `${filePath} has been saved to your cloud storage.`,
+
+    const fileRef = ref(storage, filePath);
+    
+    // Use non-blocking upload with centralized error handling
+    uploadString(fileRef, code)
+      .then(() => {
+        toast({
+          title: "File Saved!",
+          description: `${filePath} has been saved to your cloud storage.`,
+        });
+      })
+      .catch((serverError) => {
+        // Create the rich, contextual error
+        const permissionError = new FirestorePermissionError({
+          path: fileRef.fullPath,
+          operation: 'write',
+          requestResourceData: `(file content of ${code.length} bytes)`,
+        });
+
+        // Emit the error to be caught by the global error listener
+        errorEmitter.emit('permission-error', permissionError);
+
+        // Also show a user-friendly toast
+        toast({
+          title: "Save Failed",
+          description: "Check the console or error overlay for details on the permission error.",
+          variant: "destructive",
+        });
+      })
+      .finally(() => {
+         setIsLoading(null);
       });
-    } catch (error: any) {
-       console.error("Failed to save file:", error);
-       toast({
-        title: "Save Failed",
-        description: error.message || "An error occurred while saving the file.",
-        variant: "destructive",
-      });
-    } finally {
-        setIsLoading(null);
-    }
   }
 
 

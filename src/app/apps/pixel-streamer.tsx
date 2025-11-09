@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { generateImage } from "@/ai/flows/generate-image";
 import { useToast } from "@/hooks/use-toast";
 import { Layers, Loader2, Wand2, Save } from "lucide-react";
-import { useFirebase } from "@/firebase";
-import { getStorage, ref, uploadBytes } from "firebase/storage";
+import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { ref, uploadBytes } from "firebase/storage";
 
 export default function PixelStreamerApp() {
   const [prompt, setPrompt] = useState("");
@@ -19,6 +19,7 @@ export default function PixelStreamerApp() {
   const [isLoading, setIsLoading] = useState<"generate" | "save" | null>(null);
   const { toast } = useToast();
   const { user } = useFirebase();
+  const storage = useStorage();
 
   const handleGenerate = async () => {
     if (!prompt) {
@@ -51,8 +52,8 @@ export default function PixelStreamerApp() {
   };
 
   const handleSaveImage = async () => {
-    if (!generatedImage || !user) {
-      toast({ title: "No image to save", variant: "destructive" });
+    if (!generatedImage || !user || !storage) {
+      toast({ title: "No image to save or user not logged in.", variant: "destructive" });
       return;
     }
 
@@ -67,24 +68,39 @@ export default function PixelStreamerApp() {
       const response = await fetch(generatedImage);
       const blob = await response.blob();
       
-      const storage = getStorage();
       const storageRef = ref(storage, filePath);
       
-      await uploadBytes(storageRef, blob);
-
-      toast({
-        title: "Image Saved!",
-        description: `${fileName} has been saved to your File Explorer.`
-      });
+      uploadBytes(storageRef, blob)
+        .then(() => {
+           toast({
+            title: "Image Saved!",
+            description: `${fileName} has been saved to your File Explorer.`
+          });
+        })
+        .catch((serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: storageRef.fullPath,
+            operation: 'write',
+            requestResourceData: '(image data)',
+          });
+          errorEmitter.emit('permission-error', permissionError);
+          toast({
+            title: "Save Failed",
+            description: "Could not save image. Check error overlay for details.",
+            variant: "destructive"
+          });
+        })
+        .finally(() => {
+           setIsLoading(null);
+        });
 
     } catch (error) {
-        console.error("Error saving image:", error);
+        console.error("Error preparing image for save:", error);
         toast({
             title: "Save Failed",
-            description: "An error occurred while saving the image to your storage.",
+            description: "An unexpected error occurred while preparing the image.",
             variant: "destructive"
         });
-    } finally {
         setIsLoading(null);
     }
   };

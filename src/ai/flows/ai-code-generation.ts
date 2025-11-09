@@ -4,7 +4,7 @@
  * @fileOverview A flow for generating code based on design patterns, architectural style guides, and visual mockups.
  *
  * - aiCodeGeneration - A function that takes a description of the desired code and generates code.
- * - AiCodeGenerationInput - The input type for the aiCodeGeneration function, a description of the desired code.
+ * - AiCodeGenerationInput - The input type for the aiCodegeneration function, a description of the desired code.
  * - AiCodeGenerationOutput - The return type for the aiCodeGeneration function, the generated code.
  */
 
@@ -31,11 +31,12 @@ const aiCodeGenerationPrompt = ai.definePrompt({
   name: 'aiCodeGenerationPrompt',
   input: {schema: AiCodeGenerationInputSchema},
   output: {schema: AiCodeGenerationOutputSchema},
-  prompt: `You are an AI code generator. Given a description of the desired code, generate the code.
+  prompt: `You are an AI code generator. Given a description of the desired code, generate the complete code for the file.
+Return ONLY the raw code for the file. Do not include any explanatory text or markdown formatting like \`\`\`typescript.
+Your output should be the complete and final content of the file.
 
 Description: {{{description}}}
-
-Code: `,
+`,
 });
 
 const aiCodeGenerationFlow = ai.defineFlow(

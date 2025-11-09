@@ -20,6 +20,7 @@ type WindowProps = {
   isFocused: boolean;
   bounds: React.RefObject<HTMLElement>;
   dockRef: React.RefObject<HTMLElement>;
+  children: React.ReactNode;
 };
 
 export default function Window({
@@ -33,9 +34,9 @@ export default function Window({
   isFocused,
   bounds,
   dockRef,
+  children
 }: WindowProps) {
   const { id, app, position, size, zIndex, isMinimized, isMaximized } = instance;
-  const AppContent = app.component;
   const headerRef = useRef<HTMLDivElement>(null);
   const MIN_WIDTH = 300;
   const MIN_HEIGHT = 200;
@@ -59,16 +60,30 @@ export default function Window({
     scale: 1,
     opacity: 1,
     config: { friction: 25, tension: 180 },
+    onRest: (result) => {
+      // After minimizing animation, if scale is 0, hide the element
+      if (isMinimized && result.value.scale === 0) {
+        const el = document.getElementById(`window-${id}`);
+        if(el) el.style.display = 'none';
+      }
+    }
   }));
-  
+
   React.useEffect(() => {
+    const el = document.getElementById(`window-${id}`);
     const dockPos = getDockPosition();
-    api.start({
-      to: isMinimized 
-        ? { x: dockPos.x - size.width/2, y: dockPos.y - size.height/2, scale: 0, opacity: 0 } 
-        : { x: position.x, y: position.y, width: size.width, height: size.height, scale: 1, opacity: 1 },
-    });
-  }, [isMinimized, position, size, api]);
+
+    if (isMinimized) {
+       api.start({
+        to: { x: dockPos.x - size.width/2, y: dockPos.y - size.height/2, scale: 0, opacity: 0 },
+      });
+    } else {
+      if(el) el.style.display = 'block';
+      api.start({
+        to: { x: position.x, y: position.y, width: size.width, height: size.height, scale: 1, opacity: 1 },
+      });
+    }
+  }, [isMinimized, position, size, api, id]);
 
   const bind = useDrag(
     ({ down, movement: [mx, my], last, memo, event }) => {
@@ -105,7 +120,6 @@ export default function Window({
       filterTaps: true,
       enabled: !isMinimized && !isMaximized,
       pointer: { capture: false },
-      // Only allow dragging from the header or resizing from the handle
       filter: ({ event }) => {
         const target = event.target as HTMLElement;
         return target.dataset.resize === 'true' || headerRef.current?.contains(target);
@@ -115,6 +129,7 @@ export default function Window({
 
   return (
     <animated.div
+      id={`window-${id}`}
       style={{
         width: isMaximized ? '100%' : width,
         height: isMaximized ? '100%' : height,
@@ -123,8 +138,7 @@ export default function Window({
         y,
         scale,
         opacity,
-        pointerEvents: isMinimized ? 'none' : 'auto',
-        transformOrigin: "center center",
+        touchAction: 'none'
       }}
       className={cn(
         "absolute rounded-lg shadow-2xl",
@@ -132,6 +146,7 @@ export default function Window({
         isMaximized && 'rounded-none'
       )}
       onMouseDownCapture={onFocus}
+      onPointerDownCapture={onFocus}
       {...bind()}
     >
       <Card
@@ -160,7 +175,7 @@ export default function Window({
           </div>
         </CardHeader>
         <CardContent className="p-0 flex-grow relative">
-          <AppContent />
+          {children}
            {!isMaximized && (
              <div 
                data-resize="true"

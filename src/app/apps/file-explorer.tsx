@@ -14,19 +14,23 @@ type FileItem = {
   type: "folder" | "file";
   size: string;
   modified: string;
+  path: string;
 };
 
 const initialFiles: FileItem[] = [
-  { name: "Projects", type: "folder", size: "12.5 GB", modified: "2024-05-20" },
-  { name: "Documents", type: "folder", size: "2.1 GB", modified: "2024-05-18" },
-  { name: "Photos", type: "folder", size: "50.8 GB", modified: "2024-05-15" },
-  { name: "aether_os_whitepaper.pdf", type: "file", size: "2.3 MB", modified: "2024-04-30" },
-  { name: "system_boot.log", type: "file", size: "15 KB", modified: "2024-05-21" },
-  { name: "q2_earnings_report.docx", type: "file", size: "850 KB", modified: "2024-04-12" },
-  { name: "vacation_photos_hawaii", type: "folder", size: "15.2 GB", modified: "2024-03-05" },
+  { name: "Projects", type: "folder", size: "12.5 GB", modified: "2024-05-20", path: "/Projects" },
+  { name: "Documents", type: "folder", size: "2.1 GB", modified: "2024-05-18", path: "/Documents" },
+  { name: "proactive-os-assistance.ts", type: "file", size: "2.1 KB", modified: "2024-05-22", path: "/src/ai/flows/proactive-os-assistance.ts"},
+  { name: "aether_os_whitepaper.pdf", type: "file", size: "2.3 MB", modified: "2024-04-30", path: "/Documents/aether_os_whitepaper.pdf" },
+  { name: "system_boot.log", type: "file", size: "15 KB", modified: "2024-05-21", path: "/var/log/system_boot.log" },
+  { name: "q2_earnings_report.docx", type: "file", size: "850 KB", modified: "2024-04-12", path: "/Documents/q2_earnings_report.docx" },
 ];
 
-export default function FileExplorerApp() {
+interface FileExplorerAppProps {
+  onOpenFile?: (filePath: string) => void;
+}
+
+export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
   const [files, setFiles] = useState(initialFiles);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -50,11 +54,13 @@ export default function FileExplorerApp() {
           return existingFile;
         }
         // Create a new mock file for AI-found items that weren't in the initial list
+        const isFolder = !name.includes('.');
         return {
           name: name,
-          type: name.includes('.') ? 'file' : 'folder',
+          type: isFolder ? 'folder' : 'file',
           size: '???',
           modified: new Date().toISOString().split('T')[0],
+          path: (isFolder ? '/' : '/found/') + name,
         }
       }).filter(Boolean) as FileItem[];
 
@@ -74,6 +80,12 @@ export default function FileExplorerApp() {
       setIsLoading(false);
     }
   };
+  
+  const handleDoubleClick = (file: FileItem) => {
+    if (file.type === 'file' && onOpenFile) {
+      onOpenFile(file.path);
+    }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -106,7 +118,7 @@ export default function FileExplorerApp() {
           </TableHeader>
           <TableBody>
             {files.map((file) => (
-              <TableRow key={file.name}>
+              <TableRow key={file.path} onDoubleClick={() => handleDoubleClick(file)} className={file.type === 'file' ? 'cursor-pointer' : ''}>
                 <TableCell className="font-medium flex items-center gap-2">
                   {file.type === 'folder' ? <Folder className="h-4 w-4 text-accent" /> : <File className="h-4 w-4 text-muted-foreground" />}
                   {file.name}

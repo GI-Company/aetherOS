@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import TopBar from "./top-bar";
 import Dock from "./dock";
 import Window from "./window";
@@ -30,8 +30,73 @@ export type WindowInstance = {
   previousState?: {
     position: { x: number; y: number };
     size: { width: number; height: number };
-  }
+  },
+  props?: Record<string, any>; // For passing props to app components
 };
+
+// Simulate reading file content
+const PROACTIVE_ASSISTANCE_CONTENT = `'use server';
+
+/**
+ * @fileOverview This file defines a Genkit flow for providing proactive OS assistance based on user activity and context.
+ *
+ * - proactiveOsAssistance - A function that triggers the proactive assistance flow.
+ * - ProactiveOsAssistanceInput - The input type for the proactiveOsAssistance function.
+ * - ProactiveOsAssistanceOutput - The return type for the proactiveOsAssistance function.
+ */
+
+import {ai} from '@/ai/genkit';
+import {z} from 'genkit';
+
+const ProactiveOsAssistanceInputSchema = z.object({
+  userActivity: z.string().describe("A description of the user\\'s current activity."),
+  context: z.string().describe("Additional context about the user\\'s environment and tasks."),
+});
+export type ProactiveOsAssistanceInput = z.infer<typeof ProactiveOsAssistanceInputSchema>;
+
+const ProactiveOsAssistanceOutputSchema = z.object({
+  suggestion: z.string().describe('A proactive, short, and actionable suggestion for the user. Should be empty if no suggestion is relevant.'),
+  reason: z.string().describe('The reasoning behind the suggestion.'),
+});
+export type ProactiveOsAssistanceOutput = z.infer<typeof ProactiveOsAssistanceOutputSchema>;
+
+export async function proactiveOsAssistance(input: ProactiveOsAssistanceInput): Promise<ProactiveOsAssistanceOutput> {
+  return proactiveOsAssistanceFlow(input);
+}
+
+const proactiveOsAssistancePrompt = ai.definePrompt({
+  name: 'proactiveOsAssistancePrompt',
+  input: {schema: ProactiveOsAssistanceInputSchema},
+  output: {schema: ProactiveOsAssistanceOutputSchema},
+  prompt: \`You are the core intelligence of the AetherOS, responsible for proactively assisting the user.
+  Based on the user's current activity and context, provide a single, actionable suggestion.
+  The suggestion should be concise and helpful. If no clear, high-value suggestion is available, return an empty string for the suggestion.
+
+  Examples:
+  - If user is in Code Editor and Browser is also open, suggest: "Arrange windows side-by-side for a better workflow?"
+  - If user is in Design Studio, suggest: "Need some inspiration? I can generate a new color palette."
+  - If many apps are open, suggest: "Feeling cluttered? I can close all background apps."
+
+  Current State:
+  Activity: {{{userActivity}}}
+  Context: {{{context}}}
+  
+  Your response should be based on the provided activity and context.\`,
+});
+
+const proactiveOsAssistanceFlow = ai.defineFlow(
+  {
+    name: 'proactiveOsAssistanceFlow',
+    inputSchema: ProactiveOsAssistanceInputSchema,
+    outputSchema: ProactiveOsAssistanceOutputSchema,
+  },
+  async input => {
+    const {output} = await proactiveOsAssistancePrompt(input);
+    return output!;
+  }
+);
+`;
+
 
 export default function Desktop() {
   const { user, isUserLoading } = useUser();
@@ -128,7 +193,6 @@ export default function Desktop() {
   useEffect(() => {
     const focusedApp = openApps.find(app => app.id === focusedAppId);
     
-    // Proactive Assistance AI
     if (focusedApp) {
        const proactiveToastTimeout = setTimeout(async () => {
         try {
@@ -138,7 +202,6 @@ export default function Desktop() {
                 context: `Current open applications: ${openAppNames}. Had ${focusedApp.app.name} focused for 10 seconds.`
             });
 
-            // Only show toast if there's a suggestion.
             if (assistance.suggestion) {
               let action;
               if (assistance.suggestion.toLowerCase().includes("arrange")) {
@@ -154,20 +217,23 @@ export default function Desktop() {
         } catch (error) {
             console.warn("Proactive assistance AI call failed:", error);
         }
-      }, 10000); // 10 seconds
+      }, 10000); 
 
       return () => clearTimeout(proactiveToastTimeout);
     }
   }, [focusedAppId, openApps, toast, arrangeWindows]);
 
-  const openApp = useCallback((app: App) => {
+  const openApp = useCallback((app: App, props: Record<string, any> = {}) => {
     const existingAppInstance = openApps.find(a => a.app.id === app.id);
     if (existingAppInstance) {
-        // If app is minimized, restore it and focus
         if (existingAppInstance.isMinimized) {
             toggleMinimize(existingAppInstance.id);
-        } else { // Otherwise, just focus it
+        } else {
             focusApp(existingAppInstance.id);
+        }
+        // If there are new props (like a new file path), update the existing instance
+        if(Object.keys(props).length > 0) {
+          setOpenApps(prev => prev.map(a => a.id === existingAppInstance.id ? { ...a, props: {...a.props, ...props}} : a));
         }
         return;
     }
@@ -182,6 +248,7 @@ export default function Desktop() {
       zIndex: highestZIndex + 1,
       isMinimized: false,
       isMaximized: false,
+      props,
     };
     setOpenApps((prev) => [...prev, newWindow]);
     setFocusedAppId(currentId);
@@ -220,7 +287,6 @@ export default function Desktop() {
     setOpenApps(prev => prev.map(app => app.id === id ? { ...app, size } : app));
   };
 
-
   const toggleMinimize = (id: number) => {
      setOpenApps(prev => prev.map(app => {
         if (app.id === id) {
@@ -229,7 +295,6 @@ export default function Desktop() {
             const nextApp = prev.filter(a => a.id !== id && !a.isMinimized).sort((a,b) => b.zIndex - a.zIndex)[0];
             setFocusedAppId(nextApp ? nextApp.id : null);
           } else if (!isNowMinimized) {
-            // When un-minimizing, focus the app
             setFocusedAppId(id);
             setHighestZIndex(prevZ => prevZ + 1);
             return { ...app, isMinimized: false, zIndex: highestZIndex + 1 };
@@ -245,8 +310,7 @@ export default function Desktop() {
       if (app.id === id) {
         const isNowMaximized = !app.isMaximized;
         if (isNowMaximized) {
-          // Store previous state before maximizing
-          const topBarHeight = 32; // from TopBar component h-8
+          const topBarHeight = 32;
           return {
             ...app,
             isMaximized: true,
@@ -258,7 +322,6 @@ export default function Desktop() {
             }
           };
         } else {
-          // Restore previous state
           return {
             ...app,
             isMaximized: false,
@@ -271,6 +334,19 @@ export default function Desktop() {
       return app;
     }));
   };
+  
+  const openFile = (filePath: string) => {
+    // This is a simulation. In a real OS, you'd read the file content.
+    let content = `// Could not find content for ${filePath}`;
+    if (filePath.endsWith('proactive-os-assistance.ts')) {
+      content = PROACTIVE_ASSISTANCE_CONTENT;
+    }
+    
+    const editorApp = APPS.find(a => a.id === 'code-editor');
+    if (editorApp) {
+      openApp(editorApp, { filePath: filePath, initialContent: content });
+    }
+  }
 
   if (isUserLoading || (user && isPreferencesLoading)) {
     return (
@@ -301,21 +377,32 @@ export default function Desktop() {
       <div className="relative z-10 flex-grow w-full flex flex-col" ref={desktopRef}>
         <TopBar />
         <div className="flex-grow relative" >
-          {openApps.map((window) => (
-            <Window
-              key={window.id}
-              instance={window}
-              onClose={() => closeApp(window.id)}
-              onFocus={() => focusApp(window.id)}
-              onMinimize={() => toggleMinimize(window.id)}
-              onMaximize={() => toggleMaximize(window.id)}
-              updatePosition={updateAppPosition}
-              updateSize={updateAppSize}
-              isFocused={focusedAppId === window.id}
-              bounds={desktopRef}
-              dockRef={dockRef}
-            />
-          ))}
+          {openApps.map((window) => {
+            const AppComponent = window.app.component;
+            const componentProps: any = { ...window.props };
+
+            if (window.app.id === 'file-explorer') {
+              componentProps.onOpenFile = openFile;
+            }
+
+            return (
+              <Window
+                key={window.id}
+                instance={window}
+                onClose={() => closeApp(window.id)}
+                onFocus={() => focusApp(window.id)}
+                onMinimize={() => toggleMinimize(window.id)}
+                onMaximize={() => toggleMaximize(window.id)}
+                updatePosition={updateAppPosition}
+                updateSize={updateAppSize}
+                isFocused={focusedAppId === window.id}
+                bounds={desktopRef}
+                dockRef={dockRef}
+              >
+                 <AppComponent {...componentProps} />
+              </Window>
+            );
+          })}
         </div>
         <Dock ref={dockRef} onAppClick={openApp} openApps={openApps} onAppFocus={focusApp} />
       </div>

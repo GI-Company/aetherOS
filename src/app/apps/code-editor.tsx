@@ -6,79 +6,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { aiCodeGeneration } from "@/ai/flows/ai-code-generation";
-import { useState }from "react";
+import { useState, useEffect }from "react";
 import { Wand2, Sparkles, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
-const initialCode = `'use server';
-
-/**
- * @fileOverview This file defines a Genkit flow for providing proactive OS assistance based on user activity and context.
- *
- * - proactiveOsAssistance - A function that triggers the proactive assistance flow.
- * - ProactiveOsAssistanceInput - The input type for the proactiveOsAssistance function.
- * - ProactiveOsAssistanceOutput - The return type for the proactiveOsAssistance function.
- */
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-
-const ProactiveOsAssistanceInputSchema = z.object({
-  userActivity: z.string().describe('A description of the user\\'s current activity.'),
-  context: z.string().describe('Additional context about the user\\'s environment and tasks.'),
-});
-export type ProactiveOsAssistanceInput = z.infer<typeof ProactiveOsAssistanceInputSchema>;
-
-const ProactiveOsAssistanceOutputSchema = z.object({
-  suggestion: z.string().describe('A proactive, short, and actionable suggestion for the user. Should be empty if no suggestion is relevant.'),
-  reason: z.string().describe('The reasoning behind the suggestion.'),
-});
-export type ProactiveOsAssistanceOutput = z.infer<typeof ProactiveOsAssistanceOutputSchema>;
-
-export async function proactiveOsAssistance(input: ProactiveOsAssistanceInput): Promise<ProactiveOsAssistanceOutput> {
-  return proactiveOsAssistanceFlow(input);
+interface CodeEditorAppProps {
+  filePath?: string;
+  initialContent?: string;
 }
 
-const proactiveOsAssistancePrompt = ai.definePrompt({
-  name: 'proactiveOsAssistancePrompt',
-  input: {schema: ProactiveOsAssistanceInputSchema},
-  output: {schema: ProactiveOsAssistanceOutputSchema},
-  prompt: \`You are the core intelligence of the AetherOS, responsible for proactively assisting the user.
-  Based on the user's current activity and context, provide a single, actionable suggestion.
-  The suggestion should be concise and helpful. If no clear, high-value suggestion is available, return an empty string for the suggestion.
-
-  Examples:
-  - If user is in Code Editor and Browser is also open, suggest: "Arrange windows side-by-side for a better workflow?"
-  - If user is in Design Studio, suggest: "Need some inspiration? I can generate a new color palette."
-  - If many apps are open, suggest: "Feeling cluttered? I can close all background apps."
-
-  Current State:
-  Activity: {{{userActivity}}}
-  Context: {{{context}}}
-  
-  Your response should be based on the provided activity and context.\`,
-});
-
-const proactiveOsAssistanceFlow = ai.defineFlow(
-  {
-    name: 'proactiveOsAssistanceFlow',
-    inputSchema: ProactiveOsAssistanceInputSchema,
-    outputSchema: ProactiveOsAssistanceOutputSchema,
-  },
-  async input => {
-    const {output} = await proactiveOsAssistancePrompt(input);
-    return output!;
-  }
-);
-`;
-
-export default function CodeEditorApp() {
-  const [code, setCode] = useState(initialCode);
+export default function CodeEditorApp({ filePath: initialFilePath, initialContent = '' }: CodeEditorAppProps) {
+  const [filePath, setFilePath] = useState(initialFilePath || '/untitled');
+  const [code, setCode] = useState(initialContent);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState<"generate" | "refactor" | null>(null);
   const { toast } = useToast();
-  const filePath = "/src/ai/flows/proactive-os-assistance.ts";
+  
+  useEffect(() => {
+    if (initialFilePath) {
+      setFilePath(initialFilePath);
+    }
+  }, [initialFilePath]);
+
+  useEffect(() => {
+    setCode(initialContent);
+  }, [initialContent]);
+
 
   const cleanCode = (rawCode: string) => {
     return rawCode.replace(/^```(?:\w+\n)?/, '').replace(/```$/, '').trim();
@@ -125,7 +79,7 @@ export default function CodeEditorApp() {
   const handleSave = () => {
     toast({
       title: "File Saved",
-      description: `${filePath} has been saved.`,
+      description: `${filePath} has been saved. (This is a simulation)`,
     });
   }
 
@@ -144,7 +98,7 @@ export default function CodeEditorApp() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           className="flex-grow w-full h-full rounded-none border-none resize-none focus-visible:ring-0 font-mono text-sm bg-card"
-          placeholder="Start coding with Aether-Architect..."
+          placeholder="Start coding with Aether-Architect... Open a file from the File Explorer to begin."
           disabled={!!isLoading}
         />
       </div>

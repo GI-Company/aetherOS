@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Folder, File, Search, Loader2, Upload, ArrowUp, RefreshCw, FilePlus, ChevronDown } from "lucide-react";
+import { Folder, File, Search, Loader2, ArrowUp, RefreshCw, FilePlus, ChevronDown } from "lucide-react";
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
@@ -20,6 +20,7 @@ import { APPS } from "@/lib/apps";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import Dropzone from "@/components/aether-os/dropzone";
 
 
 const useStorageFiles = (currentPath: string) => {
@@ -167,12 +168,12 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
   const [isSearching, setIsSearching] = useState(false);
-  const [uploadFile, setUploadFile] = useState<globalThis.File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [isCreating, setIsCreating] = useState<'folder' | 'file' | null>(null);
   const [newName, setNewName] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
 
 
   const { toast } = useToast();
@@ -241,24 +242,24 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     }
   }
 
-  const handleUpload = async () => {
-    if (!uploadFile || !user) return;
+  const handleUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !user) return;
     setIsUploading(true);
     setUploadProgress(0);
+    const file = files[0];
     try {
         const storage = getStorage();
-        const storageRef = ref(storage, `${currentPath}/${uploadFile.name}`);
+        const storageRef = ref(storage, `${currentPath}/${file.name}`);
         // In a real app, you'd use `uploadBytesResumable` to get progress
-        await uploadBytes(storageRef, uploadFile);
+        await uploadBytes(storageRef, file);
         setUploadProgress(100);
-        toast({ title: "Upload Complete", description: `${uploadFile.name} has been uploaded.` });
+        toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
         osEvent.emit('file-system-change', undefined);
     } catch(err: any) {
         console.error(err);
         toast({ title: "Upload Failed", description: err.message, variant: "destructive"});
     } finally {
         setIsUploading(false);
-        setUploadFile(null);
     }
   }
 
@@ -306,9 +307,42 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsCreating(null);
     setNewName('');
   }
+  
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+  
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleUpload(e.dataTransfer.files);
+    }
+  };
+
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative"
+         onDrop={handleDrop}
+         onDragOver={handleDragOver}
+         onDragEnter={handleDragEnter}
+         onDragLeave={handleDragLeave}
+    >
+      <Dropzone visible={isDragOver} />
       <div className="p-2 border-b flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={currentPath === basePath || isLoading}>
@@ -329,12 +363,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             />
              {isSearching && <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin" />}
         </form>
-        <div className="flex items-center gap-2">
-           <Input type="file" onChange={e => setUploadFile(e.target.files ? e.target.files[0] : null)} className="text-xs" disabled={isUploading} />
-           <Button onClick={handleUpload} disabled={!uploadFile || isUploading}>
-               {isUploading ? <Loader2 className="animate-spin" /> : <Upload className="h-4 w-4" />}
-           </Button>
-        </div>
         {!isCreating ? (
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -399,5 +427,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </div>
   );
 }
+
+    
 
     

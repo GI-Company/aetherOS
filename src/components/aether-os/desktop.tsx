@@ -18,6 +18,8 @@ import { Loader2 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { doc, serverTimestamp } from "firebase/firestore";
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { getStorage, ref, getDownloadURL } from 'firebase/storage';
+
 
 export type WindowInstance = {
   id: number;
@@ -33,70 +35,6 @@ export type WindowInstance = {
   },
   props?: Record<string, any>; // For passing props to app components
 };
-
-// Simulate reading file content
-const PROACTIVE_ASSISTANCE_CONTENT = `'use server';
-
-/**
- * @fileOverview This file defines a Genkit flow for providing proactive OS assistance based on user activity and context.
- *
- * - proactiveOsAssistance - A function that triggers the proactive assistance flow.
- * - ProactiveOsAssistanceInput - The input type for the proactiveOsAssistance function.
- * - ProactiveOsAssistanceOutput - The return type for the proactiveOsAssistance function.
- */
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-
-const ProactiveOsAssistanceInputSchema = z.object({
-  userActivity: z.string().describe("A description of the user\\'s current activity."),
-  context: z.string().describe("Additional context about the user\\'s environment and tasks."),
-});
-export type ProactiveOsAssistanceInput = z.infer<typeof ProactiveOsAssistanceInputSchema>;
-
-const ProactiveOsAssistanceOutputSchema = z.object({
-  suggestion: z.string().describe('A proactive, short, and actionable suggestion for the user. Should be empty if no suggestion is relevant.'),
-  reason: z.string().describe('The reasoning behind the suggestion.'),
-});
-export type ProactiveOsAssistanceOutput = z.infer<typeof ProactiveOsAssistanceOutputSchema>;
-
-export async function proactiveOsAssistance(input: ProactiveOsAssistanceInput): Promise<ProactiveOsAssistanceOutput> {
-  return proactiveOsAssistanceFlow(input);
-}
-
-const proactiveOsAssistancePrompt = ai.definePrompt({
-  name: 'proactiveOsAssistancePrompt',
-  input: {schema: ProactiveOsAssistanceInputSchema},
-  output: {schema: ProactiveOsAssistanceOutputSchema},
-  prompt: \`You are the core intelligence of the AetherOS, responsible for proactively assisting the user.
-  Based on the user's current activity and context, provide a single, actionable suggestion.
-  The suggestion should be concise and helpful. If no clear, high-value suggestion is available, return an empty string for the suggestion.
-
-  Examples:
-  - If user is in Code Editor and Browser is also open, suggest: "Arrange windows side-by-side for a better workflow?"
-  - If user is in Design Studio, suggest: "Need some inspiration? I can generate a new color palette."
-  - If many apps are open, suggest: "Feeling cluttered? I can close all background apps."
-
-  Current State:
-  Activity: {{{userActivity}}}
-  Context: {{{context}}}
-  
-  Your response should be based on the provided activity and context.\`,
-});
-
-const proactiveOsAssistanceFlow = ai.defineFlow(
-  {
-    name: 'proactiveOsAssistanceFlow',
-    inputSchema: ProactiveOsAssistanceInputSchema,
-    outputSchema: ProactiveOsAssistanceOutputSchema,
-  },
-  async input => {
-    const {output} = await proactiveOsAssistancePrompt(input);
-    return output!;
-  }
-);
-`;
-
 
 export default function Desktop() {
   const { user, isUserLoading } = useUser();
@@ -342,16 +280,38 @@ export default function Desktop() {
     }));
   };
   
-  const openFile = (filePath: string) => {
-    // This is a simulation. In a real OS, you'd read the file content.
-    let content = `// Could not find content for ${filePath}`;
-    if (filePath.endsWith('proactive-os-assistance.ts')) {
-      content = PROACTIVE_ASSISTANCE_CONTENT;
-    }
-    
+  const openFile = async (filePath: string) => {
     const editorApp = APPS.find(a => a.id === 'code-editor');
-    if (editorApp) {
-      openApp(editorApp, { filePath: filePath, initialContent: content });
+    if (!editorApp) return;
+
+    toast({
+        title: "Opening File...",
+        description: `Loading content for ${filePath}`,
+    });
+
+    try {
+        const storage = getStorage();
+        const fileRef = ref(storage, filePath);
+        const downloadUrl = await getDownloadURL(fileRef);
+        
+        // Browsers can have caching issues with download URLs, so we add a cache-busting query param
+        const response = await fetch(`${downloadUrl}?t=${new Date().getTime()}`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch file: ${response.statusText}`);
+        }
+
+        const content = await response.text();
+        
+        openApp(editorApp, { filePath: filePath, initialContent: content });
+
+    } catch(error: any) {
+        console.error("Failed to open file:", error);
+        toast({
+            title: "Error Opening File",
+            description: error.message || `Could not load content for ${filePath}.`,
+            variant: "destructive"
+        });
     }
   }
 
@@ -426,5 +386,3 @@ export default function Desktop() {
     </div>
   );
 }
-
-    

@@ -1,7 +1,8 @@
 
 'use client';
 
-import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, UserCredential } from 'firebase/auth';
+import { getFirestore, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +10,7 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
 import { User } from 'lucide-react';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 function GoogleIcon() {
   return (
@@ -40,27 +42,44 @@ interface AuthFormProps {
 
 export default function AuthForm({ allowAnonymous = true, onLinkSuccess }: AuthFormProps) {
   const auth = getAuth();
+  const firestore = getFirestore();
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
+  
+  const provisionDefaultSubscription = async (user: User) => {
+    const subscriptionRef = doc(firestore, 'subscriptions', user.uid);
+    const subscriptionSnap = await getDoc(subscriptionRef);
+    if (!subscriptionSnap.exists()) {
+      setDocumentNonBlocking(subscriptionRef, {
+        tier: 'personal',
+        status: 'active',
+        startedAt: serverTimestamp(),
+      });
+    }
+  };
+
+  const handleAuthSuccess = (result: UserCredential) => {
+    provisionDefaultSubscription(result.user);
+    toast({
+      title: 'Authentication Successful',
+      description: 'Welcome to AetherOS.',
+    });
+  }
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       if (auth.currentUser?.isAnonymous) {
-        // User is anonymous, link the account
-        await linkWithPopup(auth.currentUser, provider);
+        const result = await linkWithPopup(auth.currentUser, provider);
+        provisionDefaultSubscription(result.user);
         toast({
           title: 'Account Upgraded!',
           description: 'Your trial account is now a permanent Google account.',
         });
         if (onLinkSuccess) onLinkSuccess();
       } else {
-        // New user, sign in normally
-        await signInWithPopup(auth, provider);
-        toast({
-          title: 'Authentication Successful',
-          description: 'Welcome to AetherOS.',
-        });
+        const result = await signInWithPopup(auth, provider);
+        handleAuthSuccess(result);
       }
     } catch (error: any) {
       console.error(error);

@@ -101,7 +101,6 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                 const appToOpen = APPS.find(a => a.id === appId);
                 if (appToOpen) {
                   onOpenApp(appToOpen, props);
-                  shouldClose = false;
                 }
                 break;
             case 'arrangeWindows':
@@ -126,9 +125,6 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                     setWallpaper(imageUrl);
                 }
                 break;
-            default:
-                shouldClose = false;
-                break;
           }
         }
       }
@@ -140,7 +136,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
           shouldClose = false;
       }
 
-      if (shouldClose) {
+      if (shouldClose && toolCalls.length > 0 && !agentResponse) {
         setOpen(false);
       }
 

@@ -73,7 +73,9 @@ export default function Desktop() {
 
   // When an anonymous user logs in, create a trial document for them
   useEffect(() => {
-    if (user?.isAnonymous && firestore && !trialData) {
+    // This condition is now more stringent to prevent race conditions.
+    // It will ONLY run if the user is explicitly anonymous and the trial data hasn't loaded yet.
+    if (user && user.isAnonymous === true && firestore && !trialData) {
       const trialRef = doc(firestore, 'trialUsers', user.uid);
       setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
     }

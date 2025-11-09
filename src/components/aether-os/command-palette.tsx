@@ -61,9 +61,9 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
       const response = await agenticToolUser(searchValue, openAppNames);
 
       const toolCalls = response.toolCalls();
+      let shouldClose = true;
 
       if (toolCalls.length > 0) {
-         let shouldClose = true;
         for (const toolCall of toolCalls) {
           if (toolCall.toolName === 'openApp') {
             const appId = (toolCall.input as any).appId;
@@ -74,25 +74,23 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
           } else if (toolCall.toolName === 'arrangeWindows') {
             onArrangeWindows();
           } else {
-            // If another tool was called, we might want to see the text response.
+            // A tool other than opening/arranging was called, so we probably want to see the text response.
             shouldClose = false;
           }
         }
-        
-        const textResponse = response.text();
-        if (textResponse) {
-            setAgentResponse(textResponse);
-            shouldClose = false;
-        }
-
-        if (shouldClose) {
-          setOpen(false);
-        }
-
-      } else {
-        const textResponse = response.text();
-        setAgentResponse(textResponse);
       }
+      
+      const textResponse = response.text();
+      if (textResponse) {
+          setAgentResponse(textResponse);
+          // If there's a text response, we shouldn't close the palette.
+          shouldClose = false;
+      }
+
+      if (shouldClose) {
+        setOpen(false);
+      }
+
     } catch (err) {
       console.error("Agentic tool user failed:", err);
       setAgentResponse("Sorry, I encountered an error.");

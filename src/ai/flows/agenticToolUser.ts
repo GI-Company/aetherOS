@@ -8,9 +8,8 @@ import { z } from 'zod';
 import { APPS } from '@/lib/apps';
 
 // Define the schema for the tools' inputs and outputs
-const GetOpenAppsInputSchema = z.object({
-  openAppNames: z.array(z.string()).describe('The names of the currently open applications.'),
-});
+const GetOpenAppsInputSchema = z.object({}).describe("No input needed, client provides context.");
+
 
 const OpenAppInputSchema = z.object({
   appId: z.string().describe(`The unique ID of the app to open. Must be one of: ${APPS.map(app => `"${app.id}"`).join(', ')}`),
@@ -26,8 +25,9 @@ const getOpenAppsTool = ai.defineTool(
       inputSchema: GetOpenAppsInputSchema,
       outputSchema: z.object({ apps: z.array(z.string()) }),
     },
-    async ({ openAppNames }) => {
-      return { apps: openAppNames };
+    // This is a placeholder; the actual implementation is provided by the client.
+    async () => {
+      return { apps: [] };
     }
   );
   

@@ -20,7 +20,7 @@ export type GenerateWorkflowFromDescriptionInput = z.infer<typeof GenerateWorkfl
 const GenerateWorkflowFromDescriptionOutputSchema = z.object({
   workflowDefinition: z
     .string()
-    .describe('The generated workflow definition in a visual format (e.g., Mermaid, JSON).'),
+    .describe('The generated workflow definition in Mermaid graph syntax.'),
 });
 
 export type GenerateWorkflowFromDescriptionOutput = z.infer<typeof GenerateWorkflowFromDescriptionOutputSchema>;
@@ -37,7 +37,7 @@ const generateWorkflowFromDescriptionPrompt = ai.definePrompt({
   output: {schema: GenerateWorkflowFromDescriptionOutputSchema},
   prompt: `You are an AI workflow generator. Given a natural language description of a process, generate a visual workflow definition that can be used to visualize the process.
 
-  Please use the Mermaid syntax to define the workflow.
+  You MUST use the Mermaid syntax to define the workflow.
 
 Description: {{{$input}}}
 

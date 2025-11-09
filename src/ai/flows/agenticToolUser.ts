@@ -22,6 +22,11 @@ const SearchFilesInputSchema = z.object({
   query: z.string().describe('The natural language search query for files.'),
 });
 
+const OpenFileInputSchema = z.object({
+    filePath: z.string().describe('The exact, full path of the file to open (e.g., "users/uid/components/ui/button.tsx").'),
+});
+
+
 const getOpenAppsTool = ai.defineTool(
     {
       name: 'getOpenApps',
@@ -67,6 +72,16 @@ const searchFilesTool = ai.defineTool(
     async () => ({ results: [] }) // Placeholder, client implements
 );
 
+const openFileTool = ai.defineTool(
+    {
+        name: 'openFile',
+        description: 'Opens a specific file in the Code Editor.',
+        inputSchema: OpenFileInputSchema,
+        outputSchema: z.void(),
+    },
+    async () => {} // Placeholder, client implements
+);
+
 
 const agenticToolUserPrompt = ai.definePrompt({
     name: 'agenticToolUserPrompt',
@@ -74,10 +89,12 @@ const agenticToolUserPrompt = ai.definePrompt({
 - Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `"${app.id}"`).join(', ')}.
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
 - If the user's query implies searching for a file (e.g., "find," "look for," "where is"), use the 'searchFiles' tool.
+- If the user asks to open a specific file, use the 'openFile' tool. You must determine the exact file path from the context of available files.
+- If a user asks to find AND open a file, you should first use 'searchFiles' to locate it, and then if you are confident in the result, call 'openFile' with the exact path.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
 - For any other query, do not use a tool and instead provide a helpful text response.`,
-    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool],
+    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool, openFileTool],
 });
 
 
@@ -110,7 +127,8 @@ export async function agenticToolUser(
               async ({ query }) => semanticFileSearch({ query, availableFiles: context.allFiles })
             ),
             openAppTool,
-            arrangeWindowsTool
+            arrangeWindowsTool,
+            openFileTool
         ]
     });
     

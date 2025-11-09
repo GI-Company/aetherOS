@@ -78,6 +78,8 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
       // Fetch all files to provide context to the agent
       const storage = getStorage();
       const basePath = `users/${user.uid}`;
+      // In a real large-scale app, you'd want a more efficient way to get all file paths
+      // like a periodically updated index in Firestore. For now, listAll is fine.
       const listRef = ref(storage, basePath);
       const res = await listAll(listRef);
       const allFiles = res.items.map(item => item.fullPath);
@@ -104,6 +106,12 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                 break;
             case 'arrangeWindows':
                 onArrangeWindows();
+                break;
+            case 'openFile':
+                const filePath = (toolCall.input as any).filePath;
+                if(filePath) {
+                    onOpenFile(filePath);
+                }
                 break;
             case 'searchFiles':
                 const searchResults = (toolCall.output as any).results;
@@ -196,17 +204,17 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                 </CommandGroup>
             ) : !searchValue ? (
                 <CommandGroup heading="Suggestions">
-                <CommandItem onSelect={() => {setSearchValue("Open the code editor"); handleSubmit(new Event('submit') as any);}}>
-                    <Command className="mr-2 h-4 w-4" />
-                    <span>Open the code editor</span>
+                <CommandItem onSelect={() => {setSearchValue("Open the code editor and the browser, then arrange them side by side"); handleSubmit(new Event('submit') as any);}}>
+                    <Layout className="mr-2 h-4 w-4" />
+                    <span>Arrange windows for coding</span>
                 </CommandItem>
-                 <CommandItem onSelect={() => {setSearchValue("find my auth form component"); handleSubmit(new Event('submit') as any);}}>
+                 <CommandItem onSelect={() => {setSearchValue("find and open my auth form component"); handleSubmit(new Event('submit') as any);}}>
                   <File className="mr-2 h-4 w-4" />
-                  <span>Find a file...</span>
+                  <span>Find and open a file...</span>
                 </CommandItem>
                 <CommandItem onSelect={() => {setSearchValue("What applications are running?"); handleSubmit(new Event('submit') as any);}}>
                     <BrainCircuit className="mr-2 h-4 w-4" />
-                    <span>What applications are running?</span>
+                    <span>Ask about the OS state...</span>
                 </CommandItem>
                 <CommandItem onSelect={handleOpenSettings}>
                     <Settings className="mr-2 h-4 w-4" />

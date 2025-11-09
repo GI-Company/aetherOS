@@ -50,18 +50,59 @@ export default function Desktop() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
   
-  const arrangeWindows = () => {
+  const arrangeWindows = useCallback(() => {
     const codeEditor = openApps.find(a => a.app.id === 'code-editor');
     const browser = openApps.find(a => a.app.id === 'browser');
+    const desktopWidth = desktopRef.current?.clientWidth || window.innerWidth;
+    const desktopHeight = desktopRef.current?.clientHeight || window.innerHeight;
+    const topBarHeight = 32;
 
-    if (codeEditor) focusApp(codeEditor.id);
-    if (browser) focusApp(browser.id);
+    const updates = new Map<number, Partial<WindowInstance>>();
 
-    toast({
-      title: "Windows Arranged",
-      description: "Code Editor and Browser are now focused.",
-    });
-  }
+    if (browser) {
+       updates.set(browser.id, {
+        position: { x: 0, y: topBarHeight },
+        size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight },
+        isMaximized: false,
+        isMinimized: false,
+       });
+    }
+
+    if (codeEditor) {
+        updates.set(codeEditor.id, {
+            position: { x: desktopWidth / 2, y: topBarHeight },
+            size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight },
+            isMaximized: false,
+            isMinimized: false,
+        });
+    }
+
+    if (updates.size > 0) {
+        let newZIndex = highestZIndex;
+        setOpenApps(prev => prev.map(app => {
+            if (updates.has(app.id)) {
+                newZIndex++;
+                return { ...app, ...updates.get(app.id), zIndex: newZIndex };
+            }
+            return app;
+        }));
+        setHighestZIndex(newZIndex);
+        if (codeEditor) setFocusedAppId(codeEditor.id);
+        if (browser) setFocusedAppId(browser.id);
+
+        toast({
+          title: "Windows Arranged",
+          description: "Code Editor and Browser are now side-by-side.",
+        });
+    } else {
+        toast({
+            title: "Nothing to Arrange",
+            description: "Open the Code Editor and Browser to arrange them.",
+            variant: "destructive"
+        })
+    }
+
+  }, [openApps, highestZIndex, toast]);
 
   useEffect(() => {
     const focusedApp = openApps.find(app => app.id === focusedAppId);
@@ -76,15 +117,11 @@ export default function Desktop() {
                 context: `Current open applications: ${openAppNames}. Had ${focusedApp.app.name} focused for 10 seconds.`
             });
 
-            // Only show toast if there's a suggestion
-            if (assistance.suggestion) {
+            // Only show toast if there's a suggestion and it's not the same as the one we would show in the command palette
+            if (assistance.suggestion && !assistance.suggestion.includes("Arrange windows")) {
               toast({
                   title: "Proactive OS Assistance",
                   description: assistance.suggestion,
-                  // Conditionally show action button for specific suggestions
-                  action: assistance.suggestion.includes("Arrange windows") 
-                      ? <Button variant="outline" size="sm" onClick={arrangeWindows}>Arrange</Button> 
-                      : undefined,
               });
             }
         } catch (error) {
@@ -242,7 +279,13 @@ export default function Desktop() {
         </div>
         <Dock ref={dockRef} onAppClick={openApp} openApps={openApps} onAppFocus={focusApp} />
       </div>
-      <CommandPalette open={commandPaletteOpen} setOpen={setCommandPaletteOpen} onOpenApp={openApp} />
+      <CommandPalette 
+        open={commandPaletteOpen} 
+        setOpen={setCommandPaletteOpen} 
+        onOpenApp={openApp}
+        openApps={openApps}
+        onArrangeWindows={arrangeWindows}
+      />
     </div>
   );
 }

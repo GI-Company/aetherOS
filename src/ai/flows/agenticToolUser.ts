@@ -133,7 +133,10 @@ export async function agenticToolUser(
                     outputSchema: z.object({ results: z.array(FileItemSchema) }),
                 },
               // The real implementation calls our existing semanticFileSearch flow
-              async ({ query }) => semanticFileSearch({ query, availableFiles: context.allFiles })
+              async ({ query }) => {
+                const { results } = await semanticFileSearch({ query, availableFiles: context.allFiles });
+                return { results };
+              }
             ),
             openAppTool,
             arrangeWindowsTool,

@@ -11,54 +11,15 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Wand2, Loader2, Palette, Sparkles } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useTheme } from "@/hooks/use-theme";
 
-function hexToHsl(H: string): [number, number, number] | null {
-  // Convert hex to RGB first
-  let r: number = 0, g: number = 0, b: number = 0;
-  if (H.length == 4) {
-    r = parseInt("0x" + H[1] + H[1]);
-    g = parseInt("0x" + H[2] + H[2]);
-    b = parseInt("0x" + H[3] + H[3]);
-  } else if (H.length == 7) {
-    r = parseInt("0x" + H[1] + H[2]);
-    g = parseInt("0x" + H[3] + H[4]);
-    b = parseInt("0x" + H[5] + H[6]);
-  }
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
-  // Then to HSL
-  r /= 255; g /= 255; b /= 255;
-  let cmin = Math.min(r,g,b),
-      cmax = Math.max(r,g,b),
-      delta = cmax - cmin,
-      h = 0, s = 0, l = 0;
-
-  if (delta == 0) h = 0;
-  else if (cmax == r) h = ((g - b) / delta) % 6;
-  else if (cmax == g) h = (b - r) / delta + 2;
-  else h = (r - g) / delta + 4;
-
-  h = Math.round(h * 60);
-  if (h < 0) h += 360;
-  l = (cmax + cmin) / 2;
-  s = delta == 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
-  s = +(s * 100).toFixed(1);
-  l = +(l * 100).toFixed(1);
-
-  return [Math.round(h), Math.round(s), Math.round(l)];
-}
-
-const applyHsl = (variable: string, hex: string) => {
-  const hsl = hexToHsl(hex);
-  if (hsl) {
-    document.documentElement.style.setProperty(variable, `${hsl[0]} ${hsl[1]}% ${hsl[2]}%`);
-  }
-}
 
 export default function SettingsApp() {
   const [themePrompt, setThemePrompt] = useState("");
   const [accentPrompt, setAccentPrompt] = useState("");
   const [isLoading, setIsLoading] = useState<"theme" | "accent" | null>(null);
   const { toast } = useToast();
+  const { applyTheme, setScheme } = useTheme();
 
   const handleGenerateTheme = async () => {
     if (!themePrompt) {
@@ -68,21 +29,7 @@ export default function SettingsApp() {
     setIsLoading("theme");
     try {
       const result = await generateAdaptivePalette({ contentDescription: themePrompt });
-      const { palette } = result;
-
-      applyHsl('--background', palette.backgroundColor);
-      applyHsl('--foreground', palette.textColor);
-      applyHsl('--card', palette.secondaryColor);
-      applyHsl('--card-foreground', palette.textColor);
-      applyHsl('--popover', palette.secondaryColor);
-      applyHsl('--popover-foreground', palette.textColor);
-      applyHsl('--secondary', palette.secondaryColor);
-      applyHsl('--secondary-foreground', palette.textColor);
-      applyHsl('--muted', palette.secondaryColor);
-      applyHsl('--muted-foreground', palette.textColor);
-      applyHsl('--border', palette.primaryColor);
-      applyHsl('--input', palette.primaryColor);
-      
+      applyTheme({ palette: result.palette });
       toast({title: "Base Theme Applied!", description: "The new adaptive base theme has been set."});
     } catch(e) {
       console.error(e);
@@ -109,14 +56,9 @@ export default function SettingsApp() {
       const g = (rgb >> 8) & 0xff;
       const b = (rgb >> 0) & 0xff;
       const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const accentForeground = luma < 128 ? '#FFFFFF' : '#0B0D1A';
+      const accentForegroundColor = luma < 128 ? '#FFFFFF' : '#0B0D1A';
 
-      applyHsl('--primary', accentColor);
-      applyHsl('--accent', accentColor);
-      applyHsl('--ring', accentColor);
-      applyHsl('--primary-foreground', accentForeground);
-      applyHsl('--accent-foreground', accentForeground);
-
+      applyTheme({ accent: { accentColor, accentForegroundColor } });
 
       toast({title: "Accent Color Applied!", description: "The new adaptive accent color has been set."});
     } catch(e) {
@@ -125,11 +67,6 @@ export default function SettingsApp() {
     } finally {
       setIsLoading(null);
     }
-  }
-
-  const setScheme = (scheme: 'light' | 'dark') => {
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(scheme);
   }
 
   return (

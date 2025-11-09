@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 
 export type WindowInstance = {
   id: number;
@@ -33,6 +34,11 @@ export type WindowInstance = {
 
 export default function Desktop() {
   const { user, isUserLoading } = useUser();
+  const { applyTheme } = useTheme();
+
+  // TODO: Use a useUserPreferences hook to get the theme from firestore
+  // and apply it here.
+  
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   const [openApps, setOpenApps] = useState<WindowInstance[]>([]);
   const [focusedAppId, setFocusedAppId] = useState<number | null>(null);
@@ -55,8 +61,8 @@ export default function Desktop() {
   }, []);
   
   const arrangeWindows = useCallback(() => {
-    const codeEditor = openApps.find(a => a.app.id === 'code-editor' && !a.isMinimized);
-    const browser = openApps.find(a => a.app.id === 'browser' && !a.isMinimized);
+    const codeEditor = openApps.find(a => a.app.id === 'code-editor');
+    const browser = openApps.find(a => a.app.id === 'browser');
     
     if (!codeEditor || !browser) {
         toast({

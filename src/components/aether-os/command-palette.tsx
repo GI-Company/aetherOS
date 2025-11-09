@@ -32,6 +32,10 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
 
   const handleValueChange = (value: string) => {
     setSearchValue(value);
+    // Clear agent response when user starts typing again
+    if (agentResponse) {
+      setAgentResponse(null);
+    }
   }
 
   const handleOpenApp = (app: App) => {
@@ -74,11 +78,14 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
         openApp: openAppTool,
       });
 
-      if (response.isTool()) {
-        const toolOutput = response.toolOutput();
+      const toolCalls = response.toolCalls();
+
+      if (toolCalls.length > 0) {
+        // Assume tools are executed and don't need further display.
+        // In a real scenario, you might want to show tool results.
         setOpen(false); // Close palette on successful tool use
       } else {
-        const textResponse = response.text;
+        const textResponse = response.text();
         setAgentResponse(textResponse);
       }
     } catch (err) {
@@ -99,7 +106,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
   }, [open]);
 
   const filteredApps = APPS.filter(app => 
-      app.name.toLowerCase().includes(searchValue.toLowerCase())
+      !searchValue || app.name.toLowerCase().includes(searchValue.toLowerCase())
   );
 
   return (
@@ -138,11 +145,11 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                   </CommandGroup>
                 ) : (
                   <CommandGroup heading="Suggestions">
-                    <CommandItem onSelect={() => handleValueChange("Open the code editor")}>
+                    <CommandItem onSelect={() => setSearchValue("Open the code editor")}>
                       <Command className="mr-2 h-4 w-4" />
                       <span>Open the code editor</span>
                     </CommandItem>
-                     <CommandItem onSelect={() => handleValueChange("What applications are running?")}>
+                     <CommandItem onSelect={() => setSearchValue("What applications are running?")}>
                       <BrainCircuit className="mr-2 h-4 w-4" />
                       <span>What applications are running?</span>
                     </CommandItem>
@@ -154,7 +161,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                 )}
                 <CommandSeparator />
                 <CommandGroup heading="System">
-                <CommandItem onSelect={onArrangeWindows}>
+                <CommandItem onSelect={() => { onArrangeWindows(); setOpen(false); }}>
                     <Layout className="mr-2 h-4 w-4" />
                     <span>Arrange Windows</span>
                 </CommandItem>

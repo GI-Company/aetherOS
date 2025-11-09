@@ -115,8 +115,8 @@ export default function Desktop() {
                 context: `Current open applications: ${openAppNames}. Had ${focusedApp.app.name} focused for 10 seconds.`
             });
 
-            // Only show toast if there's a suggestion and it's not the same as the one we would show in the command palette
-            if (assistance.suggestion && !assistance.suggestion.includes("Arrange windows")) {
+            // Only show toast if there's a suggestion.
+            if (assistance.suggestion) {
               toast({
                   title: "Proactive OS Assistance",
                   description: assistance.suggestion,

@@ -137,6 +137,41 @@
         }
       },
       "required": ["text", "timestamp", "senderId", "senderName"]
+    },
+    "userWorkspace": {
+      "title": "User Workspace",
+      "description": "Stores the state of a user's open windows, including their positions and sizes.",
+      "type": "object",
+      "properties": {
+        "windows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "number" },
+              "appId": { "type": "string" },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" }
+                }
+              },
+              "size": {
+                "type": "object",
+                "properties": {
+                  "width": { "type": "number" },
+                  "height": { "type": "number" }
+                }
+              },
+              "zIndex": { "type": "number" },
+              "isMinimized": { "type": "boolean" },
+              "isMaximized": { "type": "boolean" }
+            },
+            "required": ["id", "appId", "position", "size", "zIndex"]
+          }
+        }
+      }
     }
   },
   "auth": {
@@ -164,6 +199,12 @@
         "$ref": "#/entities/userPreference"
       },
       "description": "Stores user-specific preferences, such as UI theme."
+    },
+    "/userWorkspaces/{userId}": {
+      "schema": {
+        "$ref": "#/entities/userWorkspace"
+      },
+      "description": "Stores the user's window layout and state."
     },
     "/trialUsers/{userId}": {
       "schema": {

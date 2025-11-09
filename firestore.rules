@@ -13,6 +13,9 @@ service cloud.firestore {
     match /userPreferences/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    match /userWorkspaces/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
      match /trialUsers/{userId} {
       // Anonymous users can create and read their own trial document
       allow read, create: if request.auth != null && request.auth.uid == userId && request.auth.token.firebase.sign_in_provider == 'anonymous';

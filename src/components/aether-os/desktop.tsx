@@ -20,6 +20,7 @@ import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
 import { getAuth, signOut } from "firebase/auth";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export type WindowInstance = {
   id: number;
@@ -48,6 +49,13 @@ export default function Desktop() {
 
   const { data: userPreferences, isLoading: isPreferencesLoading } = useDoc(userPreferencesRef);
   
+  const userWorkspaceRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid || user.isAnonymous) return null;
+    return doc(firestore, 'userWorkspaces', user.uid);
+  }, [firestore, user?.uid, user?.isAnonymous]);
+
+  const { data: userWorkspace, isLoading: isWorkspaceLoading } = useDoc(userWorkspaceRef);
+
   useEffect(() => {
     if (user && !user.isAnonymous && userPreferences) {
       applyTheme(userPreferences as any, false);
@@ -64,6 +72,7 @@ export default function Desktop() {
   const { toast } = useToast();
   const desktopRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
   
   const auth = getAuth();
   const handleSignOut = useCallback(() => {
@@ -76,6 +85,51 @@ export default function Desktop() {
 
   const autoSignOutMinutes = (userPreferences as any)?.security?.autoSignOutMinutes ?? 0;
   useInactivityTimer(handleSignOut, autoSignOutMinutes, !user?.isAnonymous);
+
+  // Restore workspace from Firestore on initial load
+  useEffect(() => {
+    if (isWorkspaceLoading) return; // Wait until loading is complete
+    if (user && !user.isAnonymous && isInitialLoad.current) {
+      if (userWorkspace && (userWorkspace as any).windows) {
+        const restoredWindows = (userWorkspace as any).windows.map((w: any) => {
+          const app = APPS.find(app => app.id === w.appId);
+          if (!app) return null;
+          // Find the max zIndex from restored windows to continue from there
+          setHighestZIndex(prev => Math.max(prev, w.zIndex));
+          nextId.current = Math.max(nextId.current, w.id + 1);
+          return { ...w, app };
+        }).filter(Boolean) as WindowInstance[];
+        setOpenApps(restoredWindows);
+      }
+      isInitialLoad.current = false;
+    } else if (user?.isAnonymous) {
+      // Clear any previous state if user becomes anonymous
+      setOpenApps([]);
+      isInitialLoad.current = false;
+    }
+  }, [isWorkspaceLoading, userWorkspace, user]);
+
+  // Save workspace to Firestore on change
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      // Don't save during initial load or for anonymous users
+      if (isInitialLoad.current || !user || user.isAnonymous || isWorkspaceLoading) return;
+
+      if (userWorkspaceRef) {
+        const windowsToSave = openApps.map(({ app, ...rest }) => ({
+          ...rest,
+          appId: app.id,
+          // We don't save the props here for simplicity, but could be extended
+          props: {},
+        }));
+        setDocumentNonBlocking(userWorkspaceRef, { windows: windowsToSave });
+      }
+    }, 1000); // Debounce saves
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [openApps, user, userWorkspaceRef, isWorkspaceLoading]);
 
 
   useEffect(() => {
@@ -328,7 +382,7 @@ export default function Desktop() {
     });
   }
 
-  if (isUserLoading || (user && !user.isAnonymous && isPreferencesLoading)) {
+  if (isUserLoading || (user && !user.isAnonymous && (isPreferencesLoading || isWorkspaceLoading))) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />

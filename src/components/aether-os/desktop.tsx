@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from "next/image";
@@ -30,6 +31,7 @@ export default function Desktop() {
   const [highestZIndex, setHighestZIndex] = useState(10);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const { toast } = useToast();
+  const desktopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -119,13 +121,10 @@ export default function Desktop() {
     );
   };
   
-  const moveApp = (id: number, position: {x: number, y: number}) => {
-    setOpenApps((prev) => 
-      prev.map((app) => 
-        app.id === id ? { ...app, position } : app
-      )
-    );
+  const updateAppPosition = (id: number, position: { x: number, y: number }) => {
+    setOpenApps(prev => prev.map(app => app.id === id ? { ...app, position } : app));
   };
+
 
   const toggleMinimize = (id: number) => {
      setOpenApps(prev => prev.map(app => app.id === id ? {...app, isMinimized: !app.isMinimized} : app));
@@ -149,7 +148,7 @@ export default function Desktop() {
           priority
         />
       )}
-      <div className="relative z-10 flex-grow w-full flex flex-col">
+      <div className="relative z-10 flex-grow w-full flex flex-col" ref={desktopRef}>
         <TopBar />
         <div className="flex-grow relative" >
           {openApps.map((window) => (
@@ -159,8 +158,9 @@ export default function Desktop() {
               onClose={() => closeApp(window.id)}
               onFocus={() => focusApp(window.id)}
               onMinimize={() => toggleMinimize(window.id)}
-              onMove={(pos) => moveApp(window.id, pos)}
+              updatePosition={updateAppPosition}
               isFocused={focusedAppId === window.id}
+              bounds={desktopRef}
             />
           ))}
         </div>

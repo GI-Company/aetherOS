@@ -2,15 +2,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useFirebase, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, serverTimestamp, Timestamp, limit, where } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Loader2, Users, UserPlus } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { APPS, App } from '@/lib/apps';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 interface ChatMessage {
   id: string;
@@ -21,10 +23,74 @@ interface ChatMessage {
   senderPhotoURL: string;
 }
 
+interface UserPresence {
+    id: string;
+    status: 'online' | 'offline';
+    lastSeen: Timestamp;
+    displayName: string;
+    photoURL: string;
+}
+
 interface CollaborationAppProps {
   onOpenApp?: (app: App) => void;
 }
 
+const getInitials = (name?: string | null) => {
+    if (!name) return "??";
+    const names = name.split(' ');
+    if (names.length > 1) {
+        return names[0][0] + names[names.length - 1][0];
+    }
+    return name.substring(0, 2).toUpperCase();
+};
+
+const PresenceList = () => {
+    const { firestore } = useFirebase();
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+    const presenceQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(
+            collection(firestore, 'userPresence'),
+            where('lastSeen', '>', thirtyMinutesAgo),
+            orderBy('lastSeen', 'desc'),
+            limit(25)
+        );
+    }, [firestore, thirtyMinutesAgo.getTime()]); // Depend on time to refetch periodically if needed
+
+    const { data: onlineUsers, isLoading } = useCollection<UserPresence>(presenceQuery);
+
+    return (
+        <div className="w-full md:w-56 flex-shrink-0 border-l bg-card/50 p-4">
+            <h4 className="text-md font-headline mb-4">Online Now ({onlineUsers?.length ?? 0})</h4>
+             <ScrollArea className="h-full">
+                 <div className="space-y-4">
+                    {isLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    ) : onlineUsers && onlineUsers.length > 0 ? (
+                        onlineUsers.map(pUser => (
+                            <div key={pUser.id} className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8 relative">
+                                    <AvatarImage src={pUser.photoURL} />
+                                    <AvatarFallback>{getInitials(pUser.displayName)}</AvatarFallback>
+                                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-card rounded-full" />
+                                </Avatar>
+                                <div className="text-sm">
+                                    <p className="font-medium truncate">{pUser.displayName}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Active {formatDistanceToNow(pUser.lastSeen.toDate(), { addSuffix: true })}
+                                    </p>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center">No other users are currently active.</p>
+                    )}
+                 </div>
+            </ScrollArea>
+        </div>
+    )
+}
 
 export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const { firestore, user } = useFirebase();
@@ -37,15 +103,6 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   }, [firestore]);
 
   const { data: messages, isLoading } = useCollection<ChatMessage>(messagesQuery);
-
-  const getInitials = (name?: string | null) => {
-    if (!name) return "??";
-    const names = name.split(' ');
-    if (names.length > 1) {
-      return names[0][0] + names[names.length - 1][0];
-    }
-    return name.substring(0, 2).toUpperCase();
-  }
 
   useEffect(() => {
     // Auto-scroll to bottom
@@ -117,57 +174,61 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="flex-shrink-0 p-3 border-b flex items-center gap-2">
-        <Users className="h-5 w-5 text-accent" />
-        <h3 className="text-lg font-headline">Global Chat</h3>
+    <div className="flex h-full bg-background flex-row">
+      <div className="flex flex-col flex-grow">
+        <div className="flex-shrink-0 p-3 border-b flex items-center gap-2">
+          <Users className="h-5 w-5 text-accent" />
+          <h3 className="text-lg font-headline">Global Chat</h3>
+        </div>
+        
+        <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : messages && messages.length > 0 ? (
+            <div className="space-y-6">
+              {messages.map((msg) => {
+                  const isCurrentUser = msg.senderId === user?.uid;
+                  return (
+                      <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser && "justify-end")}>
+                          {!isCurrentUser && (
+                              <Avatar className="h-8 w-8">
+                                  <AvatarImage src={msg.senderPhotoURL} />
+                                  <AvatarFallback>{getInitials(msg.senderName)}</AvatarFallback>
+                              </Avatar>
+                          )}
+                          <div className={cn(
+                              "p-3 rounded-lg max-w-xs md:max-w-md",
+                              isCurrentUser ? "bg-primary text-primary-foreground" : "bg-muted"
+                          )}>
+                              {!isCurrentUser && <p className="text-xs font-semibold mb-1 text-foreground">{msg.senderName}</p>}
+                              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                              <p className={cn("text-xs mt-1 opacity-70", isCurrentUser ? "text-right" : "text-left")}>
+                                  {msg.timestamp ? format(msg.timestamp.toDate(), 'p') : 'sending...'}
+                              </p>
+                          </div>
+                          {isCurrentUser && (
+                              <Avatar className="h-8 w-8">
+                                  <AvatarImage src={user?.photoURL || ''} />
+                                  <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
+                              </Avatar>
+                          )}
+                      </div>
+                  )
+              })}
+            </div>
+          ) : (
+            <div className="flex justify-center items-center h-full text-muted-foreground">
+              <p>No messages yet. Be the first to say something!</p>
+            </div>
+          )}
+        </ScrollArea>
+
+        {renderInputArea()}
       </div>
       
-      <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
-        {isLoading ? (
-          <div className="flex justify-center items-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : messages && messages.length > 0 ? (
-          <div className="space-y-6">
-            {messages.map((msg) => {
-                const isCurrentUser = msg.senderId === user?.uid;
-                return (
-                     <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser && "justify-end")}>
-                        {!isCurrentUser && (
-                            <Avatar className="h-8 w-8">
-                                <AvatarImage src={msg.senderPhotoURL} />
-                                <AvatarFallback>{getInitials(msg.senderName)}</AvatarFallback>
-                            </Avatar>
-                        )}
-                        <div className={cn(
-                            "p-3 rounded-lg max-w-xs md:max-w-md",
-                            isCurrentUser ? "bg-primary text-primary-foreground" : "bg-muted"
-                        )}>
-                            {!isCurrentUser && <p className="text-xs font-semibold mb-1 text-foreground">{msg.senderName}</p>}
-                            <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                            <p className={cn("text-xs mt-1 opacity-70", isCurrentUser ? "text-right" : "text-left")}>
-                                {msg.timestamp ? format(msg.timestamp.toDate(), 'p') : 'sending...'}
-                            </p>
-                        </div>
-                         {isCurrentUser && (
-                            <Avatar className="h-8 w-8">
-                                <AvatarImage src={user?.photoURL || ''} />
-                                <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
-                            </Avatar>
-                        )}
-                    </div>
-                )
-            })}
-          </div>
-        ) : (
-          <div className="flex justify-center items-center h-full text-muted-foreground">
-            <p>No messages yet. Be the first to say something!</p>
-          </div>
-        )}
-      </ScrollArea>
-
-      {renderInputArea()}
+      <PresenceList />
     </div>
   );
 }

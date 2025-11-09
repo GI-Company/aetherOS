@@ -177,6 +177,31 @@
           }
         }
       }
+    },
+    "userPresence": {
+      "title": "User Presence",
+      "description": "Stores a user's online status and last seen timestamp.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["online", "offline"],
+          "description": "The user's online status."
+        },
+        "lastSeen": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The server timestamp of the user's last activity."
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "photoURL": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "required": ["status", "lastSeen"]
     }
   },
   "auth": {
@@ -222,6 +247,12 @@
         "$ref": "#/entities/chatMessage"
       },
       "description": "A collection of all chat messages in the global chat room."
+    },
+    "/userPresence/{userId}": {
+      "schema": {
+        "$ref": "#/entities/userPresence"
+      },
+      "description": "Stores real-time user presence information."
     }
   }
 }

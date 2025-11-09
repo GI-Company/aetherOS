@@ -15,7 +15,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking 
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2, PartyPopper } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
-import { doc } from "firebase/firestore";
+import { doc, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
@@ -54,6 +54,29 @@ export default function Desktop() {
   }, [firestore, user?.uid, user?.isAnonymous]);
 
   const { data: userWorkspace, isLoading: isWorkspaceLoading } = useDoc(userWorkspaceRef);
+
+  // Presence logic
+  useEffect(() => {
+    if (!user || user.isAnonymous || !firestore) return;
+
+    const presenceRef = doc(firestore, 'userPresence', user.uid);
+
+    const updatePresence = () => {
+        setDocumentNonBlocking(presenceRef, {
+            status: 'online',
+            lastSeen: serverTimestamp(),
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+        }, { merge: true });
+    };
+
+    updatePresence(); // Initial update
+
+    const interval = setInterval(updatePresence, 60 * 1000); // Update every minute
+
+    return () => clearInterval(interval);
+
+  }, [user, firestore]);
 
   useEffect(() => {
     if (user && !user.isAnonymous && userPreferences) {

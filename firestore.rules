@@ -26,5 +26,11 @@ service cloud.firestore {
       // Nobody can update or delete messages to preserve chat history.
       allow update, delete: if false;
     }
+    match /userPresence/{userId} {
+      // Any authenticated user can see who is online.
+      allow read: if request.auth != null;
+      // A user can only write to their own presence document.
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }

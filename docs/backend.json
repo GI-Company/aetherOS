@@ -51,7 +51,7 @@
     },
     "userPreference": {
       "title": "User Preference",
-      "description": "Stores user-specific preferences, such as UI theme.",
+      "description": "Stores user-specific preferences, such as UI theme and security settings.",
       "type": "object",
       "properties": {
         "palette": {
@@ -82,6 +82,15 @@
             },
             "accentForegroundColor": {
               "type": "string"
+            }
+          }
+        },
+        "security": {
+          "type": "object",
+          "properties": {
+            "autoSignOutMinutes": {
+              "type": "number",
+              "description": "The number of minutes of inactivity before automatically signing out. 0 means disabled."
             }
           }
         }

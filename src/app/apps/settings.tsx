@@ -18,10 +18,11 @@ import {
   PartyPopper,
   CreditCard,
   ShieldCheck,
+  Timer,
 } from 'lucide-react';
 import {Separator} from '@/components/ui/separator';
 import {useTheme} from '@/hooks/use-theme';
-import {useFirebase} from '@/firebase';
+import {useFirebase, useDoc, useMemoFirebase} from '@/firebase';
 import AuthForm from '@/firebase/auth/auth-form';
 import {App, APPS} from '@/lib/apps';
 import {Input} from '@/components/ui/input';
@@ -31,6 +32,11 @@ import {
   signInWithPhoneNumber,
   ConfirmationResult,
 } from 'firebase/auth';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { doc } from 'firebase/firestore';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+
 
 interface SettingsAppProps {
   onOpenApp?: (app: App) => void;
@@ -44,7 +50,7 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
   );
   const {toast} = useToast();
   const {applyTheme, setScheme} = useTheme();
-  const {user} = useFirebase();
+  const {user, firestore} = useFirebase();
   const auth = getAuth();
 
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -54,15 +60,20 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
   const [recaptchaVerifier, setRecaptchaVerifier] =
     useState<RecaptchaVerifier | null>(null);
 
+  const userPreferencesRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid || user.isAnonymous) return null;
+    return doc(firestore, 'userPreferences', user.uid);
+  }, [firestore, user?.uid, user?.isAnonymous]);
+
+  const { data: userPreferences, isLoading: isPreferencesLoading } = useDoc(userPreferencesRef);
+  
+  const autoSignOutMinutes = (userPreferences as any)?.security?.autoSignOutMinutes ?? 0;
+
   useEffect(() => {
-    // This effect initializes the RecaptchaVerifier once and only if the user is logged in.
-    // It will be attached to the invisible 'recaptcha-container' div.
     if (user && !user.isAnonymous && !recaptchaVerifier) {
       const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         size: 'invisible',
-        callback: (response: any) => {
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
-        },
+        callback: (response: any) => {},
       });
       setRecaptchaVerifier(verifier);
     }
@@ -183,7 +194,6 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
         description: error.message,
         variant: 'destructive',
       });
-      // Reset reCAPTCHA
       recaptchaVerifier.render().then(widgetId => {
         // @ts-ignore
         window.grecaptcha.reset(widgetId);
@@ -209,7 +219,7 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
         title: 'Phone Number Linked!',
         description: 'Your phone number has been successfully linked for 2FA.',
       });
-      setConfirmationResult(null); // Clear confirmation result
+      setConfirmationResult(null);
       setOtp('');
       setPhoneNumber('');
     } catch (error: any) {
@@ -223,6 +233,27 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
       setIsLoading(null);
     }
   };
+
+  const handleAutoSignOutChange = (enabled: boolean) => {
+    if (!userPreferencesRef) return;
+    const minutes = enabled ? 15 : 0; // Default to 15 mins if enabled, 0 if disabled
+    setDocumentNonBlocking(userPreferencesRef, { security: { autoSignOutMinutes: minutes } }, { merge: true });
+    toast({
+        title: `Auto Sign-Out ${enabled ? 'Enabled' : 'Disabled'}`,
+        description: enabled ? 'You will be signed out after 15 minutes of inactivity.' : 'You will not be signed out automatically.',
+    });
+  }
+
+  const handleTimeoutDurationChange = (value: string) => {
+      if (!userPreferencesRef) return;
+      const minutes = parseInt(value, 10);
+      setDocumentNonBlocking(userPreferencesRef, { security: { autoSignOutMinutes: minutes } }, { merge: true });
+       toast({
+        title: 'Auto Sign-Out Duration Updated',
+        description: `You will be signed out after ${minutes} minutes of inactivity.`,
+    });
+  }
+
 
   const renderAccountContent = () => {
     if (user?.isAnonymous) {
@@ -301,12 +332,61 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
               </Button>
             </div>
           )}
-          {/* This element is required for the reCAPTCHA verifier */}
           <div id="recaptcha-container" className="mt-4"></div>
         </div>
       </div>
     );
   };
+  
+  const renderSecurityContent = () => {
+    if (user?.isAnonymous || isPreferencesLoading) {
+        return (
+             <div className="text-center mt-8">
+                <Timer className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">Sign-Out Timer Unavailable</h3>
+                <p className="text-sm text-muted-foreground">This feature is only available for registered users.</p>
+            </div>
+        )
+    }
+    return (
+        <div className="space-y-8">
+            <div>
+              <h3 className="text-lg font-medium">Automatic Sign-Out</h3>
+              <p className="text-sm text-muted-foreground">
+                For your security, you can be automatically signed out after a period of inactivity.
+              </p>
+              <div className="mt-6 flex flex-col sm:flex-row gap-8">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                        id="auto-sign-out"
+                        checked={autoSignOutMinutes > 0}
+                        onCheckedChange={handleAutoSignOutChange}
+                    />
+                    <Label htmlFor="auto-sign-out">Enable Auto Sign-Out</Label>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <Label htmlFor="timeout-duration">Duration</Label>
+                    <Select
+                        value={String(autoSignOutMinutes)}
+                        onValueChange={handleTimeoutDurationChange}
+                        disabled={autoSignOutMinutes === 0}
+                    >
+                        <SelectTrigger id="timeout-duration" className="w-[180px]">
+                            <SelectValue placeholder="Select duration" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="15">15 Minutes</SelectItem>
+                            <SelectItem value="30">30 Minutes</SelectItem>
+                            <SelectItem value="60">60 Minutes</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+              </div>
+            </div>
+        </div>
+    )
+  }
 
   return (
     <div className="p-4 h-full">
@@ -316,6 +396,7 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
         <TabsContent value="appearance" className="mt-6">
@@ -403,6 +484,9 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
             <Button onClick={openBillingApp}>Open Billing App</Button>
           </div>
         </TabsContent>
+         <TabsContent value="security" className="mt-6">
+            {renderSecurityContent()}
+        </TabsContent>
         <TabsContent value="system" className="mt-6">
           <p className="text-muted-foreground">
             System settings will be here.
@@ -412,5 +496,3 @@ export default function SettingsApp({onOpenApp}: SettingsAppProps) {
     </div>
   );
 }
-
-    

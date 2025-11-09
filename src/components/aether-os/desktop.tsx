@@ -16,10 +16,12 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2, PartyPopper } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
-import { doc } from "firebase/firestore";
+import { doc, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
+import { getAuth, signOut } from "firebase/auth";
 
 export type WindowInstance = {
   id: number;
@@ -64,6 +66,19 @@ export default function Desktop() {
   const { toast } = useToast();
   const desktopRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
+  
+  const auth = getAuth();
+  const handleSignOut = useCallback(() => {
+    toast({
+      title: "Signing Out...",
+      description: "You are being signed out due to inactivity."
+    });
+    signOut(auth);
+  }, [auth, toast]);
+
+  const autoSignOutMinutes = (userPreferences as any)?.security?.autoSignOutMinutes ?? 0;
+  useInactivityTimer(handleSignOut, autoSignOutMinutes, !user?.isAnonymous);
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -170,7 +185,6 @@ export default function Desktop() {
         } else {
             focusApp(existingAppInstance.id);
         }
-        // If there are new props (like a new file path), update the existing instance
         if(Object.keys(props).length > 0) {
           setOpenApps(prev => prev.map(a => a.id === existingAppInstance.id ? { ...a, props: {...a.props, ...props}} : a));
         }
@@ -287,7 +301,6 @@ export default function Desktop() {
         const fileRef = ref(storage, filePath);
         const downloadUrl = await getDownloadURL(fileRef);
         
-        // Browsers can have caching issues with download URLs, so we add a cache-busting query param
         const response = await fetch(`${downloadUrl}?t=${new Date().getTime()}`);
         
         if (!response.ok) {
@@ -328,7 +341,6 @@ export default function Desktop() {
   if (!user) {
     return <AuthForm />;
   }
-
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background font-body flex flex-col" ref={desktopRef}>

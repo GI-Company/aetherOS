@@ -32,6 +32,7 @@ export default function Desktop() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const { toast } = useToast();
   const desktopRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -59,19 +60,28 @@ export default function Desktop() {
 
   useEffect(() => {
     const focusedApp = openApps.find(app => app.id === focusedAppId);
-    if (focusedApp?.app.id === 'code-editor') {
+    
+    // Proactive Assistance AI
+    if (focusedApp) {
        const proactiveToastTimeout = setTimeout(async () => {
         try {
+            const openAppNames = openApps.filter(a => !a.isMinimized).map(a => a.app.name).join(', ');
             const assistance = await proactiveOsAssistance({
-                userActivity: "Working in the Code Editor app.",
-                context: "User has had the code editor focused for 10 seconds."
+                userActivity: `Working in the ${focusedApp.app.name} app.`,
+                context: `Current open applications: ${openAppNames}. Had ${focusedApp.app.name} focused for 10 seconds.`
             });
 
-            toast({
-                title: "Proactive OS Assistance",
-                description: assistance.suggestion,
-                action: <Button variant="outline" size="sm" onClick={arrangeWindows}>Arrange Windows</Button>,
-            });
+            // Only show toast if there's a suggestion
+            if (assistance.suggestion) {
+              toast({
+                  title: "Proactive OS Assistance",
+                  description: assistance.suggestion,
+                  // Conditionally show action button for specific suggestions
+                  action: assistance.suggestion.includes("Arrange windows") 
+                      ? <Button variant="outline" size="sm" onClick={arrangeWindows}>Arrange</Button> 
+                      : undefined,
+              });
+            }
         } catch (error) {
             console.warn("Proactive assistance AI call failed:", error);
         }
@@ -82,9 +92,14 @@ export default function Desktop() {
   }, [focusedAppId, openApps, toast]);
 
   const openApp = useCallback((app: App) => {
-    const existingApp = openApps.find(a => a.app.id === app.id);
-    if (existingApp) {
-        focusApp(existingApp.id);
+    const existingAppInstance = openApps.find(a => a.app.id === app.id);
+    if (existingAppInstance) {
+        // If app is minimized, restore it and focus
+        if (existingAppInstance.isMinimized) {
+            toggleMinimize(existingAppInstance.id);
+        } else { // Otherwise, just focus it
+            focusApp(existingAppInstance.id);
+        }
         return;
     }
 
@@ -108,15 +123,21 @@ export default function Desktop() {
   };
 
   const focusApp = (id: number) => {
-    setFocusedAppId(id);
-
     const appInstance = openApps.find(app => app.id === id);
-    if (appInstance?.zIndex === highestZIndex && !appInstance?.isMinimized) return;
+    if (!appInstance) return;
+
+    if (appInstance.isMinimized) {
+        toggleMinimize(id);
+        return;
+    }
+
+    setFocusedAppId(id);
+    if (appInstance.zIndex === highestZIndex) return;
     
     setHighestZIndex((prev) => prev + 1);
     setOpenApps((prev) =>
       prev.map((app) =>
-        app.id === id ? { ...app, zIndex: highestZIndex + 1, isMinimized: false } : app
+        app.id === id ? { ...app, zIndex: highestZIndex + 1 } : app
       )
     );
   };
@@ -127,11 +148,22 @@ export default function Desktop() {
 
 
   const toggleMinimize = (id: number) => {
-     setOpenApps(prev => prev.map(app => app.id === id ? {...app, isMinimized: !app.isMinimized} : app));
-     if(focusedAppId === id) {
-       const nextApp = openApps.filter(app => app.id !== id && !app.isMinimized).sort((a,b) => b.zIndex - a.zIndex)[0];
-       setFocusedAppId(nextApp ? nextApp.id : null);
-     }
+     setOpenApps(prev => prev.map(app => {
+        if (app.id === id) {
+          const isNowMinimized = !app.isMinimized;
+          if (isNowMinimized && focusedAppId === id) {
+            const nextApp = prev.filter(a => a.id !== id && !a.isMinimized).sort((a,b) => b.zIndex - a.zIndex)[0];
+            setFocusedAppId(nextApp ? nextApp.id : null);
+          } else if (!isNowMinimized) {
+            // When un-minimizing, focus the app
+            setFocusedAppId(id);
+            setHighestZIndex(prevZ => prevZ + 1);
+            return { ...app, isMinimized: false, zIndex: highestZIndex + 1 };
+          }
+          return { ...app, isMinimized: isNowMinimized };
+        }
+        return app;
+     }));
   }
 
 
@@ -161,10 +193,11 @@ export default function Desktop() {
               updatePosition={updateAppPosition}
               isFocused={focusedAppId === window.id}
               bounds={desktopRef}
+              dockRef={dockRef}
             />
           ))}
         </div>
-        <Dock onAppClick={openApp} openApps={openApps} onAppFocus={focusApp} />
+        <Dock ref={dockRef} onAppClick={openApp} openApps={openApps} onAppFocus={focusApp} />
       </div>
       <CommandPalette open={commandPaletteOpen} setOpen={setCommandPaletteOpen} onOpenApp={openApp} />
     </div>

@@ -18,7 +18,7 @@ type DockProps = {
   onAppFocus: (id: number) => void;
 };
 
-export default function Dock({ onAppClick, openApps, onAppFocus }: DockProps) {
+const Dock = React.forwardRef<HTMLDivElement, DockProps>(({ onAppClick, openApps, onAppFocus }, ref) => {
   const handleDockIconClick = (app: App) => {
     const runningApp = openApps.find(openApp => openApp.app.id === app.id);
     if (runningApp) {
@@ -29,7 +29,7 @@ export default function Dock({ onAppClick, openApps, onAppFocus }: DockProps) {
   };
   
   return (
-    <footer className="w-full flex justify-center pb-2 z-50">
+    <footer className="w-full flex justify-center pb-2 z-50" ref={ref}>
         <ScrollArea className="w-full max-w-max mx-auto">
           <div className={cn(
             "flex items-end gap-2 p-2 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 shadow-lg w-max mx-auto",
@@ -66,4 +66,8 @@ export default function Dock({ onAppClick, openApps, onAppFocus }: DockProps) {
         </ScrollArea>
     </footer>
   );
-}
+});
+
+Dock.displayName = "Dock";
+
+export default Dock;

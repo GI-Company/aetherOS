@@ -17,6 +17,7 @@ type WindowProps = {
   updatePosition: (id: number, pos: { x: number; y: number }) => void;
   isFocused: boolean;
   bounds: React.RefObject<HTMLElement>;
+  dockRef: React.RefObject<HTMLElement>;
 };
 
 export default function Window({
@@ -26,22 +27,45 @@ export default function Window({
   onMinimize,
   updatePosition,
   isFocused,
-  bounds
+  bounds,
+  dockRef,
 }: WindowProps) {
   const { id, app, position, size, zIndex, isMinimized } = instance;
   const AppContent = app.component;
-  const windowRef = useRef(null);
+  const headerRef = useRef<HTMLDivElement>(null);
 
-  const [{ x, y }, api] = useSpring(() => ({
+  const getDockPosition = () => {
+    if (dockRef.current) {
+      const rect = dockRef.current.getBoundingClientRect();
+      return {
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+      };
+    }
+    return { x: window.innerWidth / 2, y: window.innerHeight - 30 };
+  };
+
+  const [{ x, y, scale, opacity }, api] = useSpring(() => ({
     x: position.x,
     y: position.y,
+    scale: 1,
+    opacity: 1,
     config: { friction: 25, tension: 180 },
   }));
+  
+  React.useEffect(() => {
+    const dockPos = getDockPosition();
+    api.start({
+      to: isMinimized 
+        ? { x: dockPos.x - size.width/2, y: dockPos.y - size.height/2, scale: 0, opacity: 0 } 
+        : { x: position.x, y: position.y, scale: 1, opacity: 1 },
+    });
+  }, [isMinimized, position, api, size]);
 
   const bind = useDrag(
     ({ down, offset: [ox, oy], event }) => {
       event.stopPropagation();
-      api.start({ x: ox, y: oy });
+      api.start({ x: ox, y: oy, scale: 1, opacity: 1 });
       if (!down) {
         updatePosition(id, { x: ox, y: oy });
       }
@@ -49,9 +73,11 @@ export default function Window({
     {
       from: () => [x.get(), y.get()],
       bounds,
-      handle: windowRef,
+      handle: headerRef,
       filterTaps: true,
       pointer: { capture: false },
+      // Prevent drag when minimized
+      enabled: !isMinimized,
     }
   );
 
@@ -94,11 +120,13 @@ export default function Window({
         zIndex,
         x,
         y,
+        scale,
+        opacity,
+        pointerEvents: isMinimized ? 'none' : 'auto',
         transformOrigin: "center center",
       }}
       className={cn(
-        "absolute rounded-lg shadow-2xl transition-all duration-200 ease-in-out",
-        isMinimized ? "opacity-0 pointer-events-none scale-90 -translate-y-4" : "opacity-100 scale-100 translate-y-0",
+        "absolute rounded-lg shadow-2xl",
         isFocused ? "shadow-accent/50" : "shadow-black/50"
       )}
       onMouseDownCapture={onFocus}
@@ -112,7 +140,7 @@ export default function Window({
         )}
       >
         <CardHeader
-          ref={windowRef}
+          ref={headerRef}
           className={cn(
             "p-2 flex-shrink-0 flex flex-row items-center justify-between border-b",
             "cursor-grab active:cursor-grabbing"

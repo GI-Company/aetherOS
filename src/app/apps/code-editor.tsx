@@ -10,9 +10,10 @@ import { Wand2, Sparkles, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ref, uploadString } from 'firebase/storage';
-import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { useFirebase, useStorage, errorEmitter } from "@/firebase";
 import { osEvent } from "@/lib/events";
 import type Editor from "@monaco-editor/react";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
 

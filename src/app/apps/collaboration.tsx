@@ -7,10 +7,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, Users } from 'lucide-react';
+import { Send, Loader2, Users, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { APPS, App } from '@/lib/apps';
 
 interface ChatMessage {
   id: string;
@@ -21,7 +22,12 @@ interface ChatMessage {
   senderPhotoURL: string;
 }
 
-export default function CollaborationApp() {
+interface CollaborationAppProps {
+  onOpenApp?: (app: App) => void;
+}
+
+
+export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const { firestore, user } = useFirebase();
   const [newMessage, setNewMessage] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -55,23 +61,7 @@ export default function CollaborationApp() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !firestore) {
-      if (!user) {
-        toast({
-          title: "Authentication Required",
-          description: "You must be signed in to send messages.",
-          variant: "destructive"
-        });
-      }
-      return;
-    }
-    
-    if (user.isAnonymous) {
-      toast({
-        title: "Feature Unavailable in Trial Mode",
-        description: "Please upgrade to a permanent account to use chat.",
-        variant: "destructive"
-      });
+    if (!newMessage.trim() || !user || !firestore || user.isAnonymous) {
       return;
     }
 
@@ -88,6 +78,45 @@ export default function CollaborationApp() {
 
     setNewMessage('');
   };
+
+  const openSettingsToAccountTab = () => {
+    const settingsApp = APPS.find(app => app.id === 'settings');
+    if (settingsApp && onOpenApp) {
+      onOpenApp(settingsApp);
+      // We would ideally pass a prop to open a specific tab,
+      // but for now, just opening the app is a good first step.
+    }
+  }
+
+  const renderInputArea = () => {
+    if (user?.isAnonymous) {
+      return (
+        <div className="text-center p-4 border-t bg-card text-muted-foreground text-sm">
+          <p className="mb-2">You are in trial mode. Please upgrade to a full account to send messages.</p>
+          <Button variant="secondary" onClick={openSettingsToAccountTab}>
+            <UserPlus className="mr-2 h-4 w-4"/>
+            Upgrade Account
+          </Button>
+        </div>
+      )
+    }
+
+    return (
+       <div className="flex-shrink-0 p-4 border-t bg-card">
+        <form onSubmit={handleSendMessage} className="flex gap-2">
+          <Input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type a message..."
+            disabled={isLoading}
+          />
+          <Button type="submit" disabled={!newMessage.trim() || isLoading}>
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -117,7 +146,7 @@ export default function CollaborationApp() {
                             "p-3 rounded-lg max-w-xs md:max-w-md",
                             isCurrentUser ? "bg-primary text-primary-foreground" : "bg-muted"
                         )}>
-                            {!isCurrentUser && <p className="text-xs font-semibold mb-1">{msg.senderName}</p>}
+                            {!isCurrentUser && <p className="text-xs font-semibold mb-1 text-foreground">{msg.senderName}</p>}
                             <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                             <p className={cn("text-xs mt-1 opacity-70", isCurrentUser ? "text-right" : "text-left")}>
                                 {msg.timestamp ? format(msg.timestamp.toDate(), 'p') : 'sending...'}
@@ -125,8 +154,8 @@ export default function CollaborationApp() {
                         </div>
                          {isCurrentUser && (
                             <Avatar className="h-8 w-8">
-                                <AvatarImage src={msg.senderPhotoURL} />
-                                <AvatarFallback>{getInitials(msg.senderName)}</AvatarFallback>
+                                <AvatarImage src={user?.photoURL || ''} />
+                                <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
                             </Avatar>
                         )}
                     </div>
@@ -140,19 +169,7 @@ export default function CollaborationApp() {
         )}
       </ScrollArea>
 
-      <div className="flex-shrink-0 p-4 border-t bg-card">
-        <form onSubmit={handleSendMessage} className="flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            disabled={user?.isAnonymous || isLoading}
-          />
-          <Button type="submit" disabled={!newMessage.trim() || user?.isAnonymous || isLoading}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
-      </div>
+      {renderInputArea()}
     </div>
   );
 }

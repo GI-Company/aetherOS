@@ -1,4 +1,3 @@
-
 'use client';
 
 import Image from "next/image";
@@ -16,10 +15,9 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2, PartyPopper } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
-import { doc, serverTimestamp } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
 import { getAuth, signOut } from "firebase/auth";
 
@@ -365,7 +363,7 @@ export default function Desktop() {
             if (window.app.id === 'file-explorer') {
               componentProps.onOpenFile = openFile;
             }
-             if (window.app.id === 'settings') {
+             if (window.app.id === 'settings' || window.app.id === 'collaboration') {
               componentProps.onOpenApp = openApp;
             }
 
@@ -377,8 +375,8 @@ export default function Desktop() {
                 onFocus={() => focusApp(window.id)}
                 onMinimize={() => toggleMinimize(window.id)}
                 onMaximize={() => toggleMaximize(window.id)}
-                updatePosition={updateAppPosition}
-                updateSize={updateAppSize}
+                updatePosition={updatePosition}
+                updateSize={updateSize}
                 isFocused={focusedAppId === window.id}
                 bounds={desktopRef}
                 dockRef={dockRef}

@@ -58,11 +58,24 @@
           }
         }
       }
+    },
+    "trialUser": {
+      "title": "Trial User",
+      "description": "Represents a temporary, anonymous user session.",
+      "type": "object",
+      "properties": {
+        "trialStartedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the trial period started."
+        }
+      }
     }
   },
   "auth": {
     "providers": [
-      "google.com"
+      "google.com",
+      "anonymous"
     ]
   },
   "firestore": {
@@ -77,6 +90,12 @@
         "$ref": "#/entities/userPreference"
       },
       "description": "Stores user-specific preferences, such as UI theme."
+    },
+    "/trialUsers/{userId}": {
+      "schema": {
+        "$ref": "#/entities/trialUser"
+      },
+      "description": "Stores information about an anonymous user's trial session."
     }
   }
 }

@@ -17,7 +17,8 @@ import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
-import { doc } from "firebase/firestore";
+import { doc, serverTimestamp } from "firebase/firestore";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export type WindowInstance = {
   id: number;
@@ -104,17 +105,17 @@ export default function Desktop() {
   const firestore = useFirestore();
 
   const userPreferencesRef = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
+    if (!firestore || !user?.uid || user.isAnonymous) return null;
     return doc(firestore, 'userPreferences', user.uid);
-  }, [firestore, user?.uid]);
+  }, [firestore, user?.uid, user?.isAnonymous]);
 
   const { data: userPreferences, isLoading: isPreferencesLoading } = useDoc(userPreferencesRef);
   
   useEffect(() => {
-    if (userPreferences) {
+    if (user && !user.isAnonymous && userPreferences) {
       applyTheme(userPreferences as any, false);
     }
-  }, [userPreferences, applyTheme]);
+  }, [user, userPreferences, applyTheme]);
   
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   const [openApps, setOpenApps] = useState<WindowInstance[]>([]);
@@ -125,6 +126,14 @@ export default function Desktop() {
   const { toast } = useToast();
   const desktopRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
+
+  // When an anonymous user logs in, create a trial document for them
+  useEffect(() => {
+    if (user?.isAnonymous && firestore) {
+      const trialRef = doc(firestore, 'trialUsers', user.uid);
+      setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
+    }
+  }, [user, firestore]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -193,7 +202,7 @@ export default function Desktop() {
   useEffect(() => {
     const focusedApp = openApps.find(app => app.id === focusedAppId);
     
-    if (focusedApp) {
+    if (focusedApp && !user?.isAnonymous) {
        const proactiveToastTimeout = setTimeout(async () => {
         try {
             const openAppNames = openApps.filter(a => !a.isMinimized).map(a => a.app.name).join(', ');
@@ -221,7 +230,7 @@ export default function Desktop() {
 
       return () => clearTimeout(proactiveToastTimeout);
     }
-  }, [focusedAppId, openApps, toast, arrangeWindows]);
+  }, [focusedAppId, openApps, toast, arrangeWindows, user]);
 
   const openApp = useCallback((app: App, props: Record<string, any> = {}) => {
     const existingAppInstance = openApps.find(a => a.app.id === app.id);
@@ -348,7 +357,7 @@ export default function Desktop() {
     }
   }
 
-  if (isUserLoading || (user && isPreferencesLoading)) {
+  if (isUserLoading || (user && !user.isAnonymous && isPreferencesLoading)) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />

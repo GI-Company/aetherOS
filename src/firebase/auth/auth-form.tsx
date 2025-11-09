@@ -1,11 +1,14 @@
+
 'use client';
 
-import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Separator } from '@/components/ui/separator';
+import { User } from 'lucide-react';
 
 function GoogleIcon() {
   return (
@@ -30,13 +33,16 @@ function GoogleIcon() {
   );
 }
 
+interface AuthFormProps {
+  allowAnonymous?: boolean;
+}
 
-export default function AuthForm() {
+export default function AuthForm({ allowAnonymous = true }: AuthFormProps) {
   const auth = getAuth();
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
 
-  const handleSignIn = async () => {
+  const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
@@ -53,10 +59,28 @@ export default function AuthForm() {
       });
     }
   };
+  
+  const handleAnonymousSignIn = async () => {
+    try {
+      await signInAnonymously(auth);
+      toast({
+        title: 'Entering Trial Mode',
+        description: 'You have 15 minutes to explore AetherOS.',
+      });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        variant: 'destructive',
+        title: 'Trial Mode Failed',
+        description: error.message || 'An unexpected error occurred.',
+      });
+    }
+  };
+
 
   return (
     <div className="h-screen w-screen flex items-center justify-center font-body bg-background">
-       {wallpaper && (
+       {wallpaper && allowAnonymous && (
         <Image
           src={wallpaper.imageUrl}
           alt={wallpaper.description}
@@ -70,13 +94,27 @@ export default function AuthForm() {
       <Card className="w-full max-w-sm z-10 bg-card/80 backdrop-blur-xl border-white/20">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-headline">AetherOS</CardTitle>
-          <CardDescription>The next generation of operating systems.</CardDescription>
+          {allowAnonymous && <CardDescription>The next generation of operating systems.</CardDescription>}
         </CardHeader>
-        <CardContent>
-          <Button className="w-full" onClick={handleSignIn}>
+        <CardContent className="flex flex-col gap-4">
+          <Button className="w-full" onClick={handleGoogleSignIn}>
             <GoogleIcon />
             Sign in with Google
           </Button>
+
+          {allowAnonymous && (
+            <>
+              <div className="relative">
+                <Separator />
+                <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-card px-2 text-xs text-muted-foreground">OR</span>
+              </div>
+              <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
+                <User className="mr-2 h-4 w-4" />
+                Try the Demo
+              </Button>
+            </>
+          )}
+
         </CardContent>
       </Card>
     </div>

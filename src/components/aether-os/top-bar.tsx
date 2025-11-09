@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wifi, BatteryFull, Command, LogOut } from "lucide-react";
+import { Wifi, BatteryFull, Command, LogOut, Shield } from "lucide-react";
 import { useFirebase } from "@/firebase";
 import { getAuth, signOut } from "firebase/auth";
 import {
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useTrialTimer } from "@/hooks/use-trial-timer";
 
 function AetherLogo() {
   return (
@@ -27,6 +28,7 @@ export default function TopBar() {
   const [time, setTime] = useState("");
   const { user } = useFirebase();
   const auth = getAuth();
+  const { timeRemaining, formattedTime } = useTrialTimer(user);
 
   const getInitials = (name?: string | null) => {
     if (!name) return "?";
@@ -46,6 +48,43 @@ export default function TopBar() {
     return () => clearInterval(timerId);
   }, []);
 
+  const renderUserMenu = () => {
+    if (!user) return null;
+
+    if (user.isAnonymous) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-yellow-400">
+          <Shield className="h-4 w-4" />
+          <span>Trial Mode: {formattedTime}</span>
+        </div>
+      );
+    }
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger>
+          <Avatar className="h-6 w-6">
+            <AvatarImage src={user.photoURL || undefined} alt={user.displayName || "User"} />
+            <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>
+            <div className="font-normal">
+              <p className="font-semibold">{user.displayName}</p>
+              <p className="text-xs text-muted-foreground">{user.email}</p>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => signOut(auth)}>
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Sign out</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
   return (
     <header className="absolute top-0 left-0 right-0 h-8 bg-black/20 backdrop-blur-md flex items-center justify-between px-3 text-sm z-50">
       <div className="flex items-center gap-4">
@@ -57,29 +96,7 @@ export default function TopBar() {
         <Wifi className="h-4 w-4" />
         <BatteryFull className="h-4 w-4" />
         <span>{time}</span>
-        {user && (
-          <DropdownMenu>
-            <DropdownMenuTrigger>
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={user.photoURL || undefined} alt={user.displayName || "User"} />
-                <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
-              </Avatar>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>
-                <div className="font-normal">
-                  <p className="font-semibold">{user.displayName}</p>
-                  <p className="text-xs text-muted-foreground">{user.email}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut(auth)}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Sign out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        {renderUserMenu()}
       </div>
     </header>
   );

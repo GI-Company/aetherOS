@@ -68,8 +68,8 @@ export async function proactiveOsAssistance(input: ProactiveOsAssistanceInput): 
 
 
   return (
-    <div className="flex h-full bg-background">
-      <div className="w-2/3 flex flex-col">
+    <div className="flex h-full bg-background flex-col md:flex-row">
+      <div className="flex-grow flex flex-col md:w-2/3">
         <div className="flex-shrink-0 p-2 border-b text-sm text-muted-foreground">
           File: /src/ai/flows/proactive-os-assistance.ts
         </div>
@@ -80,7 +80,7 @@ export async function proactiveOsAssistance(input: ProactiveOsAssistanceInput): 
           placeholder="Start coding with Aether-Architect..."
         />
       </div>
-      <div className="w-1/3 border-l p-4 flex flex-col gap-4">
+      <div className="md:w-1/3 border-t md:border-t-0 md:border-l p-4 flex flex-col gap-4">
         <h3 className="text-lg font-headline flex items-center gap-2"><Wand2 className="text-accent" /> Aether-Architect</h3>
         
         <div className="space-y-2">
@@ -90,7 +90,7 @@ export async function proactiveOsAssistance(input: ProactiveOsAssistanceInput): 
             placeholder="Describe the code to generate..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            className="min-h-[100px]"
+            className="min-h-[100px] md:min-h-0"
           />
           <Button onClick={handleGenerateCode} disabled={!!isLoading} className="w-full">
             {isLoading === 'generate' ? <Loader2 className="animate-spin" /> : <Sparkles />}

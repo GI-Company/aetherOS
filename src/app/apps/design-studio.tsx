@@ -66,7 +66,7 @@ export default function DesignStudioApp() {
           placeholder="e.g., 'A responsive card component with an image, title, description, and a call-to-action button'"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          className="min-h-[80px]"
+          className="min-h-0"
         />
         <Button onClick={handleGenerate} disabled={isLoading}>
           {isLoading ? (

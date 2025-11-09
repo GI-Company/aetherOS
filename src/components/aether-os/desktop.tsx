@@ -13,6 +13,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "../ui/toast";
 import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/firebase";
+import AuthForm from "@/firebase/auth/auth-form";
+import { Loader2 } from "lucide-react";
 
 export type WindowInstance = {
   id: number;
@@ -29,6 +32,7 @@ export type WindowInstance = {
 };
 
 export default function Desktop() {
+  const { user, isUserLoading } = useUser();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   const [openApps, setOpenApps] = useState<WindowInstance[]>([]);
   const [focusedAppId, setFocusedAppId] = useState<number | null>(null);
@@ -51,8 +55,8 @@ export default function Desktop() {
   }, []);
   
   const arrangeWindows = useCallback(() => {
-    const codeEditor = openApps.find(a => a.app.id === 'code-editor');
-    const browser = openApps.find(a => a.app.id === 'browser');
+    const codeEditor = openApps.find(a => a.app.id === 'code-editor' && !a.isMinimized);
+    const browser = openApps.find(a => a.app.id === 'browser' && !a.isMinimized);
     
     if (!codeEditor || !browser) {
         toast({
@@ -249,6 +253,19 @@ export default function Desktop() {
       return app;
     }));
   };
+
+  if (isUserLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <AuthForm />;
+  }
+
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background font-body flex flex-col">

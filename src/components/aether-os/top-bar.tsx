@@ -1,7 +1,19 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wifi, BatteryFull, Command } from "lucide-react";
+import { Wifi, BatteryFull, Command, LogOut } from "lucide-react";
+import { useFirebase } from "@/firebase";
+import { getAuth, signOut } from "firebase/auth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 function AetherLogo() {
   return (
@@ -13,6 +25,17 @@ function AetherLogo() {
 
 export default function TopBar() {
   const [time, setTime] = useState("");
+  const { user } = useFirebase();
+  const auth = getAuth();
+
+  const getInitials = (name?: string | null) => {
+    if (!name) return "?";
+    const names = name.split(' ');
+    if (names.length > 1) {
+      return names[0][0] + names[names.length - 1][0];
+    }
+    return name.substring(0, 2);
+  }
 
   useEffect(() => {
     const updateClock = () => {
@@ -34,6 +57,29 @@ export default function TopBar() {
         <Wifi className="h-4 w-4" />
         <BatteryFull className="h-4 w-4" />
         <span>{time}</span>
+        {user && (
+          <DropdownMenu>
+            <DropdownMenuTrigger>
+              <Avatar className="h-6 w-6">
+                <AvatarImage src={user.photoURL || undefined} alt={user.displayName || "User"} />
+                <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
+              </Avatar>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>
+                <div className="font-normal">
+                  <p className="font-semibold">{user.displayName}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => signOut(auth)}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sign out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </header>
   );

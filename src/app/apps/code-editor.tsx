@@ -1,18 +1,20 @@
 
-
 "use client";
 
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { aiCodeGeneration } from "@/ai/flows/ai-code-generation";
-import { useState, useEffect }from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { Wand2, Sparkles, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ref, uploadString } from 'firebase/storage';
 import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { osEvent } from "@/lib/events";
+import type Editor from "@monaco-editor/react";
+
+const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
 
 interface CodeEditorAppProps {
   filePath?: string;
@@ -20,14 +22,15 @@ interface CodeEditorAppProps {
 }
 
 export default function CodeEditorApp({ filePath: initialFilePath, initialContent = '' }: CodeEditorAppProps) {
-  const [filePath, setFilePath] = useState(initialFilePath || '/untitled');
+  const [filePath, setFilePath] = useState(initialFilePath || '/untitled.tsx');
   const [code, setCode] = useState(initialContent);
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState<"generate" | "refactor" | "save" | null>(null);
   const { toast } = useToast();
   const { user } = useFirebase();
   const storage = useStorage();
-  
+  const editorRef = useRef<InstanceType<typeof Editor> | null>(null);
+
   useEffect(() => {
     if (initialFilePath) {
       setFilePath(initialFilePath);
@@ -38,6 +41,9 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
     setCode(initialContent);
   }, [initialContent]);
 
+  const handleEditorDidMount = (editor: InstanceType<typeof Editor>) => {
+    editorRef.current = editor;
+  };
 
   const cleanCode = (rawCode: string) => {
     return rawCode.replace(/^```(?:\w+\n)?/, '').replace(/```$/, '').trim();
@@ -50,9 +56,10 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
     }
     setIsLoading("generate");
     try {
-      const fullPrompt = `File Path: ${filePath}\n\nTask: ${prompt}\n\n---\n\nGenerate the complete code for the file based on the task.`;
+      const fullPrompt = `File Path: ${filePath}\n\nTask: ${prompt}\n\n---\n\nGenerate the complete code for the file based on the task. Ensure the output is a single, complete file content without any extra explanations.`;
       const result = await aiCodeGeneration({ description: fullPrompt });
-      setCode(cleanCode(result.code));
+      const newCode = cleanCode(result.code);
+      setCode(newCode);
       toast({ title: "Code Generated", description: `The code in ${filePath} has been updated.` });
     } catch (e) {
       console.error(e);
@@ -63,13 +70,13 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
   };
 
   const handleRefactorCode = async () => {
-    if (!code) {
+    const currentCode = editorRef.current?.getValue();
+    if (!currentCode) {
       toast({ title: "No code to refactor", description: "The editor is empty.", variant: "destructive" });
       return;
     }
     setIsLoading("refactor");
     try {
-      // Fetch the roadmap to provide as a style guide
       const response = await fetch('/docs/ROADMAP.md');
       const styleGuide = await response.text();
 
@@ -88,10 +95,11 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
 
         Code to Refactor:
         ---
-        ${code}
+        ${currentCode}
       `;
       const result = await aiCodeGeneration({ description: refactorPrompt });
-      setCode(cleanCode(result.code));
+      const newCode = cleanCode(result.code);
+      setCode(newCode);
       toast({ title: "Refactoring Complete", description: `The code in ${filePath} has been updated based on the project's architectural goals.` });
     } catch (e) {
       console.error(e);
@@ -102,7 +110,8 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
   }
 
   const handleSave = () => {
-     if (!user || !filePath || filePath === '/untitled' || !storage) {
+     const currentCode = editorRef.current?.getValue();
+     if (!user || !filePath || filePath === '/untitled.tsx' || !storage || typeof currentCode === 'undefined') {
       toast({
         title: "Cannot Save",
         description: "Please open a valid file from the explorer before saving.",
@@ -114,8 +123,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
 
     const fileRef = ref(storage, filePath);
     
-    // Use non-blocking upload with centralized error handling
-    uploadString(fileRef, code)
+    uploadString(fileRef, currentCode)
       .then(() => {
         toast({
           title: "File Saved!",
@@ -124,17 +132,12 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
         osEvent.emit('file-system-change', undefined);
       })
       .catch((serverError) => {
-        // Create the rich, contextual error
         const permissionError = new FirestorePermissionError({
           path: fileRef.fullPath,
           operation: 'write',
-          requestResourceData: `(file content of ${code.length} bytes)`,
+          requestResourceData: `(file content of ${currentCode.length} bytes)`,
         });
-
-        // Emit the error to be caught by the global error listener
         errorEmitter.emit('permission-error', permissionError);
-
-        // Also show a user-friendly toast
         toast({
           title: "Save Failed",
           description: "Check the console or error overlay for details on the permission error.",
@@ -146,7 +149,6 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       });
   }
 
-
   return (
     <div className="flex h-full bg-background flex-col md:flex-row">
       <div className="flex-grow flex flex-col md:w-2/3">
@@ -157,13 +159,15 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
             Save
           </Button>
         </div>
-        <Textarea 
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          className="flex-grow w-full h-full rounded-none border-none resize-none focus-visible:ring-0 font-mono text-sm bg-card"
-          placeholder="Start coding with Aether-Architect... Open a file from the File Explorer to begin."
-          disabled={!!isLoading}
-        />
+        <div className="flex-grow w-full h-full bg-card">
+           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin h-8 w-8" /></div>}>
+            <MonacoEditor
+              value={code}
+              onMount={handleEditorDidMount}
+              language="typescript"
+            />
+          </Suspense>
+        </div>
       </div>
       <div className="md:w-1/3 border-t md:border-t-0 md:border-l p-4 flex flex-col gap-4">
         <h3 className="text-lg font-headline flex items-center gap-2"><Wand2 className="text-accent" /> Aether-Architect</h3>

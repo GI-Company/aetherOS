@@ -63,22 +63,30 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
       const toolCalls = response.toolCalls();
 
       if (toolCalls.length > 0) {
+         let shouldClose = true;
         for (const toolCall of toolCalls) {
-            if (toolCall.tool === 'openApp') {
-                const appId = toolCall.input.appId;
-                const appToOpen = APPS.find(a => a.id === appId);
-                if (appToOpen) {
-                    onOpenApp(appToOpen);
-                }
-            } else if (toolCall.tool === 'getOpenApps') {
-                const toolResponse = await response.runTool(toolCall);
-                const finalResponse = await agenticToolUser(searchValue, openAppNames);
-                setAgentResponse(finalResponse.text());
+          if (toolCall.toolName === 'openApp') {
+            const appId = (toolCall.input as any).appId;
+            const appToOpen = APPS.find(a => a.id === appId);
+            if (appToOpen) {
+              onOpenApp(appToOpen);
             }
+          } else {
+            // If another tool was called, we might want to see the text response.
+            shouldClose = false;
+          }
         }
-        if (!agentResponse) {
-            setOpen(false);
+        
+        const textResponse = response.text();
+        if (textResponse) {
+            setAgentResponse(textResponse);
+            shouldClose = false;
         }
+
+        if (shouldClose) {
+          setOpen(false);
+        }
+
       } else {
         const textResponse = response.text();
         setAgentResponse(textResponse);
@@ -89,7 +97,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     } finally {
       setIsLoading(false);
     }
-  }, [searchValue, openApps, onOpenApp, agentResponse]);
+  }, [searchValue, openApps, onOpenApp, setOpen]);
 
   useEffect(() => {
     if (!open) {

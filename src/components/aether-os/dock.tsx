@@ -28,11 +28,9 @@ export default function Dock({ onAppClick, openApps, onAppFocus }: DockProps) {
     }
   };
   
-  const viewportRef = React.useRef<HTMLDivElement>(null);
-
   return (
     <footer className="w-full flex justify-center pb-2 z-50">
-        <ScrollArea className="w-full max-w-max mx-auto" viewportRef={viewportRef}>
+        <ScrollArea className="w-full max-w-max mx-auto">
           <div className={cn(
             "flex items-end gap-2 p-2 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 shadow-lg w-max mx-auto",
           )}>

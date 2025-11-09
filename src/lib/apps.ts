@@ -8,6 +8,7 @@ import WorkflowStudioApp from "@/app/apps/workflow-studio";
 import DesignStudioApp from "@/app/apps/design-studio";
 import PixelStreamerApp from "@/app/apps/pixel-streamer";
 import BillingApp from "@/app/apps/billing";
+import CollaborationApp from "@/app/apps/collaboration";
 
 
 export type App = {
@@ -19,7 +20,6 @@ export type App = {
 };
 
 const MailApp = () => React.createElement('div', { className: 'p-4' }, 'Mail App Content');
-const CollaborationApp = () => React.createElement('div', { className: 'p-4 flex items-center justify-center h-full text-muted-foreground' }, 'Real-time Collaboration features would be here.');
 const VirtualMachineApp = () => React.createElement('div', { className: 'p-4 flex items-center justify-center h-full text-muted-foreground' }, 'Embedded VM would be displayed here.');
 
 
@@ -45,6 +45,13 @@ export const APPS: App[] = [
     component: BrowserApp,
     defaultSize: { width: 1024, height: 768 },
   },
+   {
+    id: 'collaboration',
+    name: 'Collaboration',
+    Icon: Users,
+    component: CollaborationApp,
+    defaultSize: { width: 500, height: 650 },
+  },
   {
     id: "workflow-studio",
     name: "Workflow Studio",
@@ -65,13 +72,6 @@ export const APPS: App[] = [
     Icon: Layers,
     component: PixelStreamerApp,
     defaultSize: { width: 600, height: 450 },
-  },
-  {
-    id: 'collaboration',
-    name: 'Collaboration',
-    Icon: Users,
-    component: CollaborationApp,
-    defaultSize: { width: 900, height: 650 },
   },
   {
     id: 'virtual-machine',

@@ -1,5 +1,5 @@
 
-"use client";
+'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Folder, File, Search, Loader2, Upload, FolderPlus, ArrowUp, RefreshCw, 
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
-import { getStorage, ref, listAll, getMetadata, uploadBytes, uploadString } from 'firebase/storage';
+import { getStorage, ref, listAll, getMetadata, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
@@ -17,6 +17,8 @@ import { formatBytes } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
 import { FileItem } from "@/lib/types";
 import { APPS } from "@/lib/apps";
+import Image from "next/image";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const useStorageFiles = (currentPath: string) => {
     const { user } = useFirebase();
@@ -96,6 +98,61 @@ interface FileExplorerAppProps {
   onOpenFile?: (filePath: string) => void;
   searchQuery?: string;
   onOpenApp?: (app: (typeof APPS)[0], props?: Record<string, any>) => void;
+}
+
+const FileRow = ({ file, onDoubleClick }: { file: FileItem, onDoubleClick: (file: FileItem) => void }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+
+  const isImage = file.type === 'file' && /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+
+  useEffect(() => {
+    const fetchUrl = async () => {
+      if (isImage) {
+        setIsLoadingUrl(true);
+        try {
+          const storage = getStorage();
+          const url = await getDownloadURL(ref(storage, file.path));
+          setImageUrl(url);
+        } catch (error) {
+          console.error("Error fetching image URL for thumbnail:", error);
+          setImageUrl(null);
+        } finally {
+          setIsLoadingUrl(false);
+        }
+      }
+    };
+    fetchUrl();
+  }, [file.path, isImage]);
+  
+  const renderIcon = () => {
+    if (file.type === 'folder') {
+      return <Folder className="h-5 w-5 text-accent" />;
+    }
+    
+    if (isImage) {
+      return (
+        <div className="w-8 h-8 rounded bg-muted flex items-center justify-center overflow-hidden">
+          {isLoadingUrl ? <Skeleton className="h-full w-full" /> : imageUrl ? (
+             <Image src={imageUrl} alt={file.name} width={32} height={32} className="object-cover h-full w-full" />
+          ) : <File className="h-5 w-5 text-muted-foreground" />}
+        </div>
+      );
+    }
+    
+    return <File className="h-5 w-5 text-muted-foreground" />;
+  }
+
+  return (
+    <TableRow onDoubleClick={() => onDoubleClick(file)} className="cursor-pointer">
+      <TableCell className="font-medium flex items-center gap-3">
+        {renderIcon()}
+        <span>{file.name}</span>
+      </TableCell>
+      <TableCell>{file.type === 'file' ? formatBytes(file.size) : '--'}</TableCell>
+      <TableCell>{format(file.modified, "PPp")}</TableCell>
+    </TableRow>
+  )
 }
 
 export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery, onOpenApp }: FileExplorerAppProps) {
@@ -314,14 +371,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
                 </TableRow>
             ) : displayedFiles.length > 0 ? (
                  displayedFiles.map((file) => (
-                    <TableRow key={file.path} onDoubleClick={() => handleDoubleClick(file)} className="cursor-pointer">
-                        <TableCell className="font-medium flex items-center gap-2">
-                        {file.type === 'folder' ? <Folder className="h-4 w-4 text-accent" /> : <File className="h-4 w-4 text-muted-foreground" />}
-                        {file.name}
-                        </TableCell>
-                        <TableCell>{file.type === 'file' ? formatBytes(file.size) : '--'}</TableCell>
-                        <TableCell>{format(file.modified, "PPp")}</TableCell>
-                    </TableRow>
+                    <FileRow key={file.path} file={file} onDoubleClick={handleDoubleClick} />
                 ))
             ) : (
                  <TableRow>
@@ -339,7 +389,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </div>
   );
 }
-
-    
-
-    

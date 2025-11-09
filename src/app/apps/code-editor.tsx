@@ -10,6 +10,8 @@ import { useState, useEffect }from "react";
 import { Wand2, Sparkles, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { getStorage, ref, uploadString } from 'firebase/storage';
+import { useFirebase } from "@/firebase";
 
 interface CodeEditorAppProps {
   filePath?: string;
@@ -20,8 +22,9 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
   const [filePath, setFilePath] = useState(initialFilePath || '/untitled');
   const [code, setCode] = useState(initialContent);
   const [prompt, setPrompt] = useState("");
-  const [isLoading, setIsLoading] = useState<"generate" | "refactor" | null>(null);
+  const [isLoading, setIsLoading] = useState<"generate" | "refactor" | "save" | null>(null);
   const { toast } = useToast();
+  const { user } = useFirebase();
   
   useEffect(() => {
     if (initialFilePath) {
@@ -76,11 +79,34 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
     }
   }
 
-  const handleSave = () => {
-    toast({
-      title: "File Saved",
-      description: `${filePath} has been saved. (This is a simulation)`,
-    });
+  const handleSave = async () => {
+     if (!user || !filePath || filePath === '/untitled') {
+      toast({
+        title: "Cannot Save",
+        description: "Please open a valid file from the explorer before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsLoading("save");
+    try {
+      const storage = getStorage();
+      const fileRef = ref(storage, filePath);
+      await uploadString(fileRef, code);
+      toast({
+        title: "File Saved!",
+        description: `${filePath} has been saved to your cloud storage.`,
+      });
+    } catch (error: any) {
+       console.error("Failed to save file:", error);
+       toast({
+        title: "Save Failed",
+        description: error.message || "An error occurred while saving the file.",
+        variant: "destructive",
+      });
+    } finally {
+        setIsLoading(null);
+    }
   }
 
 
@@ -90,7 +116,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
         <div className="flex-shrink-0 p-2 border-b text-sm text-muted-foreground flex justify-between items-center">
           <span>File: {filePath}</span>
           <Button variant="ghost" size="sm" onClick={handleSave} disabled={!!isLoading}>
-            <Save className="h-4 w-4 mr-2" />
+            {isLoading === 'save' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Save
           </Button>
         </div>

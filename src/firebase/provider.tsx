@@ -7,13 +7,11 @@ import { Firestore } from 'firebase/firestore';
 import { Storage } from 'firebase/storage';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import { FirebaseServices, getSdks } from '@/firebase';
 
 interface FirebaseProviderProps {
   children: ReactNode;
-  firebaseApp: FirebaseApp;
-  firestore: Firestore;
-  auth: Auth;
-  storage: Storage;
+  services: FirebaseServices;
 }
 
 // Internal state for user authentication
@@ -36,17 +34,6 @@ export interface FirebaseContextState {
   userError: Error | null; // Error from auth listener
 }
 
-// Return type for useFirebase()
-export interface FirebaseServicesAndUser {
-  firebaseApp: FirebaseApp;
-  firestore: Firestore;
-  storage: Storage;
-  auth: Auth;
-  user: User | null;
-  isUserLoading: boolean;
-  userError: Error | null;
-}
-
 // React Context
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
@@ -55,11 +42,9 @@ export const FirebaseContext = createContext<FirebaseContextState | undefined>(u
  */
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
-  firebaseApp,
-  firestore,
-  auth,
-  storage,
+  services,
 }) => {
+  const { firebaseApp, firestore, auth, storage } = services;
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
     isUserLoading: true, // Start loading until first auth event
@@ -115,7 +100,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
  * Hook to access core Firebase services and user authentication state.
  * Throws error if core services are not available or used outside provider.
  */
-export const useFirebase = (): FirebaseServicesAndUser => {
+export const useFirebase = (): FirebaseServices & UserAuthState => {
   const context = useContext(FirebaseContext);
 
   if (context === undefined) {
@@ -132,7 +117,7 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     storage: context.storage,
     auth: context.auth,
     user: context.user,
-isUserLoading: context.isUserLoading,
+    isUserLoading: context.isUserLoading,
     userError: context.userError,
   };
 };

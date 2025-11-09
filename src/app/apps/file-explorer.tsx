@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Folder, File, Search, Loader2, Upload, FolderPlus, ArrowUp, RefreshCw } from "lucide-react";
+import { Folder, File, Search, Loader2, Upload, FolderPlus, ArrowUp, RefreshCw, FilePlus } from "lucide-react";
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
@@ -45,6 +45,7 @@ const useStorageFiles = (currentPath: string) => {
             }
 
             for (const itemRef of res.items) {
+                 if (itemRef.name.endsWith('.placeholder')) continue;
                 const metadata = await getMetadata(itemRef);
                 fetchedFiles.push({
                     name: metadata.name,
@@ -107,8 +108,10 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
   const [uploadFile, setUploadFile] = useState<globalThis.File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
+
+  const [isCreating, setIsCreating] = useState<'folder' | 'file' | null>(null);
+  const [newName, setNewName] = useState('');
+
 
   const { toast } = useToast();
   
@@ -181,25 +184,36 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
     }
   }
 
-  const handleCreateFolder = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!newFolderName || !user) return;
+      if (!newName || !user || !isCreating) return;
 
-      const folderName = newFolderName.trim();
-      if (!folderName) return;
+      const trimmedName = newName.trim();
+      if (!trimmedName) return;
+
+      let fullPath: string;
+      let successMessage: string;
+
+      if (isCreating === 'folder') {
+          // Create a placeholder file to represent the folder
+          fullPath = `${currentPath}/${trimmedName}/.placeholder`;
+          successMessage = `Folder "${trimmedName}" was created.`;
+      } else { // isCreating === 'file'
+          fullPath = `${currentPath}/${trimmedName}`;
+          successMessage = `File "${trimmedName}" was created.`;
+      }
 
       try {
           const storage = getStorage();
-          // Create a placeholder file to represent the folder
-          const folderRef = ref(storage, `${currentPath}/${folderName}/.placeholder`);
-          await uploadString(folderRef, '');
-          toast({ title: 'Folder Created', description: `Folder "${folderName}" was created.` });
-          setNewFolderName('');
-          setIsCreatingFolder(false);
+          const itemRef = ref(storage, fullPath);
+          await uploadString(itemRef, '');
+          toast({ title: 'Success', description: successMessage });
+          setNewName('');
+          setIsCreating(null);
           osEvent.emit('file-system-change', undefined);
       } catch (err: any) {
-          console.error("Error creating folder:", err);
-          toast({ title: "Folder Creation Failed", description: err.message, variant: "destructive" });
+          console.error(`Error creating ${isCreating}:`, err);
+          toast({ title: `Failed to create ${isCreating}`, description: err.message, variant: "destructive" });
       }
   }
   
@@ -209,16 +223,23 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
       setCurrentPath(parentPath);
       setSearchQuery(''); // Clear search when navigating
   }
+  
+  const cancelCreation = () => {
+    setIsCreating(null);
+    setNewName('');
+  }
 
   return (
     <div className="flex flex-col h-full">
       <div className="p-2 border-b flex items-center gap-2 flex-wrap">
-        <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={currentPath === basePath || isLoading}>
-            <ArrowUp className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" onClick={refresh} disabled={isLoading}>
-            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-        </Button>
+        <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={currentPath === basePath || isLoading}>
+                <ArrowUp className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={refresh} disabled={isLoading}>
+                <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            </Button>
+        </div>
          <form onSubmit={handleSearch} className="relative flex-grow">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -236,16 +257,22 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
                {isUploading ? <Loader2 className="animate-spin" /> : <Upload className="h-4 w-4" />}
            </Button>
         </div>
-        {!isCreatingFolder ? (
-             <Button variant="outline" onClick={() => setIsCreatingFolder(true)}>
-                <FolderPlus className="h-4 w-4 mr-2" />
-                New Folder
-            </Button>
+        {!isCreating ? (
+            <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setIsCreating('file')}>
+                    <FilePlus className="h-4 w-4 mr-2" />
+                    New File
+                </Button>
+                <Button variant="outline" onClick={() => setIsCreating('folder')}>
+                    <FolderPlus className="h-4 w-4 mr-2" />
+                    New Folder
+                </Button>
+            </div>
         ) : (
-            <form onSubmit={handleCreateFolder} className="flex items-center gap-2">
-                <Input value={newFolderName} onChange={e => setNewFolderName(e.target.value)} placeholder="Folder name..." autoFocus />
+            <form onSubmit={handleCreate} className="flex items-center gap-2">
+                <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder={`New ${isCreating} name...`} autoFocus />
                 <Button type="submit">Create</Button>
-                <Button variant="ghost" onClick={() => setIsCreatingFolder(false)}>Cancel</Button>
+                <Button variant="ghost" onClick={cancelCreation}>Cancel</Button>
             </form>
         )}
       </div>
@@ -293,3 +320,5 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
     </div>
   );
 }
+
+    

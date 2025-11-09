@@ -9,3 +9,4 @@ import '@/ai/flows/semantic-file-search.ts';
 import '@/ai/flows/generate-workflow-from-description.ts';
 import '@/ai/flows/generate-ui-from-prompt.ts';
 import '@/ai/flows/ai-code-generation.ts';
+import '@/ai/flows/generate-accent-color.ts';

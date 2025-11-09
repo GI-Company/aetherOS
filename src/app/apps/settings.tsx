@@ -5,9 +5,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { generateAdaptivePalette } from "@/ai/flows/adaptive-color-palettes";
+import { generateAccentColor } from "@/ai/flows/generate-accent-color";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Wand2, Loader2 } from "lucide-react";
+import { Wand2, Loader2, Palette, Sparkles } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 function hexToHsl(H: string): [number, number, number] | null {
   // Convert hex to RGB first
@@ -44,57 +46,85 @@ function hexToHsl(H: string): [number, number, number] | null {
   return [Math.round(h), Math.round(s), Math.round(l)];
 }
 
+const applyHsl = (variable: string, hex: string) => {
+  const hsl = hexToHsl(hex);
+  if (hsl) {
+    document.documentElement.style.setProperty(variable, `${hsl[0]} ${hsl[1]}% ${hsl[2]}%`);
+  }
+}
 
 export default function SettingsApp() {
-  const [prompt, setPrompt] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [themePrompt, setThemePrompt] = useState("");
+  const [accentPrompt, setAccentPrompt] = useState("");
+  const [isLoading, setIsLoading] = useState<"theme" | "accent" | null>(null);
   const { toast } = useToast();
 
-  const handleGeneratePalette = async () => {
-    if (!prompt) {
+  const handleGenerateTheme = async () => {
+    if (!themePrompt) {
       toast({title: "Error", description: "Please enter a content description.", variant: "destructive"});
       return;
     }
-    setIsLoading(true);
+    setIsLoading("theme");
     try {
-      const result = await generateAdaptivePalette({ contentDescription: prompt });
+      const result = await generateAdaptivePalette({ contentDescription: themePrompt });
       const { palette } = result;
 
-      const newColors: Record<string, string> = {
-        '--background': palette.backgroundColor,
-        '--foreground': palette.textColor,
-        '--card': palette.secondaryColor,
-        '--primary': palette.primaryColor,
-        '--accent': palette.accentColor,
-        '--primary-foreground': palette.backgroundColor,
-        '--card-foreground': palette.textColor,
-        '--popover': palette.secondaryColor,
-        '--popover-foreground': palette.textColor,
-        '--secondary': palette.secondaryColor,
-        '--secondary-foreground': palette.textColor,
-        '--muted': palette.secondaryColor,
-        '--muted-foreground': palette.textColor,
-        '--accent-foreground': palette.backgroundColor,
-        '--border': palette.primaryColor,
-        '--input': palette.primaryColor,
-        '--ring': palette.accentColor,
-      };
-
-      for (const [variable, hex] of Object.entries(newColors)) {
-        const hsl = hexToHsl(hex);
-        if (hsl) {
-          document.documentElement.style.setProperty(variable, `${hsl[0]} ${hsl[1]}% ${hsl[2]}%`);
-        }
-      }
-
-      toast({title: "Palette Applied!", description: "The new adaptive color palette has been set."});
+      applyHsl('--background', palette.backgroundColor);
+      applyHsl('--foreground', palette.textColor);
+      applyHsl('--card', palette.secondaryColor);
+      applyHsl('--card-foreground', palette.textColor);
+      applyHsl('--popover', palette.secondaryColor);
+      applyHsl('--popover-foreground', palette.textColor);
+      applyHsl('--secondary', palette.secondaryColor);
+      applyHsl('--secondary-foreground', palette.textColor);
+      applyHsl('--muted', palette.secondaryColor);
+      applyHsl('--muted-foreground', palette.textColor);
+      applyHsl('--border', palette.primaryColor);
+      applyHsl('--input', palette.primaryColor);
+      
+      toast({title: "Base Theme Applied!", description: "The new adaptive base theme has been set."});
     } catch(e) {
       console.error(e);
-      toast({title: "Error", description: "Failed to generate palette.", variant: "destructive"});
+      toast({title: "Error", description: "Failed to generate theme.", variant: "destructive"});
     } finally {
-      setIsLoading(false);
+      setIsLoading(null);
     }
   };
+
+  const handleGenerateAccent = async () => {
+    if (!accentPrompt) {
+      toast({title: "Error", description: "Please enter an accent description.", variant: "destructive"});
+      return;
+    }
+    setIsLoading("accent");
+    try {
+      const result = await generateAccentColor({ description: accentPrompt });
+      const { accentColor } = result;
+
+      // We need to determine a good foreground color for the new accent.
+      // A simple heuristic: if the color is dark, use a light foreground.
+      const rgb = parseInt(accentColor.substring(1), 16);
+      const r = (rgb >> 16) & 0xff;
+      const g = (rgb >> 8) & 0xff;
+      const b = (rgb >> 0) & 0xff;
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      const accentForeground = luma < 128 ? '#FFFFFF' : '#0B0D1A';
+
+      applyHsl('--primary', accentColor);
+      applyHsl('--accent', accentColor);
+      applyHsl('--ring', accentColor);
+      applyHsl('--primary-foreground', accentForeground);
+      applyHsl('--accent-foreground', accentForeground);
+
+
+      toast({title: "Accent Color Applied!", description: "The new adaptive accent color has been set."});
+    } catch(e) {
+      console.error(e);
+      toast({title: "Error", description: "Failed to generate accent color.", variant: "destructive"});
+    } finally {
+      setIsLoading(null);
+    }
+  }
 
   const setScheme = (scheme: 'light' | 'dark') => {
     document.documentElement.classList.remove('light', 'dark');
@@ -113,31 +143,47 @@ export default function SettingsApp() {
         <TabsContent value="appearance" className="mt-6">
           <div className="space-y-8">
             <div>
-              <h3 className="text-lg font-medium mb-2">Theme</h3>
-              <p className="text-sm text-muted-foreground mb-4">Select your preferred theme.</p>
+              <h3 className="text-lg font-medium mb-2">Color Scheme</h3>
+              <p className="text-sm text-muted-foreground mb-4">Select your preferred color scheme.</p>
               <div className="flex gap-4">
                 <Button variant="outline" onClick={() => setScheme('light')}>Light</Button>
                 <Button variant="outline" onClick={() => setScheme('dark')}>Dark</Button>
               </div>
             </div>
+            <Separator />
             <div>
-              <h3 className="text-lg font-medium mb-2">Adaptive Palette (AI)</h3>
+              <h3 className="text-lg font-medium mb-2">AI Theme Generation</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Describe the kind of content you're working on, and the AI will generate an adaptive color palette.
+                Describe the kind of theme you want, and let the AI generate it for you.
               </p>
-              <div className="space-y-2">
-                <Label htmlFor="adaptive-prompt">Content Description</Label>
-                <Textarea 
-                  id="adaptive-prompt" 
-                  placeholder="e.g., 'Editing a vibrant nature documentary', 'Coding a minimalist text editor'..."
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="theme-prompt">Base Theme (Background/Text)</Label>
+                  <Textarea 
+                    id="theme-prompt" 
+                    placeholder="e.g., 'A dark, modern theme with high contrast for coding', 'A light, airy theme for writing'..."
+                    value={themePrompt}
+                    onChange={(e) => setThemePrompt(e.target.value)}
+                  />
+                  <Button onClick={handleGenerateTheme} disabled={!!isLoading} className="w-full sm:w-auto">
+                    {isLoading === 'theme' ? <Loader2 className="animate-spin" /> : <Palette />}
+                    Generate Base Theme
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accent-prompt">Accent Color</Label>
+                  <Textarea 
+                    id="accent-prompt" 
+                    placeholder="e.g., 'A vibrant electric blue', 'A calming, soft lavender'..."
+                    value={accentPrompt}
+                    onChange={(e) => setAccentPrompt(e.target.value)}
+                  />
+                  <Button onClick={handleGenerateAccent} disabled={!!isLoading} className="w-full sm:w-auto">
+                    {isLoading === 'accent' ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                    Generate Accent
+                  </Button>
+                </div>
               </div>
-              <Button className="mt-4" onClick={handleGeneratePalette} disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : <Wand2 />}
-                Generate Palette
-              </Button>
             </div>
           </div>
         </TabsContent>

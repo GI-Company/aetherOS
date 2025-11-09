@@ -1,4 +1,4 @@
-import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor, CreditCard } from "lucide-react";
+import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor, CreditCard, Image } from "lucide-react";
 import React from "react";
 import SettingsApp from "@/app/apps/settings";
 import FileExplorerApp from "@/app/apps/file-explorer";
@@ -9,6 +9,7 @@ import DesignStudioApp from "@/app/apps/design-studio";
 import PixelStreamerApp from "@/app/apps/pixel-streamer";
 import BillingApp from "@/app/apps/billing";
 import CollaborationApp from "@/app/apps/collaboration";
+import ImageViewerApp from "@/app/apps/image-viewer";
 
 
 export type App = {
@@ -17,6 +18,7 @@ export type App = {
   Icon: LucideIcon;
   component: React.ComponentType<any>; // Allow components to accept props
   defaultSize: { width: number; height: number };
+  hideFromDock?: boolean;
 };
 
 const MailApp = () => React.createElement('div', { className: 'p-4' }, 'Mail App Content');
@@ -37,6 +39,14 @@ export const APPS: App[] = [
     Icon: Code,
     component: CodeEditorApp,
     defaultSize: { width: 800, height: 600 },
+  },
+  {
+    id: "image-viewer",
+    name: "Image Viewer",
+    Icon: Image,
+    component: ImageViewerApp,
+    defaultSize: { width: 800, height: 600 },
+    hideFromDock: true,
   },
   {
     id: "browser",
@@ -102,5 +112,3 @@ export const APPS: App[] = [
     defaultSize: { width: 900, height: 700 },
   },
 ];
-
-    

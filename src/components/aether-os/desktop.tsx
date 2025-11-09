@@ -342,37 +342,45 @@ export default function Desktop() {
     }));
   };
   
-  const openFile = async (filePath: string) => {
-    const editorApp = APPS.find(a => a.id === 'code-editor');
-    if (!editorApp) return;
+ const openFile = async (filePath: string) => {
+    const fileExtension = filePath.split('.').pop()?.toLowerCase();
+    const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
-    toast({
-        title: "Opening File...",
-        description: `Loading content for ${filePath}`,
-    });
+    let appToOpen;
+    let props: Record<string, any> = { filePath };
 
-    try {
+    if (fileExtension && imageExtensions.includes(fileExtension)) {
+      appToOpen = APPS.find(a => a.id === 'image-viewer');
+    } else {
+      appToOpen = APPS.find(a => a.id === 'code-editor');
+      try {
+        toast({
+            title: "Opening File...",
+            description: `Loading content for ${filePath}`,
+        });
         const storage = getStorage();
         const fileRef = ref(storage, filePath);
         const downloadUrl = await getDownloadURL(fileRef);
         
         const response = await fetch(`${downloadUrl}?t=${new Date().getTime()}`);
+        if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
         
-        if (!response.ok) {
-            throw new Error(`Failed to fetch file: ${response.statusText}`);
-        }
-
-        const content = await response.text();
-        
-        openApp(editorApp, { filePath: filePath, initialContent: content });
-
-    } catch(error: any) {
-        console.error("Failed to open file:", error);
+        props.initialContent = await response.text();
+      } catch (error: any) {
+        console.error("Failed to open file content:", error);
         toast({
             title: "Error Opening File",
             description: error.message || `Could not load content for ${filePath}.`,
             variant: "destructive"
         });
+        return; // Don't open the app if content fails to load
+      }
+    }
+
+    if (appToOpen) {
+      openApp(appToOpen, props);
+    } else {
+      toast({ title: "Error", description: "Could not find a suitable application to open this file.", variant: "destructive" });
     }
   }
 

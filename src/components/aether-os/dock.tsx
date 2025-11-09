@@ -35,7 +35,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(({ onAppClick, openApps
             "flex items-end gap-2 p-2 bg-black/20 backdrop-blur-xl rounded-2xl border border-white/10 shadow-lg w-max mx-auto",
           )}>
             <TooltipProvider delayDuration={0}>
-              {APPS.map((app) => (
+              {APPS.filter(app => !app.hideFromDock).map((app) => (
                 <Tooltip key={app.id}>
                   <TooltipTrigger asChild>
                     <button

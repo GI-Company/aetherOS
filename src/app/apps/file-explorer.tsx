@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { formatBytes } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
 import { FileItem } from "@/lib/types";
+import { APPS } from "@/lib/apps";
 
 const useStorageFiles = (currentPath: string) => {
     const { user } = useFirebase();
@@ -94,9 +95,10 @@ const useStorageFiles = (currentPath: string) => {
 interface FileExplorerAppProps {
   onOpenFile?: (filePath: string) => void;
   searchQuery?: string;
+  onOpenApp?: (app: (typeof APPS)[0], props?: Record<string, any>) => void;
 }
 
-export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery }: FileExplorerAppProps) {
+export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery, onOpenApp }: FileExplorerAppProps) {
   const { user } = useFirebase();
   const basePath = useMemo(() => user ? `users/${user.uid}` : '', [user]);
   const [currentPath, setCurrentPath] = useState(basePath);

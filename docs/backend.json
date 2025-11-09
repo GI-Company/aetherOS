@@ -199,6 +199,10 @@
         "photoURL": {
           "type": "string",
           "format": "uri"
+        },
+        "focusedApp": {
+          "type": "string",
+          "description": "The ID of the app the user is currently focused on."
         }
       },
       "required": ["status", "lastSeen"]

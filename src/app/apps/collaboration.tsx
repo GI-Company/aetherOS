@@ -29,6 +29,7 @@ interface UserPresence {
     lastSeen: Timestamp;
     displayName: string;
     photoURL: string;
+    focusedApp?: string;
 }
 
 interface CollaborationAppProps {
@@ -59,30 +60,45 @@ const PresenceList = () => {
     }, [firestore, thirtyMinutesAgo.getTime()]); // Depend on time to refetch periodically if needed
 
     const { data: onlineUsers, isLoading } = useCollection<UserPresence>(presenceQuery);
+    
+    const getAppInfo = (appId?: string) => {
+        if (!appId) return null;
+        return APPS.find(app => app.id === appId);
+    }
 
     return (
-        <div className="w-full md:w-56 flex-shrink-0 border-l bg-card/50 p-4">
+        <div className="w-full md:w-64 flex-shrink-0 border-l bg-card/50 p-4">
             <h4 className="text-md font-headline mb-4">Online Now ({onlineUsers?.length ?? 0})</h4>
              <ScrollArea className="h-full">
                  <div className="space-y-4">
                     {isLoading ? (
                         <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
                     ) : onlineUsers && onlineUsers.length > 0 ? (
-                        onlineUsers.map(pUser => (
-                            <div key={pUser.id} className="flex items-center gap-3">
-                                <Avatar className="h-8 w-8 relative">
-                                    <AvatarImage src={pUser.photoURL} />
-                                    <AvatarFallback>{getInitials(pUser.displayName)}</AvatarFallback>
-                                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-card rounded-full" />
-                                </Avatar>
-                                <div className="text-sm">
-                                    <p className="font-medium truncate">{pUser.displayName}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Active {formatDistanceToNow(pUser.lastSeen.toDate(), { addSuffix: true })}
-                                    </p>
+                        onlineUsers.map(pUser => {
+                            const appInfo = getAppInfo(pUser.focusedApp);
+                            return (
+                                <div key={pUser.id} className="flex items-start gap-3">
+                                    <Avatar className="h-8 w-8 relative flex-shrink-0">
+                                        <AvatarImage src={pUser.photoURL} />
+                                        <AvatarFallback>{getInitials(pUser.displayName)}</AvatarFallback>
+                                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-card rounded-full" />
+                                    </Avatar>
+                                    <div className="text-sm overflow-hidden">
+                                        <p className="font-medium truncate">{pUser.displayName}</p>
+                                        {appInfo ? (
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                                                <appInfo.Icon className="h-3 w-3" />
+                                                <span className="truncate">in {appInfo.name}</span>
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-muted-foreground">
+                                                Active {formatDistanceToNow(pUser.lastSeen.toDate(), { addSuffix: true })}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            )
+                        })
                     ) : (
                         <p className="text-sm text-muted-foreground text-center">No other users are currently active.</p>
                     )}

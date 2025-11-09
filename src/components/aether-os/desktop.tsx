@@ -55,39 +55,6 @@ export default function Desktop() {
 
   const { data: userWorkspace, isLoading: isWorkspaceLoading } = useDoc(userWorkspaceRef);
 
-  // Presence logic
-  useEffect(() => {
-    if (!user || user.isAnonymous || !firestore) return;
-
-    const presenceRef = doc(firestore, 'userPresence', user.uid);
-
-    const updatePresence = () => {
-        setDocumentNonBlocking(presenceRef, {
-            status: 'online',
-            lastSeen: serverTimestamp(),
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-        }, { merge: true });
-    };
-
-    updatePresence(); // Initial update
-
-    const interval = setInterval(updatePresence, 60 * 1000); // Update every minute
-
-    return () => clearInterval(interval);
-
-  }, [user, firestore]);
-
-  useEffect(() => {
-    if (user && !user.isAnonymous && userPreferences) {
-      applyTheme(userPreferences as any, false);
-    }
-  }, [user, userPreferences, applyTheme]);
-  
-  const defaultWallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
-  const wallpaperUrl = (userPreferences as any)?.wallpaperUrl || defaultWallpaper?.imageUrl;
-  const wallpaperHint = (userPreferences as any)?.wallpaperUrl ? "custom wallpaper" : defaultWallpaper?.imageHint;
-
   const [openApps, setOpenApps] = useState<WindowInstance[]>([]);
   const [focusedAppId, setFocusedAppId] = useState<number | null>(null);
   const nextId = useRef(0);
@@ -98,6 +65,41 @@ export default function Desktop() {
   const desktopRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+  
+  // Presence logic
+  useEffect(() => {
+    if (!user || user.isAnonymous || !firestore) return;
+
+    const presenceRef = doc(firestore, 'userPresence', user.uid);
+
+    const updatePresence = () => {
+        const focusedApp = openApps.find(app => app.id === focusedAppId);
+        setDocumentNonBlocking(presenceRef, {
+            status: 'online',
+            lastSeen: serverTimestamp(),
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            focusedApp: focusedApp?.app.id || null,
+        }, { merge: true });
+    };
+
+    updatePresence(); // Initial update
+
+    const interval = setInterval(updatePresence, 60 * 1000); // Update every minute
+
+    return () => clearInterval(interval);
+
+  }, [user, firestore, focusedAppId, openApps]);
+
+  useEffect(() => {
+    if (user && !user.isAnonymous && userPreferences) {
+      applyTheme(userPreferences as any, false);
+    }
+  }, [user, userPreferences, applyTheme]);
+  
+  const defaultWallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
+  const wallpaperUrl = (userPreferences as any)?.wallpaperUrl || defaultWallpaper?.imageUrl;
+  const wallpaperHint = (userPreferences as any)?.wallpaperUrl ? "custom wallpaper" : defaultWallpaper?.imageHint;
   
   const auth = getAuth();
   const handleSignOut = useCallback(() => {

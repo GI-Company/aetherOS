@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Folder, File, Search, Loader2, Upload, FolderPlus, ArrowUp } from "lucide-react";
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
-import { useFirebase } from "@/firebase";
+import { useFirebase, useMemoFirebase } from "@/firebase";
 import { getStorage, ref, listAll, getMetadata, uploadBytes, uploadString } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -25,7 +25,7 @@ type FileItem = {
 
 const useStorageFiles = (currentPath: string) => {
     const { user } = useFirebase();
-    const [files, setFiles] = useState<FileItem[]>([]);
+    const [allFiles, setAllFiles] = useState<FileItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
 
@@ -60,8 +60,14 @@ const useStorageFiles = (currentPath: string) => {
                     modified: new Date(metadata.updated),
                 });
             }
+            
+            const sortedFiles = fetchedFiles.sort((a, b) => {
+                if (a.type === 'folder' && b.type === 'file') return -1;
+                if (a.type === 'file' && b.type === 'folder') return 1;
+                return a.name.localeCompare(b.name);
+            });
 
-            setFiles(fetchedFiles.sort((a, b) => a.name.localeCompare(b.name)));
+            setAllFiles(sortedFiles);
         } catch (err: any) {
             setError(err);
             console.error("Error listing files:", err);
@@ -74,7 +80,7 @@ const useStorageFiles = (currentPath: string) => {
         refresh();
     }, [refresh]);
 
-    return { files, setFiles, isLoading, error, refresh };
+    return { allFiles, isLoading, error, refresh };
 };
 
 
@@ -87,7 +93,8 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
   const basePath = useMemo(() => user ? `users/${user.uid}` : '', [user]);
   const [currentPath, setCurrentPath] = useState(basePath);
   
-  const { files, setFiles, isLoading, refresh } = useStorageFiles(currentPath);
+  const { allFiles, isLoading, refresh } = useStorageFiles(currentPath);
+  const [displayedFiles, setDisplayedFiles] = useState<FileItem[]>([]);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -102,21 +109,43 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
   useEffect(() => {
       setCurrentPath(basePath);
   }, [basePath])
-  
+
+  useEffect(() => {
+    // By default, display all files from storage.
+    setDisplayedFiles(allFiles);
+  }, [allFiles]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery) {
-      refresh();
+      setDisplayedFiles(allFiles); // Reset to all files if search is cleared
       return;
     }
-    // This is a mock search for now
-    toast({ title: "Semantic Search", description: "This feature is coming soon!" });
+    setIsSearching(true);
+    try {
+      const allFilePaths = allFiles.map(f => f.path);
+      const result = await semanticFileSearch({ query: searchQuery, availableFiles: allFilePaths });
+      
+      const searchResultFiles = allFiles.filter(f => result.results.includes(f.path));
+      setDisplayedFiles(searchResultFiles);
+      
+      toast({
+          title: "Search Complete",
+          description: `Found ${result.results.length} matching item(s).`
+      });
+
+    } catch (err: any) {
+        console.error("Semantic search failed:", err);
+        toast({ title: "Search Failed", description: err.message, variant: "destructive" });
+    } finally {
+        setIsSearching(false);
+    }
   };
   
   const handleDoubleClick = (file: FileItem) => {
     if (file.type === 'folder') {
         setCurrentPath(file.path);
+        setSearchQuery(''); // Clear search when navigating
     } else if (file.type === 'file' && onOpenFile) {
       onOpenFile(file.path);
     }
@@ -169,6 +198,7 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
       if (currentPath === basePath) return;
       const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
       setCurrentPath(parentPath);
+      setSearchQuery(''); // Clear search when navigating
   }
 
   return (
@@ -180,12 +210,13 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
          <form onSubmit={handleSearch} className="relative flex-grow">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Semantic Search..." 
+              placeholder="Semantic Search for files..." 
               className="pl-9 bg-background/50"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              disabled={isSearching}
+              disabled={isSearching || isLoading}
             />
+             {isSearching && <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin" />}
         </form>
         <div className="flex items-center gap-2">
            <Input type="file" onChange={e => setUploadFile(e.target.files ? e.target.files[0] : null)} className="text-xs" disabled={isUploading} />
@@ -223,8 +254,8 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
                         <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
                     </TableCell>
                 </TableRow>
-            ) : files.length > 0 ? (
-                 files.map((file) => (
+            ) : displayedFiles.length > 0 ? (
+                 displayedFiles.map((file) => (
                     <TableRow key={file.path} onDoubleClick={() => handleDoubleClick(file)} className="cursor-pointer">
                         <TableCell className="font-medium flex items-center gap-2">
                         {file.type === 'folder' ? <Folder className="h-4 w-4 text-accent" /> : <File className="h-4 w-4 text-muted-foreground" />}
@@ -237,7 +268,7 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
             ) : (
                  <TableRow>
                     <TableCell colSpan={3} className="text-center p-8 text-muted-foreground">
-                        This folder is empty.
+                        {searchQuery ? 'No items matched your search.' : 'This folder is empty.'}
                     </TableCell>
                  </TableRow>
             )}
@@ -245,7 +276,7 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
         </Table>
       </ScrollArea>
       <div className="p-2 border-t text-xs text-muted-foreground">
-        {isLoading ? 'Loading...' : `${files.length} items`} | Path: {currentPath.replace(basePath, '~')}
+        {isLoading ? 'Loading...' : `${displayedFiles.length} of ${allFiles.length} items`} | Path: {currentPath.replace(basePath, '~')}
       </div>
     </div>
   );

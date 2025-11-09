@@ -46,6 +46,7 @@ export default function DesignStudioApp() {
   };
   
   const copyToClipboard = () => {
+    if (!generatedCode) return;
     navigator.clipboard.writeText(generatedCode).then(() => {
       toast({ title: "Copied to clipboard!" });
     }).catch(err => {
@@ -68,6 +69,7 @@ export default function DesignStudioApp() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           className="min-h-0"
+          disabled={isLoading}
         />
         <Button onClick={handleGenerate} disabled={isLoading}>
           {isLoading ? (

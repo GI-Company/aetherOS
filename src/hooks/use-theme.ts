@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useFirebase } from "@/firebase";
-import { doc, setDoc } from "firebase/firestore";
-import { FirestorePermissionError } from "@/firebase/errors";
-import { errorEmitter } from "@/firebase/error-emitter";
+import { doc } from "firebase/firestore";
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export type Palette = {
     primaryColor: string;
@@ -95,14 +94,7 @@ export function useTheme() {
 
         if (shouldSave && firestore && user) {
             const prefRef = doc(firestore, 'userPreferences', user.uid);
-            setDoc(prefRef, theme, { merge: true }).catch((e) => {
-                const permissionError = new FirestorePermissionError({
-                    path: prefRef.path,
-                    operation: 'update',
-                    requestResourceData: theme,
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            });
+            setDocumentNonBlocking(prefRef, theme, { merge: true });
         }
     }, [firestore, user]);
 

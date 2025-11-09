@@ -1,4 +1,4 @@
-import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor, CreditCard, Image } from "lucide-react";
+import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor, CreditCard, Image, MessagesSquare } from "lucide-react";
 import React from "react";
 import SettingsApp from "@/app/apps/settings";
 import FileExplorerApp from "@/app/apps/file-explorer";
@@ -10,6 +10,7 @@ import PixelStreamerApp from "@/app/apps/pixel-streamer";
 import BillingApp from "@/app/apps/billing";
 import CollaborationApp from "@/app/apps/collaboration";
 import ImageViewerApp from "@/app/apps/image-viewer";
+import PeopleApp from "@/app/apps/people";
 
 
 export type App = {
@@ -58,9 +59,16 @@ export const APPS: App[] = [
    {
     id: 'collaboration',
     name: 'Collaboration',
-    Icon: Users,
+    Icon: MessagesSquare,
     component: CollaborationApp,
     defaultSize: { width: 500, height: 650 },
+  },
+  {
+    id: 'people',
+    name: 'People',
+    Icon: Users,
+    component: PeopleApp,
+    defaultSize: { width: 300, height: 500 },
   },
   {
     id: "workflow-studio",

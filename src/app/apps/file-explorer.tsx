@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Folder, File, Search, Loader2, Upload, FolderPlus, ArrowUp, RefreshCw, FilePlus } from "lucide-react";
+import { Folder, File, Search, Loader2, Upload, ArrowUp, RefreshCw, FilePlus, ChevronDown } from "lucide-react";
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
@@ -19,6 +19,8 @@ import { FileItem } from "@/lib/types";
 import { APPS } from "@/lib/apps";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
 
 const useStorageFiles = (currentPath: string) => {
     const { user } = useFirebase();
@@ -334,16 +336,24 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
            </Button>
         </div>
         {!isCreating ? (
-            <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setIsCreating('file')}>
-                    <FilePlus className="h-4 w-4 mr-2" />
-                    New File
-                </Button>
-                <Button variant="outline" onClick={() => setIsCreating('folder')}>
-                    <FolderPlus className="h-4 w-4 mr-2" />
-                    New Folder
-                </Button>
-            </div>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                        New Item
+                        <ChevronDown className="h-4 w-4 ml-2"/>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => setIsCreating('file')}>
+                        <FilePlus className="h-4 w-4 mr-2" />
+                        New File
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setIsCreating('folder')}>
+                        <Folder className="h-4 w-4 mr-2" />
+                        New Folder
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         ) : (
             <form onSubmit={handleCreate} className="flex items-center gap-2">
                 <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder={`New ${isCreating} name...`} autoFocus />
@@ -389,3 +399,5 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </div>
   );
 }
+
+    

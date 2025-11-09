@@ -44,6 +44,7 @@ function GoogleIcon() {
 interface AuthFormProps {
   allowAnonymous?: boolean;
   onLinkSuccess?: () => void;
+  onUpgradeSuccess?: () => void;
 }
 
 const TierSelectionDialog = ({ open, onOpenChange, onSelectTier, selectedTier, setSelectedTier }: {
@@ -92,7 +93,7 @@ const TierSelectionDialog = ({ open, onOpenChange, onSelectTier, selectedTier, s
 );
 
 
-export default function AuthForm({ allowAnonymous = true, onLinkSuccess }: AuthFormProps) {
+export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgradeSuccess }: AuthFormProps) {
   const auth = getAuth();
   const firestore = getFirestore();
   const { toast } = useToast();
@@ -126,13 +127,11 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess }: AuthF
     const provider = new GoogleAuthProvider();
     try {
       if (auth.currentUser?.isAnonymous) {
-        const result = await linkWithPopup(auth.currentUser, provider);
-        provisionDefaultSubscription(result.user, selectedTier);
-        toast({
-          title: 'Account Upgraded!',
-          description: 'Your trial account is now a permanent Google account.',
-        });
+        await linkWithPopup(auth.currentUser, provider);
+        // The onAuthStateChanged listener will handle the user update.
+        // We can call the success callbacks here.
         if (onLinkSuccess) onLinkSuccess();
+        if (onUpgradeSuccess) onUpgradeSuccess();
       } else {
         const result = await signInWithPopup(auth, provider);
         handleAuthSuccess(result.user, selectedTier);
@@ -149,8 +148,8 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess }: AuthF
 
   const handleGoogleSignIn = async () => {
     if (auth.currentUser?.isAnonymous) {
-      // For linking, we can assume a tier is already set or default to personal
-      setSelectedTier('personal');
+      // For linking, we don't need to ask for a tier again.
+      // We can just proceed with the linking.
       await startGoogleSignIn();
     } else {
       // For new sign-ups, show the tier selection
@@ -160,11 +159,10 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess }: AuthF
   
   const handleAnonymousSignIn = async () => {
     try {
-      const userCredential = await signInAnonymously(auth);
-      
+      const { user } = await signInAnonymously(auth);
       // Create the trial document immediately after anonymous sign-in
-      const trialRef = doc(firestore, 'trialUsers', userCredential.user.uid);
-      setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
+      const trialRef = doc(firestore, 'trialUsers', user.uid);
+      await setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
       
       toast({
         title: 'Entering Trial Mode',
@@ -232,5 +230,3 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess }: AuthF
     </>
   );
 }
-
-    

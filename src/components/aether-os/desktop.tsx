@@ -14,10 +14,11 @@ import { ToastAction } from "../ui/toast";
 import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
-import { Loader2 } from "lucide-react";
+import { Loader2, PartyPopper } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { doc } from "firebase/firestore";
 import { getStorage, ref, getDownloadURL } from 'firebase/storage';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 
 export type WindowInstance = {
@@ -47,13 +48,6 @@ export default function Desktop() {
 
   const { data: userPreferences, isLoading: isPreferencesLoading } = useDoc(userPreferencesRef);
   
-  const trialUserRef = useMemoFirebase(() => {
-    if (!firestore || !user?.uid || !user.isAnonymous) return null;
-    return doc(firestore, 'trialUsers', user.uid);
-  }, [firestore, user?.uid, user?.isAnonymous]);
-  useDoc(trialUserRef);
-
-
   useEffect(() => {
     if (user && !user.isAnonymous && userPreferences) {
       applyTheme(userPreferences as any, false);
@@ -66,6 +60,7 @@ export default function Desktop() {
   const nextId = useRef(0);
   const [highestZIndex, setHighestZIndex] = useState(10);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const { toast } = useToast();
   const desktopRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
@@ -313,6 +308,15 @@ export default function Desktop() {
     }
   }
 
+  const onUpgradeSuccess = () => {
+    setUpgradeDialogOpen(false);
+    toast({
+      title: 'Account Upgraded!',
+      description: 'Your settings and themes are now saved to your permanent account.',
+      icon: <PartyPopper className="h-5 w-5 text-green-500" />,
+    });
+  }
+
   if (isUserLoading || (user && !user.isAnonymous && isPreferencesLoading)) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
@@ -340,7 +344,7 @@ export default function Desktop() {
         />
       )}
       <div className="relative z-10 flex-grow w-full flex flex-col" ref={desktopRef}>
-        <TopBar />
+        <TopBar onUpgrade={() => setUpgradeDialogOpen(true)} />
         <div className="flex-grow relative" >
           {openApps.map((window) => {
             const AppComponent = window.app.component;
@@ -382,6 +386,17 @@ export default function Desktop() {
         onArrangeWindows={arrangeWindows}
         onOpenFile={openFile}
       />
+       <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Upgrade Your Account</DialogTitle>
+                    <DialogDescription>
+                        Create a permanent account to save your data and settings.
+                    </DialogDescription>
+                </DialogHeader>
+                <AuthForm allowAnonymous={false} onUpgradeSuccess={onUpgradeSuccess} />
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }

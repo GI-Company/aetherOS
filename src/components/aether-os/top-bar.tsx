@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wifi, BatteryFull, Command, LogOut, Shield } from "lucide-react";
+import { Wifi, BatteryFull, Command, LogOut, Shield, UserPlus } from "lucide-react";
 import { useFirebase } from "@/firebase";
 import { getAuth, signOut } from "firebase/auth";
 import {
@@ -24,11 +24,15 @@ function AetherLogo() {
   );
 }
 
-export default function TopBar() {
+interface TopBarProps {
+  onUpgrade?: () => void;
+}
+
+export default function TopBar({ onUpgrade }: TopBarProps) {
   const [time, setTime] = useState("");
   const { user } = useFirebase();
   const auth = getAuth();
-  const { timeRemaining, formattedTime } = useTrialTimer(user);
+  const { formattedTime } = useTrialTimer(user);
 
   const getInitials = (name?: string | null) => {
     if (!name) return "?";
@@ -61,6 +65,10 @@ export default function TopBar() {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Guest Session</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onUpgrade}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                <span>Sign Up / Upgrade</span>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => signOut(auth)}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Sign out</span>

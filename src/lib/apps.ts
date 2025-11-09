@@ -1,4 +1,4 @@
-import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor } from "lucide-react";
+import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor, CreditCard } from "lucide-react";
 import React from "react";
 import SettingsApp from "@/app/apps/settings";
 import FileExplorerApp from "@/app/apps/file-explorer";
@@ -7,12 +7,14 @@ import BrowserApp from "@/app/apps/browser";
 import WorkflowStudioApp from "@/app/apps/workflow-studio";
 import DesignStudioApp from "@/app/apps/design-studio";
 import PixelStreamerApp from "@/app/apps/pixel-streamer";
+import BillingApp from "@/app/apps/billing";
+
 
 export type App = {
   id: string;
   name: string;
   Icon: LucideIcon;
-  component: React.ComponentType;
+  component: React.ComponentType<any>; // Allow components to accept props
   defaultSize: { width: number; height: number };
 };
 
@@ -90,6 +92,13 @@ export const APPS: App[] = [
     name: "Settings",
     Icon: Settings,
     component: SettingsApp,
-    defaultSize: { width: 600, height: 500 },
+    defaultSize: { width: 600, height: 550 },
+  },
+    {
+    id: "billing",
+    name: "Billing",
+    Icon: CreditCard,
+    component: BillingApp,
+    defaultSize: { width: 900, height: 700 },
   },
 ];

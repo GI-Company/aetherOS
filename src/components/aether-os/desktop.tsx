@@ -393,6 +393,9 @@ export default function Desktop() {
             if (window.app.id === 'file-explorer') {
               componentProps.onOpenFile = openFile;
             }
+             if (window.app.id === 'settings') {
+              componentProps.onOpenApp = openApp;
+            }
 
             return (
               <Window

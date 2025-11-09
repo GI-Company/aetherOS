@@ -9,14 +9,19 @@ import { generateAdaptivePalette } from "@/ai/flows/adaptive-color-palettes";
 import { generateAccentColor } from "@/ai/flows/generate-accent-color";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Wand2, Loader2, Palette, Sparkles, User, PartyPopper } from "lucide-react";
+import { Wand2, Loader2, Palette, Sparkles, User, PartyPopper, CreditCard } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/use-theme";
 import { useFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
+import { App, APPS } from "@/lib/apps";
 
 
-export default function SettingsApp() {
+interface SettingsAppProps {
+  onOpenApp?: (app: App) => void;
+}
+
+export default function SettingsApp({ onOpenApp }: SettingsAppProps) {
   const [themePrompt, setThemePrompt] = useState("");
   const [accentPrompt, setAccentPrompt] = useState("");
   const [isLoading, setIsLoading] = useState<"theme" | "accent" | null>(null);
@@ -52,8 +57,6 @@ export default function SettingsApp() {
       const result = await generateAccentColor({ description: accentPrompt });
       const { accentColor } = result;
 
-      // We need to determine a good foreground color for the new accent.
-      // A simple heuristic: if the color is dark, use a light foreground.
       const rgb = parseInt(accentColor.substring(1), 16);
       const r = (rgb >> 16) & 0xff;
       const g = (rgb >> 8) & 0xff;
@@ -80,6 +83,13 @@ export default function SettingsApp() {
     });
   };
 
+  const openBillingApp = () => {
+    const billingApp = APPS.find(app => app.id === 'billing');
+    if(billingApp && onOpenApp) {
+      onOpenApp(billingApp);
+    }
+  }
+
 
   const renderAccountContent = () => {
     if (user?.isAnonymous) {
@@ -102,6 +112,7 @@ export default function SettingsApp() {
         <TabsList>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
         <TabsContent value="appearance" className="mt-6">
@@ -155,6 +166,14 @@ export default function SettingsApp() {
         </TabsContent>
         <TabsContent value="account">
           {renderAccountContent()}
+        </TabsContent>
+        <TabsContent value="billing">
+           <div className="text-center mt-8">
+              <CreditCard className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium">Manage Your Subscription</h3>
+              <p className="text-sm text-muted-foreground mb-4">View plans, check your current tier, and manage billing details.</p>
+              <Button onClick={openBillingApp}>Open Billing App</Button>
+            </div>
         </TabsContent>
         <TabsContent value="system">
           <p className="text-muted-foreground">System settings will be here.</p>

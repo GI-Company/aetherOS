@@ -21,6 +21,34 @@
         }
       }
     },
+    "subscription": {
+      "title": "Subscription",
+      "description": "Defines a user's subscription tier and status.",
+      "type": "object",
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": ["free", "personal", "business", "enterprise"],
+          "description": "The subscription tier of the user."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "trialing", "past_due", "canceled"],
+          "description": "The current status of the subscription."
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the subscription started."
+        },
+        "renewsAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp for the next renewal."
+        }
+      },
+      "required": ["tier", "status", "startedAt"]
+    },
     "userPreference": {
       "title": "User Preference",
       "description": "Stores user-specific preferences, such as UI theme.",
@@ -84,6 +112,12 @@
         "$ref": "#/entities/user"
       },
       "description": "User profile information."
+    },
+    "/subscriptions/{userId}": {
+      "schema": {
+        "$ref": "#/entities/subscription"
+      },
+      "description": "User subscription status and tier."
     },
     "/userPreferences/{userId}": {
       "schema": {

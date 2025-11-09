@@ -93,6 +93,11 @@
               "description": "The number of minutes of inactivity before automatically signing out. 0 means disabled."
             }
           }
+        },
+        "wallpaperUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The URL of the user's custom desktop wallpaper."
         }
       }
     },

@@ -26,9 +26,10 @@ type CommandPaletteProps = {
     openApps: WindowInstance[];
     onArrangeWindows: () => void;
     onOpenFile: (filePath: string) => void;
+    setWallpaper: (imageUrl: string) => void;
 }
 
-export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onArrangeWindows, onOpenFile }: CommandPaletteProps) {
+export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onArrangeWindows, onOpenFile, setWallpaper }: CommandPaletteProps) {
   const settingsApp = APPS.find(app => app.id === 'settings');
   const [searchValue, setSearchValue] = useState("");
   const [agentResponse, setAgentResponse] = useState<string | null>(null);
@@ -117,6 +118,12 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                     shouldClose = false; // Keep palette open to show results
                 }
                 break;
+             case 'setWallpaper':
+                const imageUrl = (toolCall.input as any).imageUrl;
+                if(imageUrl) {
+                    setWallpaper(imageUrl);
+                }
+                break;
             default:
                 shouldClose = false;
                 break;
@@ -141,7 +148,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     } finally {
       setIsLoading(false);
     }
-  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile]);
+  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile, setWallpaper]);
 
   useEffect(() => {
     if (!open) {

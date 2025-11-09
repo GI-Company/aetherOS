@@ -62,7 +62,10 @@ export default function Desktop() {
     }
   }, [user, userPreferences, applyTheme]);
   
-  const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
+  const defaultWallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
+  const wallpaperUrl = (userPreferences as any)?.wallpaperUrl || defaultWallpaper?.imageUrl;
+  const wallpaperHint = (userPreferences as any)?.wallpaperUrl ? "custom wallpaper" : defaultWallpaper?.imageHint;
+
   const [openApps, setOpenApps] = useState<WindowInstance[]>([]);
   const [focusedAppId, setFocusedAppId] = useState<number | null>(null);
   const nextId = useRef(0);
@@ -382,6 +385,16 @@ export default function Desktop() {
     });
   }
 
+  const setWallpaper = (imageUrl: string) => {
+    if (userPreferencesRef) {
+      setDocumentNonBlocking(userPreferencesRef, { wallpaperUrl: imageUrl }, { merge: true });
+      toast({
+        title: "Wallpaper Set!",
+        description: "Your new desktop background has been applied."
+      });
+    }
+  }
+
   if (isUserLoading || (user && !user.isAnonymous && (isPreferencesLoading || isWorkspaceLoading))) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
@@ -396,11 +409,11 @@ export default function Desktop() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background font-body flex flex-col" ref={desktopRef}>
-      {wallpaper && (
+      {wallpaperUrl && (
         <Image
-          src={wallpaper.imageUrl}
-          alt={wallpaper.description}
-          data-ai-hint={wallpaper.imageHint}
+          src={wallpaperUrl}
+          alt="AetherOS session wallpaper"
+          data-ai-hint={wallpaperHint}
           fill
           quality={100}
           className="object-cover z-0"
@@ -429,8 +442,8 @@ export default function Desktop() {
                 onFocus={() => focusApp(window.id)}
                 onMinimize={() => toggleMinimize(window.id)}
                 onMaximize={() => toggleMaximize(window.id)}
-                updatePosition={updatePosition}
-                updateSize={updateSize}
+                updatePosition={updateAppPosition}
+                updateSize={updateAppSize}
                 isFocused={focusedAppId === window.id}
                 bounds={desktopRef}
                 dockRef={dockRef}
@@ -449,6 +462,7 @@ export default function Desktop() {
         openApps={openApps}
         onArrangeWindows={arrangeWindows}
         onOpenFile={openFile}
+        setWallpaper={setWallpaper}
       />
        <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
             <DialogContent>

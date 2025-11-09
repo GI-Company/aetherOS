@@ -11,7 +11,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { App, APPS } from "@/lib/apps";
-import { File, Settings, Power, Wand2, Loader2, Layout, Command, BrainCircuit } from "lucide-react";
+import { Settings, Power, Layout, Command, BrainCircuit, Loader2 } from "lucide-react";
 import { agenticToolUser } from "@/ai/flows/agenticToolUser";
 import React, { useEffect, useState, useCallback } from "react";
 import { WindowInstance } from "./desktop";
@@ -32,7 +32,6 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
 
   const handleValueChange = (value: string) => {
     setSearchValue(value);
-    // Clear agent response when user starts typing again
     if (agentResponse) {
       setAgentResponse(null);
     }
@@ -50,21 +49,6 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     setOpen(false);
   }
   
-  const getOpenAppsTool = async () => {
-    return {
-      apps: openApps.map(a => a.app.name),
-    };
-  }
-
-  const openAppTool = async ({ appId }: { appId: string }) => {
-    const appToOpen = APPS.find(a => a.id === appId);
-    if (appToOpen) {
-      onOpenApp(appToOpen);
-    } else {
-      console.warn(`Agent tried to open an app with an invalid ID: ${appId}`);
-    }
-  }
-  
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchValue) return;
@@ -73,17 +57,28 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     setAgentResponse(null);
 
     try {
-      const response = await agenticToolUser(searchValue, {
-        getOpenApps: getOpenAppsTool,
-        openApp: openAppTool,
-      });
+      const openAppNames = openApps.map(a => a.app.name);
+      const response = await agenticToolUser(searchValue, openAppNames);
 
       const toolCalls = response.toolCalls();
 
       if (toolCalls.length > 0) {
-        // Assume tools are executed and don't need further display.
-        // In a real scenario, you might want to show tool results.
-        setOpen(false); // Close palette on successful tool use
+        for (const toolCall of toolCalls) {
+            if (toolCall.tool === 'openApp') {
+                const appId = toolCall.input.appId;
+                const appToOpen = APPS.find(a => a.id === appId);
+                if (appToOpen) {
+                    onOpenApp(appToOpen);
+                }
+            } else if (toolCall.tool === 'getOpenApps') {
+                const toolResponse = await response.runTool(toolCall);
+                const finalResponse = await agenticToolUser(searchValue, openAppNames);
+                setAgentResponse(finalResponse.text());
+            }
+        }
+        if (!agentResponse) {
+            setOpen(false);
+        }
       } else {
         const textResponse = response.text();
         setAgentResponse(textResponse);
@@ -94,11 +89,10 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     } finally {
       setIsLoading(false);
     }
-  }, [searchValue, openApps]);
+  }, [searchValue, openApps, onOpenApp, agentResponse]);
 
   useEffect(() => {
     if (!open) {
-      // Reset state when palette is closed
       setSearchValue("");
       setAgentResponse(null);
       setIsLoading(false);
@@ -128,13 +122,13 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
             ) : agentResponse ? (
                 <div className="p-4 text-sm text-center">{agentResponse}</div>
             ) : (
-                "No results found."
+                "No results found. Press Enter to ask AI."
             )}
         </CommandEmpty>
         
         {!isLoading && !agentResponse && (
             <>
-                {searchValue ? (
+                {searchValue && filteredApps.length > 0 ? (
                   <CommandGroup heading="Apps">
                       {filteredApps.map(app => (
                           <CommandItem key={app.id} onSelect={() => handleOpenApp(app)}>
@@ -143,13 +137,13 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                           </CommandItem>
                       ))}
                   </CommandGroup>
-                ) : (
+                ) : !searchValue ? (
                   <CommandGroup heading="Suggestions">
-                    <CommandItem onSelect={() => setSearchValue("Open the code editor")}>
+                    <CommandItem onSelect={() => {setSearchValue("Open the code editor"); handleSubmit(new Event('submit') as any);}}>
                       <Command className="mr-2 h-4 w-4" />
                       <span>Open the code editor</span>
                     </CommandItem>
-                     <CommandItem onSelect={() => setSearchValue("What applications are running?")}>
+                     <CommandItem onSelect={() => {setSearchValue("What applications are running?"); handleSubmit(new Event('submit') as any);}}>
                       <BrainCircuit className="mr-2 h-4 w-4" />
                       <span>What applications are running?</span>
                     </CommandItem>
@@ -158,8 +152,10 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                       <span>Open Settings</span>
                     </CommandItem>
                   </CommandGroup>
-                )}
-                <CommandSeparator />
+                ) : null}
+
+                { (filteredApps.length > 0 || !searchValue) && <CommandSeparator /> }
+                
                 <CommandGroup heading="System">
                 <CommandItem onSelect={() => { onArrangeWindows(); setOpen(false); }}>
                     <Layout className="mr-2 h-4 w-4" />

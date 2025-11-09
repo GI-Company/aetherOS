@@ -69,10 +69,30 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
     }
     setIsLoading("refactor");
     try {
-      const refactorPrompt = `File Path: ${filePath}\n\nPlease refactor the following code. Keep the existing functionality but improve its structure, readability, and performance. Add comments where necessary to explain complex parts.\n\n---\n\n${code}`;
+      // Fetch the roadmap to provide as a style guide
+      const response = await fetch('/docs/ROADMAP.md');
+      const styleGuide = await response.text();
+
+      const refactorPrompt = `
+        File Path: ${filePath}
+        
+        Architectural Style Guide & Roadmap:
+        ---
+        ${styleGuide}
+        ---
+
+        Task:
+        Please act as an expert software architect. Refactor the following code to align with the principles and goals outlined in the Architectural Style Guide & Roadmap provided above.
+        Focus on improving structure, readability, performance, and security.
+        Return only the raw, complete code for the file.
+
+        Code to Refactor:
+        ---
+        ${code}
+      `;
       const result = await aiCodeGeneration({ description: refactorPrompt });
       setCode(cleanCode(result.code));
-      toast({ title: "Refactoring Complete", description: `The code in ${filePath} has been updated.` });
+      toast({ title: "Refactoring Complete", description: `The code in ${filePath} has been updated based on the project's architectural goals.` });
     } catch (e) {
       console.error(e);
       toast({ title: "Error", description: "Failed to refactor code.", variant: "destructive" });
@@ -168,7 +188,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
         
         <div className="space-y-2">
           <h4 className="font-medium">Intelligent Refactoring</h4>
-          <p className="text-sm text-muted-foreground">Let the AI analyze and improve the code currently in the editor.</p>
+          <p className="text-sm text-muted-foreground">Let the AI analyze and improve the code currently in the editor based on the project's roadmap and style guides.</p>
           <Button onClick={handleRefactorCode} variant="secondary" disabled={!!isLoading} className="w-full">
             {isLoading === 'refactor' ? <Loader2 className="animate-spin" /> : <Sparkles />}
             Refactor Current Code

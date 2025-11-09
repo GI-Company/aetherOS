@@ -21,6 +21,11 @@ export type WindowInstance = {
   size: { width: number; height: number };
   zIndex: number;
   isMinimized: boolean;
+  isMaximized: boolean;
+  previousState?: {
+    position: { x: number; y: number };
+    size: { width: number; height: number };
+  }
 };
 
 export default function Desktop() {
@@ -112,6 +117,7 @@ export default function Desktop() {
       size: app.defaultSize,
       zIndex: highestZIndex + 1,
       isMinimized: false,
+      isMaximized: false,
     };
     setOpenApps((prev) => [...prev, newWindow]);
     setFocusedAppId(currentId);
@@ -146,6 +152,10 @@ export default function Desktop() {
     setOpenApps(prev => prev.map(app => app.id === id ? { ...app, position } : app));
   };
 
+  const updateAppSize = (id: number, size: { width: number, height: number }) => {
+    setOpenApps(prev => prev.map(app => app.id === id ? { ...app, size } : app));
+  };
+
 
   const toggleMinimize = (id: number) => {
      setOpenApps(prev => prev.map(app => {
@@ -160,12 +170,43 @@ export default function Desktop() {
             setHighestZIndex(prevZ => prevZ + 1);
             return { ...app, isMinimized: false, zIndex: highestZIndex + 1 };
           }
-          return { ...app, isMinimized: isNowMinimized };
+          return { ...app, isMinimized: isNowMinimized, isMaximized: false };
         }
         return app;
      }));
   }
 
+  const toggleMaximize = (id: number) => {
+    setOpenApps(prev => prev.map(app => {
+      if (app.id === id) {
+        const isNowMaximized = !app.isMaximized;
+        if (isNowMaximized) {
+          // Store previous state before maximizing
+          const topBarHeight = 32; // from TopBar component h-8
+          return {
+            ...app,
+            isMaximized: true,
+            previousState: { position: app.position, size: app.size },
+            position: { x: 0, y: topBarHeight },
+            size: {
+              width: desktopRef.current?.clientWidth || window.innerWidth,
+              height: (desktopRef.current?.clientHeight || window.innerHeight) - topBarHeight,
+            }
+          };
+        } else {
+          // Restore previous state
+          return {
+            ...app,
+            isMaximized: false,
+            position: app.previousState?.position || app.position,
+            size: app.previousState?.size || app.size,
+            previousState: undefined,
+          };
+        }
+      }
+      return app;
+    }));
+  };
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-background font-body flex flex-col">
@@ -190,7 +231,9 @@ export default function Desktop() {
               onClose={() => closeApp(window.id)}
               onFocus={() => focusApp(window.id)}
               onMinimize={() => toggleMinimize(window.id)}
+              onMaximize={() => toggleMaximize(window.id)}
               updatePosition={updateAppPosition}
+              updateSize={updateAppSize}
               isFocused={focusedAppId === window.id}
               bounds={desktopRef}
               dockRef={dockRef}

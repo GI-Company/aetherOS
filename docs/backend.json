@@ -1,0 +1,313 @@
+{
+  "entities": {
+    "VirtualFile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "VirtualFile",
+      "type": "object",
+      "description": "Represents a file or directory within the virtual file system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the virtual file."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the file or directory."
+        },
+        "path": {
+          "type": "string",
+          "description": "The full path to the file or directory within the virtual file system."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of the file ('file' or 'directory')."
+        },
+        "size": {
+          "type": "number",
+          "description": "The size of the file in bytes.  Null for directories."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the file or directory was created.",
+          "format": "date-time"
+        },
+        "modifiedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the file or directory was last modified.",
+          "format": "date-time"
+        },
+        "parentId": {
+          "type": "string",
+          "description": "Reference to the parent directory. Null for the root directory. (Relationship: VirtualFile 1:N VirtualFile)"
+        },
+        "tagIds": {
+          "type": "array",
+          "description": "References to Tag entities associated with this file. (Relationship: Tag N:N VirtualFile)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "path",
+        "type",
+        "createdAt",
+        "modifiedAt"
+      ]
+    },
+    "Tag": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tag",
+      "type": "object",
+      "description": "Represents a tag that can be applied to virtual files for organization and search.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the tag."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the tag."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the tag's purpose or meaning."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "OsbidibiWorkflow": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OsbidibiWorkflow",
+      "type": "object",
+      "description": "Represents a visual workflow orchestrated by the OS.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the workflow."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the workflow."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the workflow's purpose."
+        },
+        "definition": {
+          "type": "string",
+          "description": "The workflow definition (e.g., in JSON or YAML format)."
+        },
+        "triggerEvent": {
+          "type": "string",
+          "description": "The OS event that triggers the workflow."
+        },
+        "virtualFileIds": {
+          "type": "array",
+          "description": "References to VirtualFile entities associated with this Workflow. (Relationship: VirtualFile N:N OsbidibiWorkflow)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "definition",
+        "triggerEvent"
+      ]
+    },
+    "Application": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Application",
+      "type": "object",
+      "description": "Represents an application within the AetherOS ecosystem.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the application."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the application."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the application's functionality."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version number of the application."
+        },
+        "developer": {
+          "type": "string",
+          "description": "The name of the application developer or publisher."
+        },
+        "iconUrl": {
+          "type": "string",
+          "description": "URL of the application's icon.",
+          "format": "uri"
+        },
+        "sandboxConfiguration": {
+          "type": "string",
+          "description": "Configuration settings for the application's sandboxed environment (e.g., resource limits, permissions)."
+        },
+        "virtualFileId": {
+          "type": "string",
+          "description": "Reference to the application's executable file within the virtual file system. (Relationship: VirtualFile 1:1 Application)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "version",
+        "developer",
+        "sandboxConfiguration"
+      ]
+    },
+    "DesktopSpace": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DesktopSpace",
+      "type": "object",
+      "description": "Represents a virtual desktop space with its own layout and running applications.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the desktop space."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the desktop space (e.g., 'Work', 'Personal')."
+        },
+        "layout": {
+          "type": "string",
+          "description": "The layout configuration for the desktop space (e.g., window positions, sizes)."
+        },
+        "applicationIds": {
+          "type": "array",
+          "description": "References to the applications running in this desktop space. (Relationship: Application N:N DesktopSpace)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "layout"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}/virtualFiles/{virtualFileId}",
+        "definition": {
+          "entityName": "VirtualFile",
+          "schema": {
+            "$ref": "#/backend/entities/VirtualFile"
+          },
+          "description": "Stores virtual files owned by a specific user. Leverages path-based ownership for simple security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user owning the virtual file."
+            },
+            {
+              "name": "virtualFileId",
+              "description": "The unique ID of the virtual file."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/tags/{tagId}",
+        "definition": {
+          "entityName": "Tag",
+          "schema": {
+            "$ref": "#/backend/entities/Tag"
+          },
+          "description": "Stores tags owned by a specific user. Uses path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user owning the tag."
+            },
+            {
+              "name": "tagId",
+              "description": "The unique ID of the tag."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/desktopSpaces/{desktopSpaceId}",
+        "definition": {
+          "entityName": "DesktopSpace",
+          "schema": {
+            "$ref": "#/backend/entities/DesktopSpace"
+          },
+          "description": "Stores desktop space configurations for a specific user. Uses path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user owning the desktop space."
+            },
+            {
+              "name": "desktopSpaceId",
+              "description": "The unique ID of the desktop space."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/osbidibiWorkflows/{osbidibiWorkflowId}",
+        "definition": {
+          "entityName": "OsbidibiWorkflow",
+          "schema": {
+            "$ref": "#/backend/entities/OsbidibiWorkflow"
+          },
+          "description": "Stores OS workflows owned by a specific user. Uses path-based ownership.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user owning the workflow."
+            },
+            {
+              "name": "osbidibiWorkflowId",
+              "description": "The unique ID of the workflow."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/applications/{applicationId}",
+        "definition": {
+          "entityName": "Application",
+          "schema": {
+            "$ref": "#/backend/entities/Application"
+          },
+          "description": "Stores application metadata. This collection does not require user-specific authorization.",
+          "params": [
+            {
+              "name": "applicationId",
+              "description": "The unique ID of the application."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support AetherOS's core features, focusing on security, scalability, and debuggability, especially regarding authorization. Authorization Independence is achieved through denormalization. Path-based ownership is used for user-owned data, while membership maps manage collaborative access.  Structural Segregation ensures that each collection has a homogeneous security posture.\n\n*   **/users/{userId}/virtualFiles/{virtualFileId}**: This structure leverages path-based ownership, providing a clear and secure way to manage files.  The `virtualFiles` subcollection allows simple and efficient ownership-based security rules.  QAPs are supported as listing is limited to a user's own files.  There is no cross-user `list`.\n*   **/users/{userId}/tags/{tagId}**: This uses path-based ownership, similar to virtual files. This supports listing only tags owned by a user.  Tag data is private.\n*   **/users/{userId}/desktopSpaces/{desktopSpaceId}**: This uses path-based ownership and stores desktop space configurations.\n*   **/users/{userId}/osbidibiWorkflows/{osbidibiWorkflowId}**:  This uses path-based ownership to store workflows, ensuring only the owner can manage their workflows.\n*   **/applications/{applicationId}**: Applications are stored in a top-level collection. This collection represents a global catalog of applications.  Since apps are *global* and not user-owned, there's no ownership information here.  If access controls are needed (e.g., to restrict access to certain applications based on user roles or subscriptions), a separate collection `/roles_applicationAccess/{userId}` or a membership map within the application document itself would be required, depending on complexity.\n"
+  }
+}

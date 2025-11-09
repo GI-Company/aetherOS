@@ -71,6 +71,8 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
             if (appToOpen) {
               onOpenApp(appToOpen);
             }
+          } else if (toolCall.toolName === 'arrangeWindows') {
+            onArrangeWindows();
           } else {
             // If another tool was called, we might want to see the text response.
             shouldClose = false;
@@ -97,7 +99,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     } finally {
       setIsLoading(false);
     }
-  }, [searchValue, openApps, onOpenApp, setOpen]);
+  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows]);
 
   useEffect(() => {
     if (!open) {

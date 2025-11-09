@@ -10,7 +10,7 @@ import Window from "./window";
 import { App, APPS } from "@/lib/apps";
 import CommandPalette from "./command-palette";
 import { useToast } from "@/hooks/use-toast";
-import { Button } from "../ui/button";
+import { ToastAction } from "../ui/toast";
 import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
 import { cn } from "@/lib/utils";
 
@@ -118,9 +118,15 @@ export default function Desktop() {
 
             // Only show toast if there's a suggestion.
             if (assistance.suggestion) {
+              let action;
+              if (assistance.suggestion.toLowerCase().includes("arrange")) {
+                action = <ToastAction altText="Arrange Windows" onClick={arrangeWindows}>Arrange</ToastAction>
+              }
+
               toast({
                   title: "Proactive OS Assistance",
                   description: assistance.suggestion,
+                  action: action,
               });
             }
         } catch (error) {
@@ -130,7 +136,7 @@ export default function Desktop() {
 
       return () => clearTimeout(proactiveToastTimeout);
     }
-  }, [focusedAppId, openApps, toast]);
+  }, [focusedAppId, openApps, toast, arrangeWindows]);
 
   const openApp = useCallback((app: App) => {
     const existingAppInstance = openApps.find(a => a.app.id === app.id);

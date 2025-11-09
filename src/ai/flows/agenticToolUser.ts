@@ -16,6 +16,8 @@ const OpenAppInputSchema = z.object({
   appId: z.string().describe('The unique ID of the app to open. e.g., "code-editor", "browser"'),
 });
 
+const ArrangeWindowsInputSchema = z.object({});
+
 
 const getOpenAppsTool = ai.defineTool(
     {
@@ -40,14 +42,26 @@ const openAppTool = ai.defineTool(
 async () => {}
 );
 
+const arrangeWindowsTool = ai.defineTool(
+{
+    name: 'arrangeWindows',
+    description: 'Arranges the Code Editor and Browser windows side-by-side for an optimal workflow.',
+    inputSchema: ArrangeWindowsInputSchema,
+    outputSchema: z.void(),
+},
+// This function is a placeholder. The actual implementation is on the client.
+async () => {}
+);
+
 const agenticToolUserPrompt = ai.definePrompt({
     name: 'agenticToolUserPrompt',
     system: `You are an AI assistant for AetherOS. Your goal is to help the user by using the available tools.
 - Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `"${app.id}"`).join(', ')}.
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
+- If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
 - For any other query, do not use a tool and instead provide a helpful text response.`,
-    tools: [getOpenAppsTool, openAppTool],
+    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool],
 });
 
 
@@ -67,7 +81,8 @@ export async function agenticToolUser(
               },
               async () => ({ apps: openApps })
             ),
-            openAppTool
+            openAppTool,
+            arrangeWindowsTool
         ]
     });
     

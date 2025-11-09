@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -28,6 +29,7 @@ export default function WorkflowStudioApp() {
       const result = await generateWorkflowFromDescription(description);
       const cleanedChart = result.workflowDefinition.replace(/```mermaid\n/g, '').replace(/```/g, '').trim();
       setWorkflow(cleanedChart);
+      toast({ title: 'Workflow Generated', description: 'The visual workflow has been updated.' });
     } catch (error) {
       console.error(error);
       toast({ title: 'Error', description: 'Failed to generate workflow.', variant: 'destructive' });
@@ -37,8 +39,8 @@ export default function WorkflowStudioApp() {
   };
 
   return (
-    <div className="flex h-full p-4 gap-4">
-      <div className="w-1/3 flex flex-col gap-4">
+    <div className="flex h-full p-4 gap-4 flex-col md:flex-row">
+      <div className="w-full md:w-1/3 flex flex-col gap-4">
         <div>
           <h2 className="text-2xl font-headline">Workflow Studio</h2>
           <p className="text-sm text-muted-foreground">Describe a process, and the AI will generate a visual workflow.</p>
@@ -51,6 +53,7 @@ export default function WorkflowStudioApp() {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="e.g., 'When a new user signs up, send a welcome email. Wait 1 day, then send a follow-up email with tips.'"
             className="flex-grow resize-none"
+            disabled={isLoading}
           />
           <Button onClick={handleGenerate} disabled={isLoading}>
             {isLoading ? (
@@ -67,9 +70,9 @@ export default function WorkflowStudioApp() {
           </Button>
         </div>
       </div>
-      <div className="w-2/3">
+      <div className="w-full md:w-2/3 flex flex-col">
         <Label>Visual Workflow</Label>
-        <Card className="h-[calc(100%-1.75rem)] mt-2">
+        <Card className="h-full mt-2 flex-grow">
             <CardContent className="p-4 h-full">
                 <ScrollArea className="h-full">
                     {isLoading ? (

@@ -27,7 +27,7 @@ export default function TopBar() {
     <header className="absolute top-0 left-0 right-0 h-8 bg-black/20 backdrop-blur-md flex items-center justify-between px-3 text-sm z-50">
       <div className="flex items-center gap-4">
         <AetherLogo />
-        <span className="font-bold text-foreground">AetherOS</span>
+        <span className="font-bold text-foreground">AetherOS - Quorium</span>
       </div>
       <div className="flex items-center gap-3 text-foreground/80">
         <Command className="h-4 w-4" />

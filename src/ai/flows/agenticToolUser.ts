@@ -13,7 +13,7 @@ const GetOpenAppsInputSchema = z.object({
 });
 
 const OpenAppInputSchema = z.object({
-  appId: z.string().describe('The unique ID of the app to open. e.g., "code-editor", "browser"'),
+  appId: z.string().describe(`The unique ID of the app to open. Must be one of: ${APPS.map(app => `"${app.id}"`).join(', ')}`),
 });
 
 const ArrangeWindowsInputSchema = z.object({});

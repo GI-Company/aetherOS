@@ -28,9 +28,15 @@ const prompt = ai.definePrompt({
   name: 'designByPromptUiGenerationPrompt',
   input: {schema: DesignByPromptUiGenerationInputSchema},
   output: {schema: DesignByPromptUiGenerationOutputSchema},
-  prompt: `You are a UI element code generator. Generate code for the UI element described in the prompt. Enclose the code in a code block.
+  prompt: `You are a UI element code generator. Generate a React component using TypeScript, Next.js, and Tailwind CSS for the UI element described in the prompt.
+  
+  - Use functional components and hooks.
+  - Use shadcn/ui components where appropriate (e.g., Button, Card, Input).
+  - Do not include any imports that are not used in the component.
+  
+  Return only the raw TypeScript code for the component. Do not include any explanatory text or markdown formatting like \`\`\`tsx.
 
-Prompt: {{{prompt}}}`,
+  Prompt: {{{prompt}}}`,
 });
 
 const designByPromptUiGenerationFlow = ai.defineFlow(

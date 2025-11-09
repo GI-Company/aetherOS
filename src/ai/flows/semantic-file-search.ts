@@ -19,9 +19,15 @@ export type SemanticFileSearchInput = z.infer<
   typeof SemanticFileSearchInputSchema
 >;
 
+const FileItemSchema = z.object({
+  path: z.string().describe('The full path of the file or folder.'),
+  type: z.enum(['file', 'folder']).describe('The type of the item.'),
+});
+
+
 const SemanticFileSearchOutputSchema = z.object({
   results: z
-    .array(z.string())
+    .array(FileItemSchema)
     .describe('A list of file paths from the available files that semantically match the query.'),
 });
 export type SemanticFileSearchOutput = z.infer<
@@ -41,6 +47,7 @@ const prompt = ai.definePrompt({
   prompt: `You are an AI file system assistant. Your job is to help users find files by searching through a list of available file paths based on a natural language query.
 
   Return ONLY the file paths from the provided list that are the most relevant matches for the user's query. If no files are relevant, return an empty array.
+  For each result, you must determine if the path represents a 'file' or a 'folder' and set the 'type' field accordingly. A path is a folder if it has a child item in the available files list.
 
   Query: {{{query}}}
   

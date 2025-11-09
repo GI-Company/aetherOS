@@ -15,14 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { formatBytes } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
-
-type FileItem = {
-  name: string;
-  type: "folder" | "file";
-  size: number;
-  modified: Date;
-  path: string;
-};
+import { FileItem } from "@/lib/types";
 
 const useStorageFiles = (currentPath: string) => {
     const { user } = useFirebase();
@@ -141,7 +134,8 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
       const allFilePaths = allFiles.map(f => f.path);
       const result = await semanticFileSearch({ query: searchQuery, availableFiles: allFilePaths });
       
-      const searchResultFiles = allFiles.filter(f => result.results.includes(f.path));
+      // The result from AI is just paths, we need to find the full FileItem
+      const searchResultFiles = allFiles.filter(f => result.results.some(r => r.path === f.path));
       setDisplayedFiles(searchResultFiles);
       
       toast({

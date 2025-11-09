@@ -11,16 +11,13 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { App, APPS } from "@/lib/apps";
-import { Settings, Power, Layout, Command, BrainCircuit, Loader2, File } from "lucide-react";
+import { Settings, Power, Layout, Command, BrainCircuit, Loader2, File, Folder } from "lucide-react";
 import { agenticToolUser } from "@/ai/flows/agenticToolUser";
 import React, { useEffect, useState, useCallback } from "react";
 import { WindowInstance } from "./desktop";
 import { getStorage, ref, listAll } from "firebase/storage";
 import { useFirebase } from "@/firebase";
-
-type FileSearchResult = {
-    path: string;
-}
+import { FileItem } from "@/lib/types";
 
 type CommandPaletteProps = {
     open: boolean;
@@ -35,7 +32,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
   const settingsApp = APPS.find(app => app.id === 'settings');
   const [searchValue, setSearchValue] = useState("");
   const [agentResponse, setAgentResponse] = useState<string | null>(null);
-  const [fileSearchResults, setFileSearchResults] = useState<FileSearchResult[]>([]);
+  const [fileSearchResults, setFileSearchResults] = useState<FileItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useFirebase();
 
@@ -116,7 +113,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
             case 'searchFiles':
                 const searchResults = (toolCall.output as any).results;
                 if(searchResults && searchResults.length > 0) {
-                    setFileSearchResults(searchResults.map((path: string) => ({ path })));
+                    setFileSearchResults(searchResults);
                     shouldClose = false; // Keep palette open to show results
                 }
                 break;
@@ -175,12 +172,12 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     
     if (fileSearchResults.length > 0) {
         return (
-            <CommandGroup heading="Found Files">
-                {fileSearchResults.map(file => (
-                     <CommandItem key={file.path} onSelect={() => handleOpenFile(file.path)}>
-                        <File className="mr-2 h-4 w-4" />
-                        <span>{file.path.split('/').pop()}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">{file.path.replace(`users/${user?.uid}/`, '~/')}</span>
+            <CommandGroup heading="Found Items">
+                {fileSearchResults.map(item => (
+                     <CommandItem key={item.path} onSelect={() => handleOpenFile(item.path)}>
+                        {item.type === 'folder' ? <Folder className="mr-2 h-4 w-4" /> : <File className="mr-2 h-4 w-4" />}
+                        <span>{item.path.split('/').pop()}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{item.path.replace(`users/${user?.uid}/`, '~/')}</span>
                     </CommandItem>
                 ))}
             </CommandGroup>

@@ -7,6 +7,14 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { APPS } from '@/lib/apps';
 import { semanticFileSearch } from './semantic-file-search';
+import { FileItem } from '@/lib/types';
+
+
+const FileItemSchema = z.object({
+  path: z.string().describe('The full path of the file or folder.'),
+  type: z.enum(['file', 'folder']).describe('The type of the item.'),
+});
+
 
 // Define the schema for the tools' inputs and outputs
 const GetOpenAppsInputSchema = z.object({}).describe("No input needed, client provides context.");
@@ -65,9 +73,9 @@ async () => {}
 const searchFilesTool = ai.defineTool(
     {
         name: 'searchFiles',
-        description: 'Searches for files based on a semantic/natural language query.',
+        description: 'Searches for files based on a semantic/natural language query. You must determine if a path is a file or a folder.',
         inputSchema: SearchFilesInputSchema,
-        outputSchema: z.object({ results: z.array(z.string()) }),
+        outputSchema: z.object({ results: z.array(FileItemSchema) }),
     },
     async () => ({ results: [] }) // Placeholder, client implements
 );
@@ -88,7 +96,7 @@ const agenticToolUserPrompt = ai.definePrompt({
     system: `You are an AI assistant for AetherOS. Your goal is to help the user by using the available tools.
 - Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `"${app.id}"`).join(', ')}.
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
-- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), use the 'searchFiles' tool.
+- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), use the 'searchFiles' tool. For each result, you must determine if it is a 'file' or a 'folder' and set the type accordingly.
 - If the user asks to open a specific file, use the 'openFile' tool. You must determine the exact file path from the context of available files.
 - If a user asks to find AND open a file, you should first use 'searchFiles' to locate it, and then if you are confident in the result, call 'openFile' with the exact path.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
@@ -117,12 +125,13 @@ export async function agenticToolUser(
               },
               async () => ({ apps: context.openApps })
             ),
-            ai.defineTool({
-                name: 'searchFiles',
-                description: 'Searches for files based on a semantic/natural language query.',
-                inputSchema: SearchFilesInputSchema,
-                outputSchema: z.object({ results: z.array(z.string()) }),
-              },
+            ai.defineTool(
+                {
+                    name: 'searchFiles',
+                    description: 'Searches for files based on a semantic/natural language query. You must determine if a path is a file or a folder.',
+                    inputSchema: SearchFilesInputSchema,
+                    outputSchema: z.object({ results: z.array(FileItemSchema) }),
+                },
               // The real implementation calls our existing semanticFileSearch flow
               async ({ query }) => semanticFileSearch({ query, availableFiles: context.allFiles })
             ),

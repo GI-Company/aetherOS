@@ -48,6 +48,13 @@ export default function Desktop() {
 
   const { data: userPreferences, isLoading: isPreferencesLoading } = useDoc(userPreferencesRef);
   
+  const trialUserRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid || !user.isAnonymous) return null;
+    return doc(firestore, 'trialUsers', user.uid);
+  }, [firestore, user?.uid, user?.isAnonymous]);
+  const { data: trialData } = useDoc(trialUserRef);
+
+
   useEffect(() => {
     if (user && !user.isAnonymous && userPreferences) {
       applyTheme(userPreferences as any, false);
@@ -66,11 +73,11 @@ export default function Desktop() {
 
   // When an anonymous user logs in, create a trial document for them
   useEffect(() => {
-    if (user?.isAnonymous && firestore) {
+    if (user?.isAnonymous && firestore && !trialData) {
       const trialRef = doc(firestore, 'trialUsers', user.uid);
       setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
     }
-  }, [user, firestore]);
+  }, [user, firestore, trialData]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -8,7 +9,14 @@ import { Folder, File, Search, Loader2 } from "lucide-react";
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 
-const initialFiles = [
+type FileItem = {
+  name: string;
+  type: "folder" | "file";
+  size: string;
+  modified: string;
+};
+
+const initialFiles: FileItem[] = [
   { name: "Projects", type: "folder", size: "12.5 GB", modified: "2024-05-20" },
   { name: "Documents", type: "folder", size: "2.1 GB", modified: "2024-05-18" },
   { name: "Photos", type: "folder", size: "50.8 GB", modified: "2024-05-15" },
@@ -33,20 +41,26 @@ export default function FileExplorerApp() {
 
     setIsLoading(true);
     try {
-      // In a real app, we would use the results to fetch file details.
-      // Here, we'll just simulate by filtering the existing file list.
       const result = await semanticFileSearch({ query: searchQuery });
       const foundFileNames = result.results;
       
-      // DEMO: Filter based on keywords in filename for illustrative purposes
-      const keywords = searchQuery.split(' ');
-      const filteredFiles = initialFiles.filter(file => 
-        keywords.some(keyword => file.name.toLowerCase().includes(keyword.toLowerCase()))
-      );
+      const newFiles: FileItem[] = foundFileNames.map(name => {
+        const existingFile = initialFiles.find(f => f.name.toLowerCase() === name.toLowerCase());
+        if (existingFile) {
+          return existingFile;
+        }
+        // Create a new mock file for AI-found items that weren't in the initial list
+        return {
+          name: name,
+          type: name.includes('.') ? 'file' : 'folder',
+          size: '???',
+          modified: new Date().toISOString().split('T')[0],
+        }
+      });
 
-      if (filteredFiles.length > 0) {
-        setFiles(filteredFiles);
-        toast({ title: "Search Complete", description: `Found ${filteredFiles.length} items.` });
+      if (newFiles.length > 0) {
+        setFiles(newFiles);
+        toast({ title: "Semantic Search Complete", description: `The AI found ${newFiles.length} relevant items.` });
       } else {
         setFiles([]);
         toast({ title: "Search Complete", description: "No items matched your semantic query." });
@@ -55,6 +69,7 @@ export default function FileExplorerApp() {
     } catch (error) {
       console.error("Semantic search failed:", error);
       toast({ title: "Search Failed", description: "The AI search service is unavailable.", variant: "destructive" });
+      setFiles(initialFiles); // On error, revert to the initial list
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +90,7 @@ export default function FileExplorerApp() {
               className="pl-9 bg-background/50"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={isLoading}
             />
           </div>
         </form>
@@ -106,7 +122,7 @@ export default function FileExplorerApp() {
         )}
       </ScrollArea>
       <div className="p-2 border-t text-xs text-muted-foreground">
-        {files.length} items
+        {isLoading ? 'Searching...' : `${files.length} items`}
       </div>
     </div>
   );

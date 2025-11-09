@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -164,6 +165,7 @@ export default function SettingsApp() {
                     placeholder="e.g., 'A dark, modern theme with high contrast for coding', 'A light, airy theme for writing'..."
                     value={themePrompt}
                     onChange={(e) => setThemePrompt(e.target.value)}
+                    disabled={!!isLoading}
                   />
                   <Button onClick={handleGenerateTheme} disabled={!!isLoading} className="w-full sm:w-auto">
                     {isLoading === 'theme' ? <Loader2 className="animate-spin" /> : <Palette />}
@@ -177,6 +179,7 @@ export default function SettingsApp() {
                     placeholder="e.g., 'A vibrant electric blue', 'A calming, soft lavender'..."
                     value={accentPrompt}
                     onChange={(e) => setAccentPrompt(e.target.value)}
+                    disabled={!!isLoading}
                   />
                   <Button onClick={handleGenerateAccent} disabled={!!isLoading} className="w-full sm:w-auto">
                     {isLoading === 'accent' ? <Loader2 className="animate-spin" /> : <Sparkles />}

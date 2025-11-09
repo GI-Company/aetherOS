@@ -9,14 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { generateImage } from "@/ai/flows/generate-image";
 import { useToast } from "@/hooks/use-toast";
-import { Layers, Loader2, Wand2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Layers, Loader2, Wand2, Save } from "lucide-react";
+import { useFirebase } from "@/firebase";
+import { getStorage, ref, uploadBytes } from "firebase/storage";
 
 export default function PixelStreamerApp() {
   const [prompt, setPrompt] = useState("");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<"generate" | "save" | null>(null);
   const { toast } = useToast();
+  const { user } = useFirebase();
 
   const handleGenerate = async () => {
     if (!prompt) {
@@ -27,7 +29,7 @@ export default function PixelStreamerApp() {
       });
       return;
     }
-    setIsLoading(true);
+    setIsLoading("generate");
     setGeneratedImage(null);
     try {
       const result = await generateImage({ prompt });
@@ -44,7 +46,46 @@ export default function PixelStreamerApp() {
         variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
+      setIsLoading(null);
+    }
+  };
+
+  const handleSaveImage = async () => {
+    if (!generatedImage || !user) {
+      toast({ title: "No image to save", variant: "destructive" });
+      return;
+    }
+
+    setIsLoading("save");
+    try {
+      // Create a filename from the prompt
+      const safePrompt = prompt.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 50);
+      const fileName = `${safePrompt}_${Date.now()}.png`;
+      const filePath = `users/${user.uid}/${fileName}`;
+
+      // Convert data URI to Blob
+      const response = await fetch(generatedImage);
+      const blob = await response.blob();
+      
+      const storage = getStorage();
+      const storageRef = ref(storage, filePath);
+      
+      await uploadBytes(storageRef, blob);
+
+      toast({
+        title: "Image Saved!",
+        description: `${fileName} has been saved to your File Explorer.`
+      });
+
+    } catch (error) {
+        console.error("Error saving image:", error);
+        toast({
+            title: "Save Failed",
+            description: "An error occurred while saving the image to your storage.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsLoading(null);
     }
   };
 
@@ -64,23 +105,33 @@ export default function PixelStreamerApp() {
             placeholder="e.g., 'A majestic dragon soaring over a mystical forest at dawn'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            disabled={isLoading}
+            disabled={!!isLoading}
             />
-            <Button onClick={handleGenerate} disabled={isLoading}>
-                {isLoading ? (
-                    <Loader2 className="animate-spin" />
+            <Button onClick={handleGenerate} disabled={!!isLoading}>
+                {isLoading === 'generate' ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                    <Wand2 />
+                    <Wand2 className="mr-2 h-4 w-4" />
                 )}
                 Generate
             </Button>
+            {generatedImage && (
+                <Button variant="outline" onClick={handleSaveImage} disabled={!!isLoading}>
+                    {isLoading === 'save' ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                    )}
+                    Save to Files
+                </Button>
+            )}
         </div>
       </div>
 
       <Card className="flex-grow relative bg-background/50 overflow-hidden">
         <CardContent className="p-2 h-full">
             <div className="relative w-full h-full flex items-center justify-center rounded-md overflow-hidden bg-card/50">
-             {isLoading ? (
+             {isLoading === 'generate' ? (
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-8 w-8 animate-spin" />
                         <span>Rendering Pixels...</span>

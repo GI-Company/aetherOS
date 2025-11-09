@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Loader2, Users, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { APPS, App } from '@/lib/apps';
 
@@ -31,7 +30,6 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const { firestore, user } = useFirebase();
   const [newMessage, setNewMessage] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore) return null;

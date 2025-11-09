@@ -11,7 +11,7 @@ import CommandPalette from "./command-palette";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "../ui/toast";
 import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
-import { useUser, useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2, PartyPopper } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
@@ -20,7 +20,6 @@ import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
 import { getAuth, signOut } from "firebase/auth";
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export type WindowInstance = {
   id: number;

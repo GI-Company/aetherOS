@@ -10,7 +10,7 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
 import { User } from 'lucide-react';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking } from '@/firebase';
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -162,7 +162,7 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
       const { user } = await signInAnonymously(auth);
       // Create the trial document immediately after anonymous sign-in
       const trialRef = doc(firestore, 'trialUsers', user.uid);
-      await setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
+      setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
       
       toast({
         title: 'Entering Trial Mode',

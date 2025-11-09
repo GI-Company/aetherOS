@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { setDocumentNonBlocking } from "@/firebase";
 
 export type Palette = {
     primaryColor: string;
@@ -92,7 +92,7 @@ export function useTheme() {
             applyHsl('--accent-foreground', theme.accent.accentForegroundColor);
         }
 
-        if (shouldSave && firestore && user) {
+        if (shouldSave && firestore && user && !user.isAnonymous) {
             const prefRef = doc(firestore, 'userPreferences', user.uid);
             setDocumentNonBlocking(prefRef, theme, { merge: true });
         }

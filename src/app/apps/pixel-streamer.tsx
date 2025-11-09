@@ -86,11 +86,6 @@ export default function PixelStreamerApp() {
             requestResourceData: '(image data)',
           });
           errorEmitter.emit('permission-error', permissionError);
-          toast({
-            title: "Save Failed",
-            description: "Could not save image. Check error overlay for details.",
-            variant: "destructive"
-          });
         })
         .finally(() => {
            setIsLoading(null);

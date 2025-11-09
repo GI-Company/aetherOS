@@ -139,11 +139,6 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
           requestResourceData: `(file content of ${currentCode.length} bytes)`,
         });
         errorEmitter.emit('permission-error', permissionError);
-        toast({
-          title: "Save Failed",
-          description: "Check the console or error overlay for details on the permission error.",
-          variant: "destructive",
-        });
       })
       .finally(() => {
          setIsLoading(null);

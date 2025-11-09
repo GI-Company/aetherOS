@@ -56,7 +56,7 @@ export default function FileExplorerApp() {
           size: '???',
           modified: new Date().toISOString().split('T')[0],
         }
-      });
+      }).filter(Boolean) as FileItem[];
 
       if (newFiles.length > 0) {
         setFiles(newFiles);

@@ -51,8 +51,8 @@ export default function Desktop() {
   }, []);
   
   const arrangeWindows = useCallback(() => {
-    const codeEditor = openApps.find(a => a.app.id === 'code-editor' && !a.isMinimized);
-    const browser = openApps.find(a => a.app.id === 'browser' && !a.isMinimized);
+    const codeEditor = openApps.find(a => a.app.id === 'code-editor');
+    const browser = openApps.find(a => a.app.id === 'browser');
     
     if (!codeEditor || !browser) {
         toast({

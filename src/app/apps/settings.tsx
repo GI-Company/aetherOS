@@ -9,12 +9,13 @@ import { generateAdaptivePalette } from "@/ai/flows/adaptive-color-palettes";
 import { generateAccentColor } from "@/ai/flows/generate-accent-color";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Wand2, Loader2, Palette, Sparkles, User, PartyPopper, CreditCard } from "lucide-react";
+import { Wand2, Loader2, Palette, Sparkles, User, PartyPopper, CreditCard, ShieldCheck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "@/hooks/use-theme";
 import { useFirebase } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { App, APPS } from "@/lib/apps";
+import { Input } from "@/components/ui/input";
 
 
 interface SettingsAppProps {
@@ -90,6 +91,14 @@ export default function SettingsApp({ onOpenApp }: SettingsAppProps) {
     }
   }
 
+  const handleSendVerification = () => {
+      // Logic to send verification code will be implemented here
+      toast({
+          title: 'Coming Soon!',
+          description: 'The logic to send the OTP is next.'
+      })
+  }
+
 
   const renderAccountContent = () => {
     if (user?.isAnonymous) {
@@ -102,7 +111,34 @@ export default function SettingsApp({ onOpenApp }: SettingsAppProps) {
         </div>
       )
     }
-    return <p className="text-muted-foreground">Manage your account details here.</p>;
+    return (
+        <div className="space-y-8">
+            <div>
+                <h3 className="text-lg font-medium">Account Details</h3>
+                <p className="text-sm text-muted-foreground">Manage your account information.</p>
+                {/* Placeholder for account details */}
+            </div>
+            <Separator />
+             <div>
+                <h3 className="text-lg font-medium flex items-center gap-2"><ShieldCheck className="text-accent" /> Two-Factor Authentication</h3>
+                <p className="text-sm text-muted-foreground mt-2 mb-4">
+                    Add an extra layer of security to your account by enabling 2FA with your phone number.
+                </p>
+                 <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                    <div className="space-y-2 flex-grow w-full sm:w-auto">
+                        <Label htmlFor="phone-number">Phone Number</Label>
+                        <Input id="phone-number" placeholder="+1 (555) 123-4567" disabled={!!isLoading}/>
+                    </div>
+                    <Button onClick={handleSendVerification} disabled={!!isLoading}>
+                         {isLoading === 'accent' ? <Loader2 className="animate-spin" /> : null}
+                        Send Verification Code
+                    </Button>
+                </div>
+                {/* This element is required for the reCAPTCHA verifier */}
+                <div id="recaptcha-container" className="mt-4"></div>
+            </div>
+        </div>
+    );
   }
 
   return (
@@ -164,10 +200,10 @@ export default function SettingsApp({ onOpenApp }: SettingsAppProps) {
             </div>
           </div>
         </TabsContent>
-        <TabsContent value="account">
+        <TabsContent value="account" className="mt-6">
           {renderAccountContent()}
         </TabsContent>
-        <TabsContent value="billing">
+        <TabsContent value="billing" className="mt-6">
            <div className="text-center mt-8">
               <CreditCard className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium">Manage Your Subscription</h3>
@@ -175,7 +211,7 @@ export default function SettingsApp({ onOpenApp }: SettingsAppProps) {
               <Button onClick={openBillingApp}>Open Billing App</Button>
             </div>
         </TabsContent>
-        <TabsContent value="system">
+        <TabsContent value="system" className="mt-6">
           <p className="text-muted-foreground">System settings will be here.</p>
         </TabsContent>
       </Tabs>

@@ -103,7 +103,8 @@
   "auth": {
     "providers": [
       "google.com",
-      "anonymous"
+      "anonymous",
+      "phone"
     ]
   },
   "firestore": {
@@ -133,5 +134,3 @@
     }
   }
 }
-
-    

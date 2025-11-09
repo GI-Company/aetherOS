@@ -106,9 +106,14 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
-  if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
-    throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
+  
+  if (memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
+    if (process.env.NODE_ENV === 'development') {
+      throw new Error('The reference passed to useCollection was not memoized with useMemoFirebase. This can cause infinite loops.');
+    }
   }
+
   return { data, isLoading, error };
 }

@@ -97,9 +97,11 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
           switch (toolCall.toolName) {
             case 'openApp':
                 const appId = (toolCall.input as any).appId;
+                const props = (toolCall.input as any).props;
                 const appToOpen = APPS.find(a => a.id === appId);
                 if (appToOpen) {
-                  onOpenApp(appToOpen);
+                  onOpenApp(appToOpen, props);
+                  shouldClose = false;
                 }
                 break;
             case 'arrangeWindows':
@@ -212,7 +214,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                     <Layout className="mr-2 h-4 w-4" />
                     <span>Arrange windows for coding</span>
                 </CommandItem>
-                 <CommandItem onSelect={() => {setSearchValue("find and open my auth form component"); handleSubmit(new Event('submit') as any);}}>
+                 <CommandItem onSelect={() => {setSearchValue("find my auth form component"); handleSubmit(new Event('submit') as any);}}>
                   <File className="mr-2 h-4 w-4" />
                   <span>Find and open a file...</span>
                 </CommandItem>

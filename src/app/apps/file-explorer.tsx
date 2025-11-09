@@ -93,9 +93,10 @@ const useStorageFiles = (currentPath: string) => {
 
 interface FileExplorerAppProps {
   onOpenFile?: (filePath: string) => void;
+  searchQuery?: string;
 }
 
-export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
+export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery }: FileExplorerAppProps) {
   const { user } = useFirebase();
   const basePath = useMemo(() => user ? `users/${user.uid}` : '', [user]);
   const [currentPath, setCurrentPath] = useState(basePath);
@@ -103,7 +104,7 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
   const { allFiles, isLoading, refresh } = useStorageFiles(currentPath);
   const [displayedFiles, setDisplayedFiles] = useState<FileItem[]>([]);
   
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
   const [isSearching, setIsSearching] = useState(false);
   const [uploadFile, setUploadFile] = useState<globalThis.File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -121,23 +122,19 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
     }
   }, [basePath, currentPath])
 
-  useEffect(() => {
-    // By default, display all files from storage.
-    setDisplayedFiles(allFiles);
-  }, [allFiles]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery) {
+  const handleSearch = useCallback(async (query: string) => {
+    if (!query) {
       setDisplayedFiles(allFiles); // Reset to all files if search is cleared
       return;
     }
     setIsSearching(true);
     try {
+      // In a deep file structure, we'd need to recursively list all files,
+      // but for this prototype, we'll search the current directory.
       const allFilePaths = allFiles.map(f => f.path);
-      const result = await semanticFileSearch({ query: searchQuery, availableFiles: allFilePaths });
+      const result = await semanticFileSearch({ query: query, availableFiles: allFilePaths });
       
-      // The result from AI is just paths, we need to find the full FileItem
       const searchResultFiles = allFiles.filter(f => result.results.some(r => r.path === f.path));
       setDisplayedFiles(searchResultFiles);
       
@@ -152,7 +149,27 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
     } finally {
         setIsSearching(false);
     }
-  };
+  }, [allFiles, toast]);
+
+
+  useEffect(() => {
+    // If an initial search query is passed, run the search.
+    if (initialSearchQuery) {
+        setSearchQuery(initialSearchQuery);
+        if (allFiles.length > 0) {
+            handleSearch(initialSearchQuery);
+        }
+    } else {
+        // By default, display all files from storage.
+        setDisplayedFiles(allFiles);
+    }
+  }, [allFiles, initialSearchQuery, handleSearch]);
+
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSearch(searchQuery);
+  }
   
   const handleDoubleClick = (file: FileItem) => {
     if (file.type === 'folder') {
@@ -240,7 +257,7 @@ export default function FileExplorerApp({ onOpenFile }: FileExplorerAppProps) {
                 <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             </Button>
         </div>
-         <form onSubmit={handleSearch} className="relative flex-grow">
+         <form onSubmit={handleSearchSubmit} className="relative flex-grow">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Semantic Search for files..." 

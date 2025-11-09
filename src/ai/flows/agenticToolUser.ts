@@ -22,6 +22,7 @@ const GetOpenAppsInputSchema = z.object({}).describe("No input needed, client pr
 
 const OpenAppInputSchema = z.object({
   appId: z.string().describe(`The unique ID of the app to open. Must be one of: ${APPS.map(app => `"${app.id}"`).join(', ')}`),
+  props: z.record(z.any()).optional().describe("Optional props to pass to the application component, e.g. { searchQuery: 'find my components' }"),
 });
 
 const ArrangeWindowsInputSchema = z.object({});
@@ -58,7 +59,7 @@ const getOpenAppsTool = ai.defineTool(
 const openAppTool = ai.defineTool(
 {
     name: 'openApp',
-    description: 'Opens a specific application window.',
+    description: 'Opens a specific application window, optionally with props.',
     inputSchema: OpenAppInputSchema,
     outputSchema: z.void(),
 },
@@ -123,9 +124,9 @@ const agenticToolUserPrompt = ai.definePrompt({
     system: `You are an AI assistant for AetherOS. Your goal is to help the user by using the available tools.
 - Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `"${app.id}"`).join(', ')}.
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
-- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), use the 'searchFiles' tool. For each result, you must determine if it is a 'file' or a 'folder' and set the type accordingly.
+- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you MUST use the 'openApp' tool with the 'file-explorer' appId and pass the user's query in the props, like this: { appId: 'file-explorer', props: { searchQuery: 'user query' } }. Do NOT use the searchFiles tool directly.
 - If the user asks to open a specific file, use the 'openFile' tool. You must determine the exact file path from the context of available files.
-- If a user asks to find AND open a file, you should first use 'searchFiles' to locate it, and then if you are confident in the result, call 'openFile' with the exact path.
+- If a user asks to find AND open a file, you should first use the 'openApp' tool to search for it in the 'file-explorer'. Then, separately, if confident, call 'openFile' with the exact path.
 - If the user asks for a new wallpaper or background, you should first call 'generateImage' with a creative prompt based on their request. Then, take the 'imageUrl' from the output of 'generateImage' and use it to call 'setWallpaper'.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.

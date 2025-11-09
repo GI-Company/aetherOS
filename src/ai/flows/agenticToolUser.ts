@@ -7,12 +7,12 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { APPS } from '@/lib/apps';
 import { semanticFileSearch } from './semantic-file-search';
-import { FileItem } from '@/lib/types';
+import type { FileItem } from '@/lib/types';
 
 
 const FileItemSchema = z.object({
-  path: z.string().describe('The full path of the file or folder.'),
-  type: z.enum(['file', 'folder']).describe('The type of the item.'),
+  path: z.string(),
+  type: z.enum(['file', 'folder']),
 });
 
 

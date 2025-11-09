@@ -86,9 +86,10 @@ export default function Desktop() {
     if (updates.size > 0) {
         let newZIndex = highestZIndex;
         setOpenApps(prev => prev.map(app => {
-            if (updates.has(app.id)) {
+            const appUpdate = updates.get(app.id);
+            if (appUpdate) {
                 newZIndex++;
-                return { ...app, ...updates.get(app.id), zIndex: newZIndex };
+                return { ...app, ...appUpdate, zIndex: newZIndex };
             }
             return app;
         }));
@@ -224,8 +225,8 @@ export default function Desktop() {
             previousState: { position: app.position, size: app.size },
             position: { x: 0, y: topBarHeight },
             size: {
-              width: desktopRef.current?.clientWidth || window.innerWidth,
-              height: (desktopRef.current?.clientHeight || window.innerHeight) - topBarHeight,
+              width: window.innerWidth,
+              height: window.innerHeight - topBarHeight,
             }
           };
         } else {

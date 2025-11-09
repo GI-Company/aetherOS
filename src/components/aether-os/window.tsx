@@ -113,37 +113,6 @@ export default function Window({
     }
   );
 
-  // On small screens, windows are always fullscreen
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  if (isMobile) {
-    return (
-       <div
-        className={cn(
-          "absolute inset-0 !transform-none !left-0 !top-0 rounded-none transition-opacity duration-300",
-           isMinimized && "opacity-0 pointer-events-none"
-        )}
-        style={{ zIndex }}
-        onMouseDownCapture={onFocus}
-      >
-        <Card className="w-full h-full flex flex-col bg-card/80 backdrop-blur-xl border-white/20 overflow-hidden rounded-none border-0">
-          <CardHeader className="p-2 flex-shrink-0 flex flex-row items-center justify-between border-b cursor-default relative">
-            <div className="flex items-center gap-2">
-              <app.Icon className="h-4 w-4 ml-1" />
-              <span className="text-sm font-medium select-none">{app.name}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button onClick={onMinimize} className="p-1.5 rounded-full hover:bg-white/10"><Minus className="h-3 w-3" /></button>
-              <button onClick={onClose} className="p-1.5 rounded-full hover:bg-red-500/50"><X className="h-3 w-3" /></button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 flex-grow relative">
-            <AppContent />
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   return (
     <animated.div
       style={{

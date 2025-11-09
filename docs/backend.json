@@ -28,7 +28,7 @@
       "properties": {
         "tier": {
           "type": "string",
-          "enum": ["free", "personal", "business", "enterprise"],
+          "enum": ["free", "personal", "business", "enterprise", "free-trial"],
           "description": "The subscription tier of the user."
         },
         "status": {
@@ -133,3 +133,5 @@
     }
   }
 }
+
+    

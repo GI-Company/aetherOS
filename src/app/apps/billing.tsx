@@ -7,60 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { doc } from 'firebase/firestore';
-
-const TIERS = [
-  {
-    id: 'free',
-    name: 'Demo',
-    price: '$0',
-    priceDescription: '15-minute trial',
-    features: [
-      'Access to all applications',
-      'Limited AI interactions',
-      'No data persistence after session',
-    ],
-    cta: 'Your Current Plan',
-  },
-  {
-    id: 'personal',
-    name: 'Personal',
-    price: '$10',
-    priceDescription: 'per month',
-    features: [
-      'Full data persistence',
-      'Unlimited AI interactions',
-      'Standard AI models',
-      'Community support',
-    ],
-    cta: 'Upgrade to Personal',
-  },
-  {
-    id: 'business',
-    name: 'Business',
-    price: '$45',
-    priceDescription: 'per user / month',
-    features: [
-      'All features from Personal',
-      'Advanced AI models',
-      'Team collaboration features',
-      'Priority email support',
-    ],
-    cta: 'Upgrade to Business',
-  },
-    {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 'Contact Us',
-    priceDescription: 'for custom pricing',
-    features: [
-      'All features from Business',
-      'Dedicated infrastructure options',
-      'On-premise deployment available',
-      '24/7 dedicated support & SLAs',
-    ],
-    cta: 'Contact Sales',
-  },
-];
+import { TIERS } from '@/lib/tiers';
 
 export default function BillingApp() {
     const { user, firestore } = useFirebase();
@@ -73,7 +20,7 @@ export default function BillingApp() {
     const { data: subscription, isLoading } = useDoc(subscriptionRef);
     
     // In a real app, this would be updated by a backend webhook from a payment processor
-    const currentTierId = user?.isAnonymous ? 'free' : (subscription as any)?.tier || 'personal';
+    const currentTierId = (subscription as any)?.tier || (user?.isAnonymous ? 'free-trial' : 'free');
 
   return (
     <div className="p-4 md:p-8 h-full bg-background overflow-y-auto">
@@ -121,3 +68,5 @@ export default function BillingApp() {
     </div>
   );
 }
+
+    

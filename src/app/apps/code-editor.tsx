@@ -77,6 +77,7 @@ export default function CodeEditorApp() {
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState<"generate" | "refactor" | null>(null);
   const { toast } = useToast();
+  const filePath = "/src/ai/flows/proactive-os-assistance.ts";
 
   const handleGenerateCode = async () => {
     if (!prompt) {
@@ -85,9 +86,10 @@ export default function CodeEditorApp() {
     }
     setIsLoading("generate");
     try {
-      const result = await aiCodeGeneration({ description: prompt });
+      const fullPrompt = `File Path: ${filePath}\n\nTask: ${prompt}\n\n---\n\nGenerate the complete code for the file based on the task.`;
+      const result = await aiCodeGeneration({ description: fullPrompt });
       setCode(result.code);
-      toast({ title: "Code Generated", description: "The code has been updated in the editor." });
+      toast({ title: "Code Generated", description: `The code in ${filePath} has been updated.` });
     } catch (e) {
       console.error(e);
       toast({ title: "Error", description: "Failed to generate code.", variant: "destructive" });
@@ -103,10 +105,10 @@ export default function CodeEditorApp() {
     }
     setIsLoading("refactor");
     try {
-      const refactorPrompt = `Please refactor the following code. Keep the existing functionality but improve its structure, readability, and performance. Add comments where necessary to explain complex parts.\n\n---\n\n${code}`;
+      const refactorPrompt = `File Path: ${filePath}\n\nPlease refactor the following code. Keep the existing functionality but improve its structure, readability, and performance. Add comments where necessary to explain complex parts.\n\n---\n\n${code}`;
       const result = await aiCodeGeneration({ description: refactorPrompt });
       setCode(result.code);
-      toast({ title: "Refactoring Complete", description: "The code has been updated." });
+      toast({ title: "Refactoring Complete", description: `The code in ${filePath} has been updated.` });
     } catch (e) {
       console.error(e);
       toast({ title: "Error", description: "Failed to refactor code.", variant: "destructive" });
@@ -118,7 +120,7 @@ export default function CodeEditorApp() {
   const handleSave = () => {
     toast({
       title: "File Saved",
-      description: "/src/ai/flows/proactive-os-assistance.ts has been saved.",
+      description: `${filePath} has been saved.`,
     });
   }
 
@@ -127,7 +129,7 @@ export default function CodeEditorApp() {
     <div className="flex h-full bg-background flex-col md:flex-row">
       <div className="flex-grow flex flex-col md:w-2/3">
         <div className="flex-shrink-0 p-2 border-b text-sm text-muted-foreground flex justify-between items-center">
-          <span>File: /src/ai/flows/proactive-os-assistance.ts</span>
+          <span>File: {filePath}</span>
           <Button variant="ghost" size="sm" onClick={handleSave} disabled={!!isLoading}>
             <Save className="h-4 w-4 mr-2" />
             Save

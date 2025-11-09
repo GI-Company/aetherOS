@@ -51,31 +51,37 @@ export default function Desktop() {
   }, []);
   
   const arrangeWindows = useCallback(() => {
-    const codeEditor = openApps.find(a => a.app.id === 'code-editor');
-    const browser = openApps.find(a => a.app.id === 'browser');
+    const codeEditor = openApps.find(a => a.app.id === 'code-editor' && !a.isMinimized);
+    const browser = openApps.find(a => a.app.id === 'browser' && !a.isMinimized);
+    
+    if (!codeEditor || !browser) {
+        toast({
+            title: "Arrangement Failed",
+            description: "Please open both the Code Editor and Browser to arrange them.",
+            variant: "destructive"
+        })
+        return;
+    }
+
     const desktopWidth = desktopRef.current?.clientWidth || window.innerWidth;
     const desktopHeight = desktopRef.current?.clientHeight || window.innerHeight;
     const topBarHeight = 32;
 
     const updates = new Map<number, Partial<WindowInstance>>();
 
-    if (browser) {
-       updates.set(browser.id, {
+    updates.set(browser.id, {
         position: { x: 0, y: topBarHeight },
         size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight },
         isMaximized: false,
         isMinimized: false,
-       });
-    }
+    });
 
-    if (codeEditor) {
-        updates.set(codeEditor.id, {
-            position: { x: desktopWidth / 2, y: topBarHeight },
-            size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight },
-            isMaximized: false,
-            isMinimized: false,
-        });
-    }
+    updates.set(codeEditor.id, {
+        position: { x: desktopWidth / 2, y: topBarHeight },
+        size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight },
+        isMaximized: false,
+        isMinimized: false,
+    });
 
     if (updates.size > 0) {
         let newZIndex = highestZIndex;
@@ -87,21 +93,13 @@ export default function Desktop() {
             return app;
         }));
         setHighestZIndex(newZIndex);
-        if (codeEditor) setFocusedAppId(codeEditor.id);
-        if (browser) setFocusedAppId(browser.id);
+        setFocusedAppId(codeEditor.id);
 
         toast({
           title: "Windows Arranged",
           description: "Code Editor and Browser are now side-by-side.",
         });
-    } else {
-        toast({
-            title: "Nothing to Arrange",
-            description: "Open the Code Editor and Browser to arrange them.",
-            variant: "destructive"
-        })
     }
-
   }, [openApps, highestZIndex, toast]);
 
   useEffect(() => {

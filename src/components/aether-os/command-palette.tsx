@@ -11,9 +11,9 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { App, APPS } from "@/lib/apps";
-import { File, Settings, Power, Wand2, Loader2, Layout } from "lucide-react";
-import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
-import { useEffect, useState } from "react";
+import { File, Settings, Power, Wand2, Loader2, Layout, Command, BrainCircuit } from "lucide-react";
+import { agenticToolUser } from "@/ai/flows/agenticToolUser";
+import React, { useEffect, useState, useCallback } from "react";
 import { WindowInstance } from "./desktop";
 
 type CommandPaletteProps = {
@@ -26,40 +26,13 @@ type CommandPaletteProps = {
 
 export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onArrangeWindows }: CommandPaletteProps) {
   const settingsApp = APPS.find(app => app.id === 'settings');
-  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
-  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  const [agentResponse, setAgentResponse] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      const getSuggestion = async () => {
-        setIsLoadingSuggestion(true);
-        try {
-          const openAppNames = openApps.filter(a => !a.isMinimized).map(a => a.app.name).join(', ');
-          const focusedApp = openApps.find(a => !a.isMinimized);
-          
-          const assistance = await proactiveOsAssistance({
-              userActivity: focusedApp ? `Working in ${focusedApp.app.name}` : 'On the desktop',
-              context: `Current open applications: ${openAppNames || 'None'}.`
-          });
-          
-          if (assistance.suggestion) {
-            setAiSuggestion(assistance.suggestion);
-          } else {
-            setAiSuggestion(null);
-          }
-        } catch (e) {
-          console.error("Failed to get AI suggestion for command palette", e);
-          setAiSuggestion(null);
-        } finally {
-          setIsLoadingSuggestion(false);
-        }
-      };
-      getSuggestion();
-    } else {
-      // Reset when closed
-      setAiSuggestion(null);
-    }
-  }, [open]);
+  const handleValueChange = (value: string) => {
+    setSearchValue(value);
+  }
 
   const handleOpenApp = (app: App) => {
     onOpenApp(app);
@@ -73,58 +46,126 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     setOpen(false);
   }
   
-  const handleAiSuggestion = () => {
-    if (aiSuggestion?.includes("Arrange windows")) {
-        onArrangeWindows();
-    }
-    setOpen(false);
+  const getOpenAppsTool = async () => {
+    return {
+      apps: openApps.map(a => a.app.name),
+    };
   }
+
+  const openAppTool = async ({ appId }: { appId: string }) => {
+    const appToOpen = APPS.find(a => a.id === appId);
+    if (appToOpen) {
+      onOpenApp(appToOpen);
+    } else {
+      console.warn(`Agent tried to open an app with an invalid ID: ${appId}`);
+    }
+  }
+  
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchValue) return;
+    
+    setIsLoading(true);
+    setAgentResponse(null);
+
+    try {
+      const response = await agenticToolUser(searchValue, {
+        getOpenApps: getOpenAppsTool,
+        openApp: openAppTool,
+      });
+
+      if (response.isTool()) {
+        const toolOutput = response.toolOutput();
+        setOpen(false); // Close palette on successful tool use
+      } else {
+        const textResponse = response.text;
+        setAgentResponse(textResponse);
+      }
+    } catch (err) {
+      console.error("Agentic tool user failed:", err);
+      setAgentResponse("Sorry, I encountered an error.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchValue, openApps]);
+
+  useEffect(() => {
+    if (!open) {
+      // Reset state when palette is closed
+      setSearchValue("");
+      setAgentResponse(null);
+      setIsLoading(false);
+    }
+  }, [open]);
+
+  const filteredApps = APPS.filter(app => 
+      app.name.toLowerCase().includes(searchValue.toLowerCase())
+  );
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search..." />
+      <form onSubmit={handleSubmit}>
+        <CommandInput 
+          placeholder="Ask AI or search apps..." 
+          value={searchValue}
+          onValueChange={handleValueChange}
+        />
+      </form>
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>
+            {isLoading ? (
+                <div className="flex justify-center items-center p-4">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <span>Aether is thinking...</span>
+                </div>
+            ) : agentResponse ? (
+                <div className="p-4 text-sm text-center">{agentResponse}</div>
+            ) : (
+                "No results found."
+            )}
+        </CommandEmpty>
         
-        {(isLoadingSuggestion || aiSuggestion) && (
-            <CommandGroup heading="AI Suggestion">
-                {isLoadingSuggestion ? (
-                     <CommandItem disabled>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        <span>Thinking...</span>
+        {!isLoading && !agentResponse && (
+            <>
+                {searchValue ? (
+                  <CommandGroup heading="Apps">
+                      {filteredApps.map(app => (
+                          <CommandItem key={app.id} onSelect={() => handleOpenApp(app)}>
+                              <app.Icon className="mr-2 h-4 w-4" />
+                              <span>{app.name}</span>
+                          </CommandItem>
+                      ))}
+                  </CommandGroup>
+                ) : (
+                  <CommandGroup heading="Suggestions">
+                    <CommandItem onSelect={() => handleValueChange("Open the code editor")}>
+                      <Command className="mr-2 h-4 w-4" />
+                      <span>Open the code editor</span>
                     </CommandItem>
-                ) : aiSuggestion && (
-                     <CommandItem onSelect={handleAiSuggestion}>
-                        {aiSuggestion.includes("Arrange windows") ? <Layout className="mr-2 h-4 w-4" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                        <span>{aiSuggestion}</span>
+                     <CommandItem onSelect={() => handleValueChange("What applications are running?")}>
+                      <BrainCircuit className="mr-2 h-4 w-4" />
+                      <span>What applications are running?</span>
                     </CommandItem>
+                    <CommandItem onSelect={handleOpenSettings}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Open Settings</span>
+                    </CommandItem>
+                  </CommandGroup>
                 )}
-            </CommandGroup>
-        )}
-
-        <CommandGroup heading="Applications">
-            {APPS.map(app => (
-                 <CommandItem key={app.id} onSelect={() => handleOpenApp(app)}>
-                    <app.Icon className="mr-2 h-4 w-4" />
-                    <span>Open {app.name}</span>
+                <CommandSeparator />
+                <CommandGroup heading="System">
+                <CommandItem onSelect={onArrangeWindows}>
+                    <Layout className="mr-2 h-4 w-4" />
+                    <span>Arrange Windows</span>
                 </CommandItem>
-            ))}
-        </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup heading="System">
-          <CommandItem onSelect={() => setOpen(false)}>
-            <File className="mr-2 h-4 w-4" />
-            <span>New File</span>
-          </CommandItem>
-          <CommandItem onSelect={handleOpenSettings}>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Open Settings</span>
-          </CommandItem>
-          <CommandItem onSelect={() => setOpen(false)}>
-            <Power className="mr-2 h-4 w-4" />
-            <span>Shutdown</span>
-          </CommandItem>
-        </CommandGroup>
+                <CommandItem onSelect={() => setOpen(false)}>
+                    <Power className="mr-2 h-4 w-4" />
+                    <span>Shutdown</span>
+                </CommandItem>
+                </CommandGroup>
+            </>
+        )}
+        
       </CommandList>
     </CommandDialog>
   );

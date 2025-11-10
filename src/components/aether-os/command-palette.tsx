@@ -17,8 +17,6 @@ import React, { useEffect, useState, useCallback } from "react";
 import { WindowInstance } from "./desktop";
 import { getStorage, ref, listAll } from "firebase/storage";
 import { useFirebase } from "@/firebase";
-import { TOOLS, type ToolExecutionContext } from "@/lib/tools";
-import { generateText } from "@/ai/flows/generate-text";
 
 
 type CommandPaletteProps = {
@@ -65,41 +63,32 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     setAgentResponse(null);
 
     try {
-      const workflow = await agenticToolUser(searchValue);
+      const result = await agenticToolUser(searchValue);
 
-      if (workflow.steps.length > 0) {
-        let stepResult: any = {}; // Store results from steps to pass to the next
-        
-        const toolContext: ToolExecutionContext = {
-            onOpenApp,
-            onOpenFile,
-            onArrangeWindows,
-            setWallpaper,
-        };
-        
-        for (const step of workflow.steps) {
-            const tool = TOOLS[step.toolId];
-            if (!tool) {
-                throw new Error(`Tool with ID '${step.toolId}' not found.`);
+      if (result.isWorkflow && result.dispatchedEvents) {
+        // The flow executed a workflow, now dispatch the client-side events.
+        for (const event of result.dispatchedEvents) {
+            switch(event.dispatchedEvent) {
+                case 'openApp':
+                    const appToOpen = APPS.find(a => a.id === event.payload.appId);
+                    if (appToOpen) onOpenApp(appToOpen, event.payload.props);
+                    break;
+                case 'arrangeWindows':
+                    onArrangeWindows();
+                    break;
+                case 'openFile':
+                    onOpenFile(event.payload.filePath, event.payload.content);
+                    break;
+                case 'setWallpaper':
+                    setWallpaper(event.payload.imageUrl);
+                    break;
+                // Add other event handlers here as tools evolve
             }
-
-            let toolInput = {...step.inputs};
-            
-            // Result piping from previous step
-            if (toolInput.imageUrl === '{{result.imageUrl}}' && stepResult.imageUrl) {
-                 toolInput.imageUrl = stepResult.imageUrl;
-            }
-            if (toolInput.content === '{{result.code}}' && stepResult.code) {
-                 toolInput.content = stepResult.code;
-            }
-
-            stepResult = await tool.execute(toolContext, toolInput);
         }
         setOpen(false); // Close palette after executing tools
-      } else {
-        // If no steps, it's a conversational response.
-         const response = await generateText({prompt: searchValue });
-         setAgentResponse(response.text);
+      } else if (result.conversationalResponse) {
+        // The flow returned a conversational response.
+         setAgentResponse(result.conversationalResponse);
       }
 
     } catch (err: any) {

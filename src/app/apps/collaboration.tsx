@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { APPS, App } from '@/lib/apps';
 import PeoplePanel from '@/components/aether-os/people-panel';
+import { useSpring, animated } from '@react-spring/web';
 
 interface ChatMessage {
   id: string;
@@ -35,6 +36,20 @@ const getInitials = (name?: string | null) => {
     }
     return name.substring(0, 2).toUpperCase();
 };
+
+const TypingIndicator = () => {
+    const styles = useSpring({
+        from: { opacity: 0.5, transform: 'translateY(2px)' },
+        to: async (next) => {
+            while (1) {
+                await next({ opacity: 1, transform: 'translateY(0px)' })
+                await next({ opacity: 0.5, transform: 'translateY(2px)' })
+            }
+        },
+        config: { duration: 500 },
+    })
+    return <animated.span style={styles}>typing...</animated.span>
+}
 
 export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const { firestore, user } = useFirebase();

@@ -53,7 +53,7 @@ const TypingIndicator = () => {
 
 export default function PeoplePanel({ showTitle = true }: PeoplePanelProps) {
     const { firestore } = useFirebase();
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const thirtyMinutesAgo = React.useMemo(() => new Date(Date.now() - 30 * 60 * 1000), []);
 
     const presenceQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -63,7 +63,7 @@ export default function PeoplePanel({ showTitle = true }: PeoplePanelProps) {
             orderBy('lastSeen', 'desc'),
             limit(25)
         );
-    }, [firestore, thirtyMinutesAgo.getTime()]);
+    }, [firestore, thirtyMinutesAgo]);
 
     const { data: onlineUsers, isLoading } = useCollection<UserPresence>(presenceQuery);
     

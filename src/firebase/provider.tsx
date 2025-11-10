@@ -148,6 +148,15 @@ export const useFirebaseApp = (): FirebaseApp => {
 
 type MemoFirebase <T> = T & {__memo?: boolean};
 
+/**
+ * A wrapper around `useMemo` that "tags" the memoized object.
+ * This allows `useDoc` and `useCollection` to verify that the passed reference
+ * has been correctly memoized, preventing potential infinite loops.
+ * 
+ * @param factory The function to compute the memoized value.
+ * @param deps The dependency array for `useMemo`.
+ * @returns The memoized value, tagged with a `__memo` property.
+ */
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): MemoFirebase<T> | T {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const memoized = useMemo(factory, deps);

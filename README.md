@@ -32,11 +32,11 @@ AetherOS is more than just a collection of apps; it's a fully-featured, persiste
   - **Collaboration Hub**: A real-time global chat application featuring user presence ("online", "in App"), "is typing" indicators, and a user profile browser.
   - **Settings**: Manage account, security, and UI preferences. Use AI to generate custom UI themes and accent colors from a text description.
 
-- **Guided Onboarding & Tutorials**: A step-by-step welcome tour greets new users. The system also provides contextual, app-specific tutorials that appear the first time a user opens a new application, which can be permanently dismissed.
-
 - **User Accounts & Security**: Supports Google Sign-In and temporary, 15-minute anonymous guest sessions. Hardened security features include Two-Factor Authentication (2FA) via phone, configurable inactivity timeout protocols, and robust input sanitization on all AI flows to prevent prompt injection.
 
 - **AI-Powered Theming**: Dynamically generate and apply custom color palettes and accent colors by describing your desired theme to the AI in the Settings app. All themes are persisted to the user's Firestore document.
+
+- **Guided Onboarding & Tutorials**: A step-by-step welcome tour greets new users. The system also provides contextual, app-specific tutorials that appear the first time a user opens a new application, which can be permanently dismissed.
 
 ## Getting Started
 
@@ -54,40 +54,39 @@ AetherOS is more than just a collection of apps; it's a fully-featured, persiste
 - **Frontend**: Next.js (App Router), React, TypeScript, Tailwind CSS, ShadCN UI
 - **Backend & Data**: Firebase (Authentication, Firestore, Cloud Storage)
 - **Generative AI**: Google Genkit, powered by Gemini models.
+- **Monitoring**: Sentry (for client-side error logging).
 
 ## Project Status & Roadmap
 
 This project is an active prototype. Below is a checklist of features from the official roadmap, indicating what has been implemented and what is planned for the future.
 
-### Phase 1: Harden the Core (Production Readiness)
+### Phase 1: Harden the Core (Production Readiness) - COMPLETE
 
 - [x] **Comprehensive Security Review**
   - [x] Firestore Rules implemented for all current data models.
   - [x] Input Sanitization for all AI flows.
-  - [x] Dependency Audit process.
+  - [x] Dependency Audit process established.
 - [x] **Scalability & Performance**
-  - [x] Firestore Indexing strategy for complex queries.
-  - [x] AI Flow Optimization (core agent logic has been refactored).
+  - [x] Firestore Indexing strategy defined for complex queries.
+  - [x] AI Flow Optimization and result piping implemented.
   - [x] Client-Side Performance (window management has been optimized).
   - [x] Code Splitting (handled by Next.js App Router).
-- [ ] **Robust Error Handling & Monitoring**
-  - [x] Integrate non-blocking, centralized error handling for Firestore.
-  - [ ] Integrate production-grade client-side logging service.
-  - [ ] Set up backend monitoring for Firebase services.
+- [x] **Robust Error Handling & Monitoring**
+  - [x] Integrated Sentry for production client-side logging.
+  - [x] Established process for backend monitoring for Firebase services.
+  - [x] Implemented non-blocking, centralized error handling for Firestore.
 
 ### Phase 2: Expand the Ecosystem (Feature Enhancement)
 
 - [ ] **Inter-App Communication & Workflow**
   - [ ] Develop a secure, system-wide API for app-to-app communication.
   - [ ] Enhance Workflow Studio to execute, not just visualize, workflows.
-- [x] **Enhanced AI Agency**
-  - [x] Implemented tool chaining for the AI agent (e.g., generate image -> set wallpaper).
+- [ ] **Enhanced AI Agency**
   - [ ] Implement complex, multi-step tool chaining with conditional logic.
   - [ ] Long-term goal: AI self-healing and self-modification capabilities.
-- [x] **Core Application Suite**
-  - [x] Collaboration App implemented with real-time chat and presence.
-  - [x] Real backend for File System using Firebase Storage.
+- [ ] **Core Application Suite**
   - [ ] Integrate a browser-based Virtual Machine.
+  - [ ] Fully implement Mail application.
 
 ### Phase 3: Developer & Community Platform (Extensibility)
 

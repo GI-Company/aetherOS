@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 import React from 'react';
+import * as Sentry from "@sentry/nextjs";
+
 
 export default function GlobalError({
   error,
@@ -13,8 +15,8 @@ export default function GlobalError({
   reset: () => void;
 }) {
   React.useEffect(() => {
-    // In a production environment, you would send the error to a monitoring service
-    // Example: Sentry.captureException(error);
+    // Report the error to Sentry in a production environment
+    Sentry.captureException(error);
     console.error("Global Error Caught:", error);
   }, [error]);
 

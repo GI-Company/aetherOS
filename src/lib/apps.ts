@@ -121,3 +121,5 @@ export const APPS: App[] = [
     defaultSize: { width: 900, height: 700 },
   },
 ];
+
+    

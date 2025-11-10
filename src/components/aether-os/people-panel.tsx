@@ -144,3 +144,5 @@ export default function PeoplePanel({ showTitle = true, onSelectUser }: PeoplePa
         </div>
     )
 }
+
+    

@@ -20,6 +20,7 @@ export default function TutorialDialog({ tutorial, onFinish, onSkip }: TutorialD
 
   const currentStep = tutorial.steps[step];
   const isLastStep = step === tutorial.steps.length - 1;
+  const StepIcon = currentStep.icon;
 
   const handleNext = () => {
     if (isLastStep) {
@@ -33,11 +34,17 @@ export default function TutorialDialog({ tutorial, onFinish, onSkip }: TutorialD
     <Dialog open={true} onOpenChange={(open) => !open && onSkip()}>
       <DialogContent className="sm:max-w-[425px]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>{currentStep.title}</DialogTitle>
-          <DialogDescription>{currentStep.description}</DialogDescription>
+          <DialogTitle>{tutorial.title}</DialogTitle>
+          <div className="flex flex-col gap-4 pt-4">
+              <div className="flex items-center gap-3">
+                 {StepIcon && <StepIcon className="h-8 w-8 text-accent flex-shrink-0" />}
+                <div className='flex flex-col gap-1.5'>
+                    <h3 className="font-semibold text-foreground">{currentStep.title}</h3>
+                    <DialogDescription>{currentStep.description}</DialogDescription>
+                </div>
+              </div>
+          </div>
         </DialogHeader>
-        
-        {/* Placeholder for optional step content, e.g., an image */}
         
         <DialogFooter className="sm:justify-between items-center mt-4">
           <div className="flex items-center space-x-2">

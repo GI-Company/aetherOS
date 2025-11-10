@@ -1,14 +1,14 @@
 
 'use client';
 
-import { useFirebase, useMemoFirebase, useDoc, useCollection, addDocumentNonBlocking } from '@/firebase';
+import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
-import { doc, collection, query, where } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs, onSnapshot, addDoc } from 'firebase/firestore';
 import { TIERS, Tier } from '@/lib/tiers';
 import { TierCard } from '@/components/aether-os/tier-card';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
 
@@ -74,29 +74,25 @@ export default function BillingApp() {
         setIsRedirecting(true);
         setSelectedTierId(tier.id);
 
-        // Create a checkout session document
+        // Create a checkout session document in Firestore
         const checkoutSessionRef = collection(firestore, `customers/${user.uid}/checkout_sessions`);
-        const docRef = await addDocumentNonBlocking(checkoutSessionRef, {
+        const docRef = await addDoc(checkoutSessionRef, {
             price: price.id,
             success_url: window.location.origin,
             cancel_url: window.location.href,
         });
 
-        // Listen for the checkout URL to be populated by the extension
-        if(docRef) {
-            const unsub = onSnapshot(docRef, (snap) => {
-                const { error, url } = snap.data() || {};
-                if (error) {
-                    toast({ title: 'Checkout Error', description: error.message, variant: 'destructive' });
-                    setIsRedirecting(false);
-                    unsub();
-                }
-                if (url) {
-                    window.location.assign(url);
-                    unsub();
-                }
-            });
-        }
+        // Listen for the checkout URL to be populated by the Stripe extension
+        onSnapshot(docRef, (snap) => {
+            const { error, url } = snap.data() || {};
+            if (error) {
+                toast({ title: 'Checkout Error', description: error.message, variant: 'destructive' });
+                setIsRedirecting(false);
+            }
+            if (url) {
+                window.location.assign(url);
+            }
+        });
     };
     
     const isLoading = isSubscriptionLoading || isProductsLoading;
@@ -140,7 +136,7 @@ export default function BillingApp() {
             </div>
         )}
          <div className="text-center text-xs text-muted-foreground mt-8">
-            <p>To make this fully functional, you need to install the official "Run Payments with Stripe" Firebase Extension and configure your Stripe account with matching products and prices.</p>
+            <p>Payments are processed securely by Stripe. The "Run Payments with Stripe" Firebase Extension is required for full functionality.</p>
         </div>
     </div>
   );

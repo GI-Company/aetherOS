@@ -4,18 +4,17 @@
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser } from 'firebase/auth';
 import { getFirestore, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
-import { User } from 'lucide-react';
+import { User, CheckCircle2 } from 'lucide-react';
 import { setDocumentNonBlocking } from '@/firebase';
 import React, { useState } from 'react';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { TIERS } from '@/lib/tiers';
+import { TIERS, Tier } from '@/lib/tiers';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 function GoogleIcon() {
   return (
@@ -46,13 +45,55 @@ interface AuthFormProps {
   onUpgradeSuccess?: () => void;
 }
 
+const TierCard = ({ tier, isSelected, onSelect }: { tier: Tier, isSelected: boolean, onSelect: (id: Tier['id']) => void }) => {
+  return (
+    <Card
+      className={cn(
+        "cursor-pointer transition-all flex flex-col",
+        isSelected ? "border-accent ring-2 ring-accent" : "hover:border-muted-foreground/50",
+        tier.id === 'enterprise' && 'bg-card/50 border-dashed'
+      )}
+      onClick={() => onSelect(tier.id)}
+    >
+      <CardHeader>
+        <CardTitle>{tier.name}</CardTitle>
+        <CardDescription className="flex items-baseline gap-1">
+          <span className="text-2xl font-bold text-foreground">{tier.price}</span>
+          <span className="text-sm">{tier.priceDescription}</span>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex-grow">
+        <ul className="space-y-2 text-sm text-muted-foreground">
+          {tier.features.slice(0, 3).map((feature) => (
+            <li key={feature} className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+      <CardFooter className="flex-col items-stretch gap-2 !pt-4">
+        {tier.id === 'enterprise' ? (
+          <Button variant="outline" disabled>Contact Sales</Button>
+        ) : (
+          <Button variant={isSelected ? "default" : "secondary"} className="w-full">
+            {isSelected ? "Selected Plan" : "Select Plan"}
+          </Button>
+        )}
+        <Button variant="link" size="sm" className="text-xs h-auto">More details</Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+
 export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgradeSuccess }: AuthFormProps) {
   const auth = getAuth();
   const firestore = getFirestore();
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   
-  const [selectedTier, setSelectedTier] = useState<string>('free');
+  const [selectedTier, setSelectedTier] = useState<Tier['id']>('free');
 
   const provisionDefaultSubscription = async (user: FirebaseUser, tierId: string) => {
     const subscriptionRef = doc(firestore, 'subscriptions', user.uid);
@@ -67,7 +108,7 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   };
 
   const handleAuthSuccess = (user: FirebaseUser, tierId: string) => {
-    provisionDefaultSubscription(user, tierId);
+    provisionDefaultSubscription(user, tierId as Tier['id']);
     toast({
       title: 'Authentication Successful',
       description: 'Welcome to AetherOS.',
@@ -119,7 +160,7 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
 
   return (
     <>
-      <div className="h-screen w-screen flex items-center justify-center font-body bg-background">
+      <div className="h-screen w-screen flex items-center justify-center font-body bg-background p-4">
         {wallpaper && allowAnonymous && (
           <Image
             src={wallpaper.imageUrl}
@@ -131,49 +172,50 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
             priority
           />
         )}
-        <Card className="w-full max-w-sm z-10 bg-card/80 backdrop-blur-xl border-white/20">
+        <Card className="w-full max-w-4xl z-10 bg-card/80 backdrop-blur-xl border-white/20">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-headline">AetherOS</CardTitle>
-            {allowAnonymous && <CardDescription>The next generation of operating systems.</CardDescription>}
+            <CardTitle className="text-3xl font-headline">AetherOS</CardTitle>
+            {allowAnonymous && <CardDescription>Choose your plan to get started, or continue as a guest.</CardDescription>}
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
+          <CardContent className="flex flex-col gap-6">
             
             {!isUpgrading && allowAnonymous && (
                 <div className="space-y-4">
-                    <Label>Choose your plan to get started:</Label>
-                    <RadioGroup value={selectedTier} onValueChange={setSelectedTier} className="grid grid-cols-2 gap-4">
-                        {TIERS.filter(t => t.id === 'free' || t.id === 'personal').map(tier => (
-                            <Label htmlFor={tier.id} key={tier.id} className={cn(
-                                "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground",
-                                selectedTier === tier.id && "border-accent"
-                            )}>
-                                <RadioGroupItem value={tier.id} id={tier.id} className="sr-only" />
-                                <span className="font-bold text-lg">{tier.name}</span>
-                                <span className="font-semibold text-foreground">{tier.price}</span>
-                                <span className="text-xs text-muted-foreground">{tier.priceDescription}</span>
-                            </Label>
-                        ))}
-                    </RadioGroup>
+                    <ScrollArea className="max-h-[420px] w-full">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-1">
+                           {TIERS.filter(t => t.id !== 'free-trial').map(tier => (
+                                <TierCard
+                                    key={tier.id}
+                                    tier={tier}
+                                    isSelected={selectedTier === tier.id}
+                                    onSelect={setSelectedTier}
+                                />
+                           ))}
+                        </div>
+                    </ScrollArea>
                 </div>
             )}
             
-            <Button className="w-full" onClick={handleGoogleSignIn}>
-              <GoogleIcon />
-              {isUpgrading ? 'Upgrade with Google' : 'Sign in with Google'}
-            </Button>
-
-            {allowAnonymous && !isUpgrading && (
-              <>
-                <div className="relative">
-                  <Separator />
-                  <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-card px-2 text-xs text-muted-foreground">OR</span>
-                </div>
-                <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
-                  <User className="mr-2 h-4 w-4" />
-                  Continue as Guest
+            <div className="flex flex-col sm:flex-row gap-4">
+                <Button className="w-full" onClick={handleGoogleSignIn}>
+                <GoogleIcon />
+                {isUpgrading ? 'Upgrade with Google' : 'Sign in with Google'}
                 </Button>
-              </>
-            )}
+
+                {allowAnonymous && !isUpgrading && (
+                <>
+                    <div className="relative flex items-center sm:hidden">
+                        <Separator className="flex-grow" />
+                        <span className="bg-card px-2 text-xs text-muted-foreground flex-shrink-0">OR</span>
+                        <Separator className="flex-grow" />
+                    </div>
+                    <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
+                    <User className="mr-2 h-4 w-4" />
+                    Continue as Guest
+                    </Button>
+                </>
+                )}
+            </div>
 
           </CardContent>
         </Card>

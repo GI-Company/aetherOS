@@ -1,10 +1,11 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Folder, File, Search, Loader2, ArrowUp, RefreshCw, FilePlus, ChevronDown, MoreVertical, Trash2 } from "lucide-react";
+import { Folder, File, Search, Loader2, RefreshCw, FilePlus, ChevronDown, MoreVertical, Trash2, Home, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
 import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
@@ -79,9 +80,7 @@ const useStorageFiles = (currentPath: string) => {
     useEffect(() => {
         refresh();
         
-        // Subscribe to file system changes
         const handleFileSystemChange = () => {
-            console.log("File system change detected, refreshing explorer...");
             refresh();
         };
 
@@ -248,6 +247,49 @@ const NewItemRow = ({
   );
 };
 
+const Breadcrumbs = ({
+  currentPath,
+  basePath,
+  onNavigate,
+}: {
+  currentPath: string;
+  basePath: string;
+  onNavigate: (path: string) => void;
+}) => {
+  const parts = useMemo(() => {
+    if (!currentPath.startsWith(basePath)) return [];
+    const relativePath = currentPath.substring(basePath.length);
+    return relativePath.split('/').filter(p => p);
+  }, [currentPath, basePath]);
+
+  return (
+    <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-shrink-0 min-w-0">
+      <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => onNavigate(basePath)}>
+        <Home className="h-4 w-4"/>
+      </Button>
+      <ChevronRight className="h-4 w-4 flex-shrink-0" />
+      {parts.map((part, index) => {
+        const path = `${basePath}/${parts.slice(0, index + 1).join('/')}`;
+        const isLast = index === parts.length - 1;
+        return (
+          <React.Fragment key={path}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onNavigate(path)}
+              className="h-7 px-2 text-sm truncate"
+              disabled={isLast}
+            >
+              {part}
+            </Button>
+            {!isLast && <ChevronRight className="h-4 w-4 flex-shrink-0" />}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
+
 
 export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery }: FileExplorerAppProps) {
   const { user } = useFirebase();
@@ -285,7 +327,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query) {
-      setSearchQuery(''); // Clear search query
+      setSearchQuery('');
       setDisplayedFiles(allFiles);
       return;
     }
@@ -329,11 +371,17 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   const handleDoubleClick = (file: FileItem) => {
     if (file.type === 'folder') {
         setCurrentPath(file.path);
-        setSearchQuery(''); // Clear search when navigating
+        setSearchQuery(''); 
         setCreatingItemType(null);
     } else if (file.type === 'file' && onOpenFile) {
       onOpenFile(file.path);
     }
+  }
+  
+  const navigateToPath = (path: string) => {
+    setCurrentPath(path);
+    setSearchQuery('');
+    setCreatingItemType(null);
   }
 
   const handleUpload = async (files: File[] | FileList) => {
@@ -402,12 +450,9 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         const fileRef = ref(storage, item.path);
         await deleteObject(fileRef);
       } else if (item.type === 'folder') {
-        // Recursive deletion for folders
         const listRef = ref(storage, item.path);
         const res = await listAll(listRef);
-        // Delete all files in the folder
         await Promise.all(res.items.map(itemRef => deleteObject(itemRef)));
-        // Recursively delete all subfolders
         await Promise.all(res.prefixes.map(folderRef => deleteItem({
           name: folderRef.name,
           path: folderRef.fullPath,
@@ -415,12 +460,10 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
           size: 0,
           modified: new Date(),
         })));
-         // After deleting contents, delete the placeholder if it exists to remove the folder itself
         const placeholderRef = ref(storage, `${item.path}/.placeholder`);
         try {
           await deleteObject(placeholderRef);
         } catch (error: any) {
-            // It's okay if the placeholder doesn't exist (e.g., folder not empty or error during creation)
             if (error.code !== 'storage/object-not-found') {
               console.warn(`Could not delete placeholder for ${item.path}:`, error);
             }
@@ -442,14 +485,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         setItemToDelete(null);
       });
   };
-  
-  const goUpOneLevel = () => {
-      if (currentPath === basePath || currentPath.split('/').length <= 2) return;
-      const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
-      setCurrentPath(parentPath);
-      setSearchQuery(''); // Clear search when navigating
-      setCreatingItemType(null);
-  }
   
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -476,8 +511,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       handleUpload(Array.from(e.dataTransfer.files));
     }
   };
-
-  const isAtRoot = currentPath === basePath || currentPath.split('/').length <= 2;
 
 
   return (
@@ -508,43 +541,43 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     >
       <Dropzone visible={isDragOver} />
       <div className="p-2 border-b flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={isAtRoot || isLoading}>
-                <ArrowUp className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => { refresh(); setSearchQuery(''); }} disabled={isLoading}>
-                <RefreshCw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-            </Button>
+        <Button variant="ghost" size="icon" onClick={() => { refresh(); setSearchQuery(''); }} disabled={isLoading}>
+            <RefreshCw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+        </Button>
+        <div className="flex-grow overflow-hidden min-w-0">
+             <Breadcrumbs currentPath={currentPath} basePath={basePath} onNavigate={navigateToPath} />
         </div>
-         <form onSubmit={handleSearchSubmit} className="relative flex-grow">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search files and folders..." 
-              className="pl-9 bg-background/50"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              disabled={isSearching || isLoading}
-            />
-             {isSearching && <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin" />}
-        </form>
-         <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={!!creatingItemType || !!searchQuery}>
-                    New
-                    <ChevronDown className="h-4 w-4 ml-2"/>
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-                <DropdownMenuItem onSelect={() => setCreatingItemType('file')}>
-                    <FilePlus className="h-4 w-4 mr-2" />
-                    New File
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setCreatingItemType('folder')}>
-                    <Folder className="h-4 w-4 mr-2" />
-                    New Folder
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+            <form onSubmit={handleSearchSubmit} className="relative w-48">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input 
+                placeholder="Search folder..." 
+                className="pl-9 h-9 bg-background/50"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                disabled={isSearching || isLoading}
+                />
+                {isSearching && <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin" />}
+            </form>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={!!creatingItemType || !!searchQuery}>
+                        New
+                        <ChevronDown className="h-4 w-4 ml-2"/>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => setCreatingItemType('file')}>
+                        <FilePlus className="h-4 w-4 mr-2" />
+                        New File
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setCreatingItemType('folder')}>
+                        <Folder className="h-4 w-4 mr-2" />
+                        New Folder
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
       </div>
       {isUploading && <Progress value={uploadProgress} className="w-full h-1" />}
       <ScrollArea className="flex-grow">
@@ -592,9 +625,10 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         </Table>
       </ScrollArea>
       <div className="p-2 border-t text-xs text-muted-foreground">
-        {isLoading ? 'Loading...' : `${allFiles.length} items`} | Path: {currentPath.replace(basePath, '~')}
+        {isLoading ? 'Loading...' : `${allFiles.length} items`}
       </div>
     </div>
     </>
   );
 }
+

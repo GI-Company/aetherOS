@@ -61,14 +61,18 @@ export default function Window({
 
   const getDockPosition = () => {
     if (dockRef.current) {
-      const rect = dockRef.current.getBoundingClientRect();
-      return {
-        x: rect.left + rect.width / 2,
-        y: rect.top,
-      };
+      const dockIcon = dockRef.current.querySelector(`[data-app-id="${app.id}"]`);
+      if (dockIcon) {
+        const rect = dockIcon.getBoundingClientRect();
+        return {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+      }
     }
-    return { x: window.innerWidth / 2, y: window.innerHeight - 30 };
+    return { x: window.innerWidth / 2, y: window.innerHeight - 40 };
   };
+
 
   const [{ x, y, width, height, scale, opacity }, api] = useSpring(() => ({
     x: position.x,
@@ -89,9 +93,10 @@ export default function Window({
 
   React.useEffect(() => {
     const el = document.getElementById(`window-${id}`);
-    const dockPos = getDockPosition();
+    
 
     if (isMinimized) {
+       const dockPos = getDockPosition();
        api.start({
         to: { x: dockPos.x - size.width/2, y: dockPos.y - size.height/2, scale: 0, opacity: 0 },
       });

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { App, APPS } from "@/lib/apps";
@@ -40,6 +41,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(({ onAppClick, openApps
                   <TooltipTrigger asChild>
                     <button
                       onClick={() => handleDockIconClick(app)}
+                      data-app-id={app.id}
                       className={cn(
                         "w-14 h-14 rounded-xl flex items-center justify-center transition-transform duration-200 hover:scale-110 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-accent flex-shrink-0",
                         "md:w-14 md:h-14",

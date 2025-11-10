@@ -112,22 +112,33 @@ const FileRow = ({ file, onDoubleClick, onDelete }: { file: FileItem, onDoubleCl
   const isCode = file.type === 'file' && /\.(ts|tsx|js|jsx|json|css|md)$/i.test(file.name);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchUrl = async () => {
       if (isImage) {
         setIsLoadingUrl(true);
         try {
           const storage = getStorage();
           const url = await getDownloadURL(ref(storage, file.path));
-          setImageUrl(url);
+          if (isMounted) {
+            setImageUrl(url);
+          }
         } catch (error) {
           console.error("Error fetching image URL for thumbnail:", error);
-          setImageUrl(null);
+          if (isMounted) {
+            setImageUrl(null);
+          }
         } finally {
-          setIsLoadingUrl(false);
+          if (isMounted) {
+            setIsLoadingUrl(false);
+          }
         }
       }
     };
     fetchUrl();
+
+    return () => {
+      isMounted = false;
+    };
   }, [file.path, isImage]);
   
   const renderIcon = () => {
@@ -157,7 +168,7 @@ const FileRow = ({ file, onDoubleClick, onDelete }: { file: FileItem, onDoubleCl
       <TableCell className="text-right">
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 h-8 w-8">
                     <MoreVertical className="h-4 w-4" />
                 </Button>
             </DropdownMenuTrigger>
@@ -192,16 +203,15 @@ const NewItemRow = ({
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || (type === 'file' && name.trim() === '.')) return;
     setIsCreating(true);
     onCreate(name.trim());
   };
   
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (type === 'file') {
-      // Select the filename without the extension
       const dotIndex = e.target.value.lastIndexOf('.');
-      if (dotIndex !== -1) {
+      if (dotIndex > 0) { // check > 0 to not select if it's the first char
         e.target.setSelectionRange(0, dotIndex);
       } else {
         e.target.select();
@@ -214,9 +224,9 @@ const NewItemRow = ({
       <TableCell colSpan={4} className="p-2">
         <form onSubmit={handleCreate} className="flex items-center gap-2">
           {type === 'folder' ? (
-            <Folder className="h-5 w-5 text-accent flex-shrink-0" />
+            <Folder className="h-5 w-5 text-accent flex-shrink-0 ml-1" />
           ) : (
-            <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+            <File className="h-5 w-5 text-muted-foreground flex-shrink-0 ml-1" />
           )}
           <Input
             ref={inputRef}
@@ -228,7 +238,7 @@ const NewItemRow = ({
             className="h-8"
             disabled={isCreating}
           />
-          <Button type="submit" size="sm" className="h-8" disabled={isCreating}>
+          <Button type="submit" size="sm" className="h-8" disabled={isCreating || !name.trim()}>
             {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create
           </Button>
@@ -285,13 +295,38 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsSearching(true);
     setCreatingItemType(null); // Cancel creation if searching
     try {
-      // In a real app with many files, you might search the whole storage bucket.
-      // For this prototype, we'll just search the currently visible files for simplicity.
-      const allFilePaths = allFiles.map(f => f.path);
+      // Get all files recursively from the user's root for a full search
+      const storage = getStorage();
+      const userRootRef = ref(storage, `users/${user?.uid}`);
+      const res = await listAll(userRootRef);
+      const allFilePaths = res.items.map(item => item.fullPath);
+
       const result = await semanticFileSearch({ query: query, availableFiles: allFilePaths });
       
-      // Filter the original `allFiles` array to preserve the rich metadata for thumbnails.
-      const searchResultFiles = allFiles.filter(f => result.results.some(r => r.path === f.path));
+      // We need to fetch metadata for the search results to display them correctly
+      const searchResultFiles: FileItem[] = await Promise.all(
+        result.results.map(async (item) => {
+          if (item.type === 'folder') {
+            return {
+              name: item.path.split('/').pop() || '',
+              type: 'folder',
+              path: item.path,
+              size: 0,
+              modified: new Date(),
+            }
+          }
+          const itemRef = ref(storage, item.path);
+          const metadata = await getMetadata(itemRef);
+          return {
+            name: metadata.name,
+            type: 'file',
+            path: metadata.fullPath,
+            size: metadata.size,
+            modified: new Date(metadata.updated),
+          }
+        })
+      );
+      
       setDisplayedFiles(searchResultFiles);
       
       toast({
@@ -305,7 +340,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     } finally {
         setIsSearching(false);
     }
-  }, [allFiles, toast]);
+  }, [allFiles, toast, user]);
 
 
   useEffect(() => {
@@ -404,6 +439,16 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
           size: 0,
           modified: new Date(),
         })));
+         // After deleting contents, delete the placeholder if it exists to remove the folder itself
+        const placeholderRef = ref(storage, `${item.path}/.placeholder`);
+        try {
+          await deleteObject(placeholderRef);
+        } catch (error: any) {
+            // It's okay if the placeholder doesn't exist (e.g., folder not empty or error during creation)
+            if (error.code !== 'storage/object-not-found') {
+              console.warn(`Could not delete placeholder for ${item.path}:`, error);
+            }
+        }
       }
     };
 
@@ -423,10 +468,11 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   };
   
   const goUpOneLevel = () => {
-      if (currentPath === basePath) return;
+      if (currentPath === basePath || currentPath.split('/').length <= 2) return;
       const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
       setCurrentPath(parentPath);
       setSearchQuery(''); // Clear search when navigating
+      setCreatingItemType(null);
   }
   
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
@@ -455,6 +501,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     }
   };
 
+  const isAtRoot = currentPath === basePath || currentPath.split('/').length <= 2;
+
 
   return (
     <>
@@ -463,14 +511,14 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the {itemToDelete?.type} "{itemToDelete?.name}".
+                    This action cannot be undone. This will permanently delete the {itemToDelete?.type} "{itemToDelete?.name}" and all of its contents.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmDelete} disabled={isDeleting}>
+                <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
                     {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Continue
+                    Delete
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
@@ -485,7 +533,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       <Dropzone visible={isDragOver} />
       <div className="p-2 border-b flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={currentPath === basePath || isLoading}>
+            <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={isAtRoot || isLoading}>
                 <ArrowUp className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" onClick={() => { refresh(); setSearchQuery(''); }} disabled={isLoading}>
@@ -495,7 +543,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
          <form onSubmit={handleSearchSubmit} className="relative flex-grow">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Semantic Search for files..." 
+              placeholder="Semantic Search your files..." 
               className="pl-9 bg-background/50"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -505,8 +553,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         </form>
          <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={!!creatingItemType}>
-                    New Item
+                <Button variant="outline" disabled={!!creatingItemType || !!searchQuery}>
+                    New
                     <ChevronDown className="h-4 w-4 ml-2"/>
                 </Button>
             </DropdownMenuTrigger>
@@ -574,5 +622,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
-
-    

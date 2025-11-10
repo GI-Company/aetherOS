@@ -404,7 +404,7 @@ export default function Desktop() {
           const fileRef = ref(storage, filePath);
           const downloadUrl = await getDownloadURL(fileRef);
           
-          const response = await fetch(`${downloadUrl}?t=${new Date().getTime()}`);
+          const response = await fetch(downloadUrl);
           if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
           
           props.initialContent = await response.text();

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { getStorage, ref, getDownloadURL } from 'firebase/storage';
@@ -16,6 +17,7 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchContent = async () => {
       setIsLoading(true);
       setError(null);
@@ -30,14 +32,24 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         const text = await response.text();
         // Get the first 15 lines for the preview
         const previewContent = text.split('\n').slice(0, 15).join('\n');
-        setContent(previewContent);
+        if (isMounted) {
+            setContent(previewContent);
+        }
       } catch (e: any) {
-        setError(e.message);
+         if (isMounted) {
+            setError(e.message);
+         }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+            setIsLoading(false);
+        }
       }
     };
     fetchContent();
+
+    return () => {
+      isMounted = false;
+    };
   }, [filePath]);
 
   if (isLoading) {

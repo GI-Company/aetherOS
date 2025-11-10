@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -6,17 +5,15 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Folder, File, Search, Loader2, ArrowUp, RefreshCw, FilePlus, ChevronDown, MoreVertical, Trash2 } from "lucide-react";
-import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
-import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject, uploadBytes, uploadBytesResumable } from 'firebase/storage';
+import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { formatBytes } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
 import { FileItem } from "@/lib/types";
-import { APPS } from "@/lib/apps";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -601,7 +598,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
-
-    
-
-    

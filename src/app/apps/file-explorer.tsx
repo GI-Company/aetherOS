@@ -636,4 +636,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
-

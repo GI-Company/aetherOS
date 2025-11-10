@@ -286,16 +286,19 @@ export default function Desktop() {
     
     const desktopWidth = desktopRef.current?.clientWidth || window.innerWidth;
     const desktopHeight = desktopRef.current?.clientHeight || window.innerHeight;
+    const topBarHeight = 32;
+    const dockHeight = dockRef.current?.offsetHeight || 80;
+
 
     let initialX = 50 + (currentId % 10) * 20;
-    let initialY = 50 + (currentId % 10) * 20;
+    let initialY = topBarHeight + (currentId % 10) * 20;
 
     // Ensure the window opens within the viewport
     if (initialX + app.defaultSize.width > desktopWidth) {
         initialX = Math.max(0, desktopWidth - app.defaultSize.width);
     }
-    if (initialY + app.defaultSize.height > desktopHeight) {
-        initialY = Math.max(0, desktopHeight - app.defaultSize.height);
+    if (initialY + app.defaultSize.height > desktopHeight - dockHeight) {
+        initialY = Math.max(topBarHeight, desktopHeight - app.defaultSize.height - dockHeight);
     }
 
     const newWindow: WindowInstance = {
@@ -581,5 +584,3 @@ export default function Desktop() {
     </div>
   );
 }
-
-    

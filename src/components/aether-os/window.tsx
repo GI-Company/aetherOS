@@ -138,11 +138,13 @@ export default function Window({
         if (!bounds.current) return {};
         const currentWidth = width.get();
         const currentHeight = height.get();
+        const topBarHeight = 32;
+        const dockHeight = dockRef.current?.offsetHeight || 80;
         return {
           left: 0,
-          top: 0,
+          top: topBarHeight,
           right: bounds.current.clientWidth - currentWidth,
-          bottom: bounds.current.clientHeight - currentHeight,
+          bottom: bounds.current.clientHeight - currentHeight - dockHeight,
         }
       },
       filterTaps: true,
@@ -178,7 +180,7 @@ export default function Window({
       id={`window-${id}`}
       style={{
         width: isMaximized ? '100%' : width,
-        height: isMaximized ? 'calc(100% - 32px)' : height,
+        height: isMaximized ? `calc(100% - ${32 + (dockRef.current?.offsetHeight || 80)}px)`: height,
         zIndex,
         x,
         y,

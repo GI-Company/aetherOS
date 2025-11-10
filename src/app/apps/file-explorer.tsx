@@ -5,21 +5,22 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Folder, File, Search, Loader2, ArrowUp, RefreshCw, FilePlus, ChevronDown } from "lucide-react";
+import { Folder, File, Search, Loader2, ArrowUp, RefreshCw, FilePlus, ChevronDown, MoreVertical, Trash2 } from "lucide-react";
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
-import { getStorage, ref, listAll, getMetadata, uploadBytes, uploadString, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { formatBytes } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
 import { FileItem } from "@/lib/types";
-import { App, APPS } from "@/lib/apps";
+import { APPS } from "@/lib/apps";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import Dropzone from "@/components/aether-os/dropzone";
 
 
@@ -103,7 +104,7 @@ interface FileExplorerAppProps {
   onOpenApp?: (app: (typeof APPS)[0], props?: Record<string, any>) => void;
 }
 
-const FileRow = ({ file, onDoubleClick }: { file: FileItem, onDoubleClick: (file: FileItem) => void }) => {
+const FileRow = ({ file, onDoubleClick, onDelete }: { file: FileItem, onDoubleClick: (file: FileItem) => void, onDelete: (file: FileItem) => void }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
 
@@ -147,13 +148,28 @@ const FileRow = ({ file, onDoubleClick }: { file: FileItem, onDoubleClick: (file
   }
 
   return (
-    <TableRow onDoubleClick={() => onDoubleClick(file)} className="cursor-pointer">
+    <TableRow onDoubleClick={() => onDoubleClick(file)} className="cursor-pointer group">
       <TableCell className="font-medium flex items-center gap-3">
         {renderIcon()}
         <span>{file.name}</span>
       </TableCell>
       <TableCell>{file.type === 'file' ? formatBytes(file.size) : '--'}</TableCell>
-      <TableCell>{format(file.modified, "PPp")}</TableCell>
+      <TableCell className="hidden md:table-cell">{format(file.modified, "PPp")}</TableCell>
+      <TableCell className="text-right">
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                    <MoreVertical className="h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                <DropdownMenuItem onSelect={() => onDelete(file)} className="text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    <span>Delete</span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
     </TableRow>
   )
 }
@@ -175,6 +191,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   const [newName, setNewName] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
 
+  const [itemToDelete, setItemToDelete] = useState<FileItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { toast } = useToast();
   
@@ -295,6 +313,48 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
           toast({ title: `Failed to create ${isCreating}`, description: err.message, variant: "destructive" });
       }
   }
+
+  const confirmDelete = () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+
+    const deleteItem = async (item: FileItem) => {
+      const storage = getStorage();
+
+      if (item.type === 'file') {
+        const fileRef = ref(storage, item.path);
+        await deleteObject(fileRef);
+      } else if (item.type === 'folder') {
+        // Recursive deletion for folders
+        const listRef = ref(storage, item.path);
+        const res = await listAll(listRef);
+        // Delete all files in the folder
+        await Promise.all(res.items.map(itemRef => deleteObject(itemRef)));
+        // Recursively delete all subfolders
+        await Promise.all(res.prefixes.map(folderRef => deleteItem({
+          name: folderRef.name,
+          path: folderRef.fullPath,
+          type: 'folder',
+          size: 0,
+          modified: new Date(),
+        })));
+      }
+    };
+
+    deleteItem(itemToDelete)
+      .then(() => {
+        toast({ title: 'Item Deleted', description: `"${itemToDelete.name}" was successfully deleted.` });
+        osEvent.emit('file-system-change', undefined);
+      })
+      .catch((err: any) => {
+        console.error("Deletion failed:", err);
+        toast({ title: "Deletion Failed", description: err.message, variant: "destructive" });
+      })
+      .finally(() => {
+        setIsDeleting(false);
+        setItemToDelete(null);
+      });
+  };
   
   const goUpOneLevel = () => {
       if (currentPath === basePath) return;
@@ -336,6 +396,25 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
 
   return (
+    <>
+    <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the {itemToDelete?.type} "{itemToDelete?.name}".
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmDelete} disabled={isDeleting}>
+                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Continue
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
     <div className="flex flex-col h-full relative"
          onDrop={handleDrop}
          onDragOver={handleDragOver}
@@ -349,7 +428,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
                 <ArrowUp className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" onClick={refresh} disabled={isLoading}>
-                <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                <RefreshCw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
             </Button>
         </div>
          <form onSubmit={handleSearchSubmit} className="relative flex-grow">
@@ -397,23 +476,24 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead className="w-[120px]">Size</TableHead>
-              <TableHead className="w-[180px]">Last Modified</TableHead>
+              <TableHead className="w-[200px] hidden md:table-cell">Last Modified</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
                 <TableRow>
-                    <TableCell colSpan={3} className="text-center p-8">
+                    <TableCell colSpan={4} className="text-center p-8">
                         <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
                     </TableCell>
                 </TableRow>
             ) : displayedFiles.length > 0 ? (
                  displayedFiles.map((file) => (
-                    <FileRow key={file.path} file={file} onDoubleClick={handleDoubleClick} />
+                    <FileRow key={file.path} file={file} onDoubleClick={handleDoubleClick} onDelete={setItemToDelete} />
                 ))
             ) : (
                  <TableRow>
-                    <TableCell colSpan={3} className="text-center p-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center p-8 text-muted-foreground">
                         {searchQuery ? 'No items matched your search.' : 'This folder is empty.'}
                     </TableCell>
                  </TableRow>
@@ -425,5 +505,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         {isLoading ? 'Loading...' : `${allFiles.length} items`} | Path: {currentPath.replace(basePath, '~')}
       </div>
     </div>
+    </>
   );
 }
+
+    

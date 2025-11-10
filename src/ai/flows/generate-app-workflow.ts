@@ -1,39 +1,16 @@
+
 'use server';
 
 /**
  * @fileOverview A flow for generating application workflows from natural language descriptions.
  *
  * - generateAppWorkflow - A function that takes a natural language description of a process and generates a workflow.
- * - GenerateAppWorkflowInput - The input type for the generateAppWorkflow function, a natural language description.
- * - GenerateAppWorkflowOutput - The return type for the generateAppWorkflow function, a workflow definition.
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { APPS } from '@/lib/apps';
+import { GenerateAppWorkflowInputSchema, GenerateAppWorkflowOutputSchema, type GenerateAppWorkflowInput, type GenerateAppWorkflowOutput } from './schemas/workflow-schemas';
 
-const GenerateAppWorkflowInputSchema = z
-  .string()
-  .describe('A natural language description of the desired application workflow.');
-
-export type GenerateAppWorkflowInput = z.infer<typeof GenerateAppWorkflowInputSchema>;
-
-
-const StepSchema = z.object({
-  stepName: z.string(),
-  toolId: z.string().describe('The ID of the tool to execute for this step.'),
-  inputs: z.record(z.any()).optional().describe('An object containing the inputs for the tool.'),
-});
-
-const GenerateAppWorkflowOutputSchema = z.object({
-   name: z.string().describe('A descriptive name for the workflow.'),
-   steps: z.array(StepSchema),
-});
-
-export type GenerateAppWorkflowOutput = z.infer<typeof GenerateAppWorkflowOutputSchema>;
-
-export async function generateAppWorkflow(input: GenerateAppWorkflowInput): Promise<GenerateAppWorkflowOutput> {
-  return generateAppWorkflowFlow(input);
-}
 
 const generateAppWorkflowPrompt = ai.definePrompt({
   name: 'generateAppWorkflowPrompt',
@@ -44,19 +21,21 @@ const generateAppWorkflowPrompt = ai.definePrompt({
   The workflow should be a series of steps, where each step invokes a specific tool.
   You must infer the correct 'toolId' and the 'inputs' for each step based on the description.
 
+  Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `\'\'\'${app.id}\'\'\'`).join(', ')}.
+
 Description: {{{$input}}}
 
 Return a JSON object that conforms to the specified output schema.
 `,
 });
 
-const generateAppWorkflowFlow = ai.defineFlow(
+export const generateAppWorkflow = ai.defineFlow(
   {
-    name: 'generateAppWorkflowFlow',
+    name: 'generateAppWorkflow',
     inputSchema: GenerateAppWorkflowInputSchema,
     outputSchema: GenerateAppWorkflowOutputSchema,
   },
-  async input => {
+  async (input: GenerateAppWorkflowInput): Promise<GenerateAppWorkflowOutput> => {
     const {output} = await generateAppWorkflowPrompt(input);
     return output!;
   }

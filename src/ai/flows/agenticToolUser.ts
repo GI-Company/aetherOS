@@ -10,6 +10,8 @@ import { APPS } from '@/lib/apps';
 import { semanticFileSearch } from './semantic-file-search';
 import { generateImage } from './generate-image';
 import { designByPromptUiGeneration } from './design-by-prompt-ui-generation';
+import { generateAppWorkflow } from './generate-app-workflow';
+import { GenerateAppWorkflowOutputSchema } from './schemas/workflow-schemas';
 
 
 const FileItemSchema = z.object({
@@ -53,6 +55,11 @@ const WriteFileInputSchema = z.object({
     filePath: z.string().describe('The destination path for the file to be written (e.g., "src/components/new-component.tsx"). The path must start with a valid directory like "src/components" or "src/app".'),
     content: z.string().describe('The full code or text content to write into the file.'),
 });
+
+const RunWorkflowInputSchema = z.object({
+    workflow: GenerateAppWorkflowOutputSchema,
+}).describe("The workflow object to run.");
+
 
 const getOpenAppsTool = ai.defineTool(
     {
@@ -153,6 +160,16 @@ const writeFileTool = ai.defineTool(
     async () => {} // Placeholder, client implements
 );
 
+const runWorkflowTool = ai.defineTool(
+    {
+      name: 'runWorkflow',
+      description: 'Executes a series of predefined tool steps to complete a complex task.',
+      inputSchema: RunWorkflowInputSchema,
+      outputSchema: z.void(),
+    },
+    async () => {} // Placeholder, client implements
+  );
+
 
 const agenticToolUserPrompt = ai.definePrompt({
     name: 'agenticToolUserPrompt',
@@ -161,13 +178,20 @@ const agenticToolUserPrompt = ai.definePrompt({
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
 - If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you should use the 'searchFiles' tool to get a list of relevant files. 
 - If a user asks to find AND open a file (e.g., "Find and open my auth form component"), you should first use the 'searchFiles' tool to get the results. Then, if you are confident about the best match, you should separately call the 'openFile' tool with the exact file path from the search results.
-- **Tool Chaining**:
+
+- **Workflow Orchestration**:
+    - If a user's request involves multiple distinct steps (e.g., "generate a component, then open a file, then arrange windows"), you MUST use the 'generateAppWorkflow' tool first.
+    - Take the user's entire prompt and pass it to 'generateAppWorkflow'.
+    - Then, take the generated workflow object from the output and pass it to the 'runWorkflow' tool for execution.
+
+- **Simple Tool Chaining (Legacy - Prefer Workflows)**:
     - **Wallpaper**: If a user asks for a new wallpaper or background (e.g., "I want a new background of a futuristic city"), you MUST chain tools. First, call 'generateImage'. Then, take the 'imageUrl' from its output and use it to call 'setWallpaper'.
     - **Design & Write Component**: If a user asks you to design or create a new component and save it to a file (e.g., "Design a login form and save it to components/login.tsx"), you MUST chain tools. First, call 'designComponent' with a detailed prompt. Then, take the 'code' from its output and use it to call 'writeFile' with the specified file path and the generated code. The file path must be a valid path within the user's workspace, such as 'src/app/components/my-new-component.tsx'.
+
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
 - For any other query, do not use a tool and instead provide a helpful text response.`,
-    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool, openFileTool, generateImageTool, setWallpaperTool, designComponentTool, writeFileTool],
+    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool, openFileTool, generateImageTool, setWallpaperTool, designComponentTool, writeFileTool, generateAppWorkflow, runWorkflowTool],
 });
 
 
@@ -210,6 +234,8 @@ export async function agenticToolUser(
             setWallpaperTool,
             designComponentTool,
             writeFileTool,
+            generateAppWorkflow,
+            runWorkflowTool,
         ]
     });
     

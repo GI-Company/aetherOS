@@ -63,6 +63,48 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
       onOpenFile(path);
       setOpen(false);
   }
+
+  const executeTool = (toolName: string, input: any) => {
+    switch (toolName) {
+        case 'openApp':
+            const appToOpen = APPS.find(a => a.id === input.appId);
+            if (appToOpen) {
+              onOpenApp(appToOpen, input.props);
+            }
+            break;
+        case 'arrangeWindows':
+            onArrangeWindows();
+            break;
+        case 'openFile':
+            if(input.filePath) {
+                onOpenFile(input.filePath);
+            }
+            break;
+        case 'searchFiles':
+            if(input.results && input.results.length > 0) {
+                setFileSearchResults(input.results);
+            }
+            break;
+         case 'setWallpaper':
+            if(input.imageUrl) {
+                setWallpaper(input.imageUrl);
+            }
+            break;
+        case 'writeFile':
+            if (input.filePath && input.content) {
+                onOpenFile(input.filePath, input.content); 
+            }
+            break;
+        case 'runWorkflow':
+            const workflow = input.workflow;
+            if (workflow && workflow.steps) {
+                workflow.steps.forEach((step: any) => {
+                    executeTool(step.toolId, step.inputs || {});
+                });
+            }
+            break;
+      }
+  }
   
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,45 +136,13 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
 
       if (toolCalls.length > 0) {
         for (const toolCall of toolCalls) {
-          switch (toolCall.toolName) {
-            case 'openApp':
-                const appId = (toolCall.input as any).appId;
-                const props = (toolCall.input as any).props;
-                const appToOpen = APPS.find(a => a.id === appId);
-                if (appToOpen) {
-                  onOpenApp(appToOpen, props);
-                }
-                break;
-            case 'arrangeWindows':
-                onArrangeWindows();
-                break;
-            case 'openFile':
-                const filePath = (toolCall.input as any).filePath;
-                if(filePath) {
-                    onOpenFile(filePath);
-                }
-                break;
-            case 'searchFiles':
-                const searchResults = (toolCall.output as any).results;
-                if(searchResults && searchResults.length > 0) {
-                    setFileSearchResults(searchResults);
-                    shouldClose = false; // Keep palette open to show results
-                }
-                break;
-             case 'setWallpaper':
-                const imageUrl = (toolCall.input as any).imageUrl;
-                if(imageUrl) {
-                    setWallpaper(imageUrl);
-                }
-                break;
-            case 'writeFile':
-                const { filePath: writePath, content } = toolCall.input as any;
-                if (writePath && content) {
-                    // This action opens the file in the editor with the new content
-                    onOpenFile(writePath, content); 
-                }
-                break;
-          }
+            // Special handling for search to keep palette open
+            if (toolCall.toolName === 'searchFiles' && (toolCall.output as any).results.length > 0) {
+                 shouldClose = false;
+                 setFileSearchResults((toolCall.output as any).results);
+            } else {
+                 executeTool(toolCall.toolName, toolCall.input);
+            }
         }
       }
       
@@ -143,7 +153,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
           shouldClose = false;
       }
 
-      if (shouldClose && toolCalls.length > 0 && !agentResponse) {
+      if (shouldClose) {
         setOpen(false);
       }
 

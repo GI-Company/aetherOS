@@ -34,6 +34,7 @@ const getInitials = (name?: string | null) => {
 
 interface PeoplePanelProps {
     showTitle?: boolean;
+    onSelectUser?: (userId: string) => void;
 }
 
 const TypingIndicator = () => {
@@ -51,7 +52,7 @@ const TypingIndicator = () => {
 }
 
 
-export default function PeoplePanel({ showTitle = true }: PeoplePanelProps) {
+export default function PeoplePanel({ showTitle = true, onSelectUser }: PeoplePanelProps) {
     const { firestore } = useFirebase();
     const thirtyMinutesAgo = React.useMemo(() => new Date(Date.now() - 30 * 60 * 1000), []);
 
@@ -72,6 +73,12 @@ export default function PeoplePanel({ showTitle = true }: PeoplePanelProps) {
         return APPS.find(app => app.id === appId);
     }
 
+    const handleUserClick = (userId: string) => {
+        if (onSelectUser) {
+            onSelectUser(userId);
+        }
+    }
+
     return (
         <div className="h-full bg-background flex flex-col">
             {showTitle && (
@@ -89,8 +96,8 @@ export default function PeoplePanel({ showTitle = true }: PeoplePanelProps) {
                     ) : onlineUsers && onlineUsers.length > 0 ? (
                         onlineUsers.map(pUser => {
                             const appInfo = getAppInfo(pUser.focusedApp);
-                            return (
-                                <Card key={pUser.id} className="p-3 bg-card/50">
+                            const userCard = (
+                                <Card className="p-3 bg-card/50">
                                     <div className="flex items-start gap-3">
                                         <Avatar className="h-10 w-10 relative flex-shrink-0">
                                             <AvatarImage src={pUser.photoURL} />
@@ -119,7 +126,15 @@ export default function PeoplePanel({ showTitle = true }: PeoplePanelProps) {
                                         </div>
                                     </div>
                                 </Card>
-                            )
+                            );
+
+                            return onSelectUser ? (
+                                <button key={pUser.id} onClick={() => handleUserClick(pUser.id)} className="w-full text-left focus:outline-none focus:ring-2 focus:ring-ring rounded-lg">
+                                    {userCard}
+                                </button>
+                            ) : (
+                                <div key={pUser.id}>{userCard}</div>
+                            );
                         })
                     ) : (
                         <p className="text-sm text-muted-foreground text-center pt-8">No other users are currently active.</p>

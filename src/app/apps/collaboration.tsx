@@ -171,10 +171,10 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     }
   }
 
-  const openPeopleApp = () => {
+  const openPeopleAppWithUser = (userId: string) => {
       const peopleApp = APPS.find(app => app.id === 'people');
       if (peopleApp && onOpenApp) {
-          onOpenApp(peopleApp);
+          onOpenApp(peopleApp, { selectedUserId: userId });
       }
   }
 
@@ -219,6 +219,10 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
       </div>
     )
   }
+  
+  const handleSelectUser = (userId: string) => {
+    openPeopleAppWithUser(userId);
+  }
 
   return (
     <div className="flex h-full bg-background flex-row">
@@ -240,7 +244,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
                   return (
                       <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser && "justify-end")}>
                           {!isCurrentUser && (
-                            <button onClick={openPeopleApp} className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+                            <button onClick={() => openPeopleAppWithUser(msg.senderId)} className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
                               <Avatar className="h-8 w-8">
                                   <AvatarImage src={msg.senderPhotoURL} />
                                   <AvatarFallback>{getInitials(msg.senderName)}</AvatarFallback>
@@ -258,10 +262,12 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
                               </p>
                           </div>
                           {isCurrentUser && (
+                            <button onClick={() => openPeopleAppWithUser(msg.senderId)} className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
                               <Avatar className="h-8 w-8 flex-shrink-0">
                                   <AvatarImage src={user?.photoURL || ''} />
                                   <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
                               </Avatar>
+                             </button>
                           )}
                       </div>
                   )
@@ -277,7 +283,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
         {renderInputArea()}
       </div>
       <div className="w-[240px] border-l flex-shrink-0">
-          <PeoplePanel />
+          <PeoplePanel onSelectUser={handleSelectUser} />
       </div>
     </div>
   );

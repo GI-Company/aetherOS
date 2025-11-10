@@ -498,10 +498,10 @@ export default function Desktop() {
             const AppComponent = window.app.component;
             const componentProps: any = { ...window.props };
 
-            if (window.app.id === 'file-explorer') {
+            if (window.app.id === 'file-explorer' || window.app.id === 'people') {
               componentProps.onOpenFile = openFile;
             }
-             if (window.app.id === 'settings' || window.app.id === 'collaboration') {
+             if (window.app.id === 'settings' || window.app.id === 'collaboration' || window.app.id === 'people') {
               componentProps.onOpenApp = openApp;
             }
 

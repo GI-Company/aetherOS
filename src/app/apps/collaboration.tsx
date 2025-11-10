@@ -172,7 +172,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
                   return (
                       <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser && "justify-end")}>
                           {!isCurrentUser && (
-                            <button onClick={openPeopleApp} className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+                            <button onClick={openPeopleApp} className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
                               <Avatar className="h-8 w-8">
                                   <AvatarImage src={msg.senderPhotoURL} />
                                   <AvatarFallback>{getInitials(msg.senderName)}</AvatarFallback>
@@ -190,7 +190,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
                               </p>
                           </div>
                           {isCurrentUser && (
-                              <Avatar className="h-8 w-8">
+                              <Avatar className="h-8 w-8 flex-shrink-0">
                                   <AvatarImage src={user?.photoURL || ''} />
                                   <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
                               </Avatar>

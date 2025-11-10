@@ -4,6 +4,10 @@
 import { App, APPS } from './apps';
 import { generateImage } from '@/ai/flows/generate-image';
 import { designByPromptUiGeneration } from '@/ai/flows/design-by-prompt-ui-generation';
+import { getStorage, ref, listAll } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
+import { semanticFileSearch } from '@/ai/flows/semantic-file-search';
+
 
 /**
  * @fileoverview Central registry for all client-side tools available to the AI agent.
@@ -75,10 +79,33 @@ export const TOOLS: Record<string, Tool> = {
     },
     searchFiles: {
         toolId: 'searchFiles',
-        description: "Performs a semantic search for files based on a natural language query. This is used when a user wants to 'find' or 'search for' a file but not necessarily open it immediately. If the user wants to find AND open, chain this with 'openFile'.",
+        description: "Performs a semantic search for files and returns the most relevant file path. This is used when a user wants to 'find' or 'search for' a file to act upon it (e.g., open it). If the user just wants to see search results, use openApp with file-explorer.",
         execute: async (context, args) => {
-             // The client will interpret this event and open the app with the search query.
-            return { dispatchedEvent: 'openApp', payload: { appId: 'file-explorer', props: { searchQuery: args.query } } };
+            const auth = getAuth();
+            const user = auth.currentUser;
+            if (!user) throw new Error("User not authenticated.");
+
+            const storage = getStorage();
+            const basePath = `users/${user.uid}`;
+            const rootRef = ref(storage, basePath);
+            const allItems = await listAll(rootRef);
+
+            const allPaths = [
+                ...allItems.items.map(item => item.fullPath),
+                ...allItems.prefixes.map(prefix => prefix.fullPath)
+            ];
+
+            const searchResult = await semanticFileSearch({
+                query: args.query,
+                availableFiles: allPaths,
+            });
+
+            if (searchResult.results.length === 0) {
+                throw new Error("I couldn't find any files matching your search.");
+            }
+
+            // Return the path of the top result to be piped into the next tool
+            return { filePath: searchResult.results[0].path };
         }
     }
 };

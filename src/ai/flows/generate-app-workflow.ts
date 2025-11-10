@@ -30,8 +30,8 @@ ${toolDescriptions}
 - You must infer the correct 'toolId' and the 'inputs' for each step based on the user's request.
 - To chain the output of one tool to the input of another, use the '{{result.propertyName}}' syntax. For example, if a 'generateImage' step produces an 'imageUrl', the next step can use it as input by setting a property to '{{result.imageUrl}}'.
 
-- If the user asks to "find" or "search" for a file, you should use the 'openApp' tool with 'file-explorer' as the 'appId' and pass the search query as a prop. For example: { "appId": "file-explorer", "props": { "searchQuery": "user's search query" } }
-- If the user asks to "find AND open" a file, you must first use the 'searchFiles' tool, and then the 'openFile' tool with the best result.
+- If the user asks to "find" or "search" for a file (but not open it), you should use the 'openApp' tool with 'file-explorer' as the 'appId' and pass the search query as a prop. For example: { "appId": "file-explorer", "props": { "searchQuery": "user's search query" } }.
+- If the user asks to "find AND open" a file, you MUST first use the 'searchFiles' tool to get the file path, and then use the 'openFile' tool with the 'filePath' set to '{{result.filePath}}'.
 - If the user asks for a new wallpaper, you should first call 'generateImage' with their prompt, and then call 'setWallpaper' with an 'imageUrl' of '{{result.imageUrl}}'.
 - If the user asks to design a component and save it, you should first call 'designComponent' with their prompt, and then call 'writeFile' with a 'content' of '{{result.code}}' and a 'filePath' they provided.
 

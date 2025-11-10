@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -33,7 +34,7 @@ const FileItemSchema = z.object({
 const SemanticFileSearchOutputSchema = z.object({
   results: z
     .array(FileItemSchema)
-    .describe('A list of file paths from the available files that semantically match the query.'),
+    .describe('A ranked list of file paths from the available files that semantically match the query. The most relevant item should be first.'),
 });
 export type SemanticFileSearchOutput = z.infer<
   typeof SemanticFileSearchOutputSchema
@@ -51,8 +52,9 @@ const prompt = ai.definePrompt({
   output: {schema: SemanticFileSearchOutputSchema},
   prompt: `You are an AI file system assistant. Your job is to help users find files by searching through a list of available file paths based on a natural language query.
 
-  Return ONLY the file paths from the provided list that are the most relevant matches for the user's query. If no files are relevant, return an empty array.
-  For each result, you must determine if the path represents a 'file' or a 'folder' and set the 'type' field accordingly. A path is a folder if it has a child item in the available files list.
+  Return a ranked list of the file paths from the provided list that are the most relevant matches for the user's query. The best match should be the first item in the array.
+  If no files are relevant, return an empty array.
+  For each result, you must determine if the path represents a 'file' or a 'folder' and set the 'type' field accordingly. A path is a folder if it appears as a prefix in another path in the available files list.
 
   Query: {{{query}}}
   

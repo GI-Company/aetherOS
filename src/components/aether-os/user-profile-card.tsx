@@ -6,7 +6,7 @@ import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, ArrowLeft, Mail, AtSign } from 'lucide-react';
+import { Loader2, ArrowLeft, AtSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { APPS } from '@/lib/apps';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -73,7 +73,7 @@ export default function UserProfileCard({ userId, onBack }: UserProfileCardProps
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">
         <p className="text-muted-foreground mb-4">User not found.</p>
-        <Button variant="outline" onClick={onBack}>
+        <Button variant="outline" onClick={onBack} className="hidden">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to List
         </Button>
@@ -87,10 +87,6 @@ export default function UserProfileCard({ userId, onBack }: UserProfileCardProps
 
   return (
     <div className="p-4 space-y-6">
-       <Button variant="ghost" onClick={onBack} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to List
-        </Button>
       <Card>
         <CardHeader className="items-center text-center">
           <Avatar className="h-24 w-24 mb-4">
@@ -98,10 +94,12 @@ export default function UserProfileCard({ userId, onBack }: UserProfileCardProps
             <AvatarFallback className="text-3xl">{getInitials(displayName)}</AvatarFallback>
           </Avatar>
           <CardTitle className="text-2xl">{displayName}</CardTitle>
-          <p className="text-muted-foreground flex items-center gap-2">
-            <AtSign className="h-4 w-4" />
-            {email}
-          </p>
+          {email && (
+            <p className="text-muted-foreground flex items-center gap-2">
+                <AtSign className="h-4 w-4" />
+                {email}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
             <h3 className="text-sm font-semibold text-muted-foreground mb-2">Status</h3>
@@ -129,5 +127,3 @@ export default function UserProfileCard({ userId, onBack }: UserProfileCardProps
     </div>
   );
 }
-
-    

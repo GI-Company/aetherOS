@@ -11,7 +11,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { APPS } from '@/lib/apps';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { animated, useSpring } from '@react-spring/web';
+import { useSpring, animated } from '@react-spring/web';
 
 interface UserPresence {
     id: string;
@@ -53,7 +53,7 @@ const TypingIndicator = () => {
 
 
 export default function PeoplePanel({ showTitle = true, onSelectUser }: PeoplePanelProps) {
-    const { firestore, user } = useFirebase();
+    const { firestore } = useFirebase();
     const thirtyMinutesAgo = React.useMemo(() => new Date(Date.now() - 30 * 60 * 1000), []);
 
     const presenceQuery = useMemoFirebase(() => {
@@ -144,5 +144,3 @@ export default function PeoplePanel({ showTitle = true, onSelectUser }: PeoplePa
         </div>
     )
 }
-
-    

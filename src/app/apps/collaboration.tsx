@@ -66,9 +66,9 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
   
   const presenceRef = useMemoFirebase(() => {
-    if (!firestore || !user?.uid || user.isAnonymous) return null;
+    if (!firestore || !user?.uid) return null;
     return doc(firestore, 'userPresence', user.uid);
-  }, [firestore, user?.uid, user?.isAnonymous]);
+  }, [firestore, user?.uid]);
 
   const messages = React.useMemo(() => {
     const combined = [...(serverMessages || []), ...optimisticMessages];
@@ -118,8 +118,6 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     
     const messagesCollectionRef = collection(firestore, 'messages');
     addDocumentNonBlocking(messagesCollectionRef, messagePayload).then(docRef => {
-        // Once the message is saved, we can remove the optimistic one.
-        // The real one will come in via the `useCollection` hook.
         if (docRef) {
             setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
         }
@@ -127,7 +125,6 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
 
     setNewMessage('');
     if (presenceRef) {
-        // Use a small timeout to prevent race condition with handleTyping
         setTimeout(() => {
             setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
         }, 100);
@@ -139,27 +136,22 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     setNewMessage(e.target.value);
     if (!presenceRef) return;
 
-    // Set isTyping to true immediately
     setDocumentNonBlocking(presenceRef, { isTyping: true }, { merge: true });
 
-    // Clear previous timeout
     if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
     }
 
-    // Set a new timeout to mark as not typing after 2 seconds
     typingTimeoutRef.current = setTimeout(() => {
         setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
     }, 2000);
   }
 
-  // Clean up timer on unmount
   useEffect(() => {
     return () => {
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
         }
-         // Set typing to false when the component unmounts
         if (presenceRef) {
             setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
         }
@@ -169,7 +161,6 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const openSettingsToAccountTab = () => {
     const settingsApp = APPS.find(app => app.id === 'settings');
     if (settingsApp && onOpenApp) {
-      // Pass props to indicate which tab to open
       onOpenApp(settingsApp, { defaultTab: 'account' });
     }
   }
@@ -192,6 +183,14 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
             </Button>
             </div>
         )
+    }
+
+    if (user && user.isAnonymous) {
+      return (
+         <div className="text-center p-4 border-t bg-card text-muted-foreground text-sm">
+            <p>You are in trial mode. Chat is enabled.</p>
+        </div>
+      )
     }
 
     return (

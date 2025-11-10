@@ -181,6 +181,8 @@ const agenticToolUserPrompt = ai.definePrompt({
 - If a user asks to find AND open a file (e.g., "Find and open my auth form component"), you should first use the 'searchFiles' tool to get the results. Then, if you are confident about the best match, you should separately call the 'openFile' tool with the exact file path from the search results.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
+- If the user asks for a new wallpaper, you should first call 'generateImage' with their prompt, and then call 'setWallpaper' with the resulting 'imageUrl'.
+- If the user asks to design a component and save it, you should first call 'designComponent' with their prompt, and then call 'writeFile' with the resulting 'code' and a filePath they provided.
 - For any other query, do not use a tool and instead provide a helpful text response.`,
     tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool, openFileTool, generateImageTool, setWallpaperTool, designComponentTool, writeFileTool],
 });

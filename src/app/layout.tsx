@@ -18,6 +18,7 @@ const fontHeadline = Space_Grotesk({
 export const metadata: Metadata = {
   title: "AetherOS",
   description: "The next generation of operating systems.",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

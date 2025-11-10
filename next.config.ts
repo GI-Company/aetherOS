@@ -1,5 +1,11 @@
 import type {NextConfig} from 'next';
 
+const withPWA = require('next-pwa')({
+  dest: 'public',
+  disable: process.env.NODE_ENV === 'development',
+});
+
+
 const nextConfig: NextConfig = {
   /* config options here */
   typescript: {
@@ -41,9 +47,11 @@ try {
     console.log("Sentry is not installed, skipping Sentry configuration.");
 }
 
+const configWithPwa = withPWA(nextConfig);
+
 export default sentryWebpackPlugin 
     ? sentryWebpackPlugin.withSentryConfig(
-        nextConfig,
+        configWithPwa,
         {
             // For all available options, see:
             // https://github.com/getsentry/sentry-webpack-plugin#options
@@ -74,8 +82,8 @@ export default sentryWebpackPlugin
 
             // Enables automatic instrumentation of Vercel Cron Monitors.
             // See the following for more information:
-            // https://docs.sentry.io/अनिमेष/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
+            // https://docs.sentry.io/ अनिमेष/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
             automaticVercelMonitors: true,
         }
     )
-    : nextConfig;
+    : configWithPwa;

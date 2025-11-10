@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { formatBytes } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
 import { FileItem } from "@/lib/types";
-import { APPS } from "@/lib/apps";
+import { App, APPS } from "@/lib/apps";
 import Image from "next/image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -427,5 +427,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </div>
   );
 }
-
-    

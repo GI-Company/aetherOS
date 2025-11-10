@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users } from 'lucide-react';
 import PeoplePanel from '@/components/aether-os/people-panel';
 import UserProfileCard from '@/components/aether-os/user-profile-card';
@@ -12,6 +12,10 @@ interface PeopleAppProps {
 
 export default function PeopleApp({ selectedUserId: initialUserId }: PeopleAppProps) {
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>(initialUserId);
+
+  useEffect(() => {
+    setSelectedUserId(initialUserId);
+  }, [initialUserId]);
 
   const handleSelectUser = (userId: string) => {
     setSelectedUserId(userId);

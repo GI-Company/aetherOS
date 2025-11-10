@@ -10,6 +10,7 @@ import { Loader2, ArrowLeft, Mail, AtSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { APPS } from '@/lib/apps';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useSpring, animated } from '@react-spring/web';
 
 interface UserProfileCardProps {
   userId: string;
@@ -24,6 +25,21 @@ const getInitials = (name?: string | null) => {
     }
     return name.substring(0, 2).toUpperCase();
 };
+
+const TypingIndicator = () => {
+    const styles = useSpring({
+        from: { opacity: 0.5, transform: 'translateY(2px)' },
+        to: async (next) => {
+            while (1) {
+                await next({ opacity: 1, transform: 'translateY(0px)' })
+                await next({ opacity: 0.5, transform: 'translateY(2px)' })
+            }
+        },
+        config: { duration: 500 },
+    })
+    return <animated.span style={styles}>Typing...</animated.span>
+}
+
 
 export default function UserProfileCard({ userId, onBack }: UserProfileCardProps) {
   const { firestore } = useFirebase();
@@ -92,9 +108,11 @@ export default function UserProfileCard({ userId, onBack }: UserProfileCardProps
              <Card className="p-4 bg-background/50">
                 {isPresenceLoading ? <Skeleton className="h-6 w-1/2" /> : (
                     <div className="flex items-center gap-3">
-                         <div className={`w-3 h-3 rounded-full ${status === 'online' ? 'bg-green-500' : 'bg-gray-500'}`} />
+                         <div className={`w-3 h-3 rounded-full ${status === 'online' ? (isTyping ? 'bg-blue-500' : 'bg-green-500') : 'bg-gray-500'}`} />
                          {isTyping ? (
-                            <span className="text-sm italic">Typing...</span>
+                            <span className="text-sm italic text-blue-400">
+                                <TypingIndicator />
+                            </span>
                          ) : appInfo ? (
                             <div className="flex items-center gap-2 text-sm">
                                 <appInfo.Icon className="h-4 w-4" />

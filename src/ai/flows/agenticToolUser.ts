@@ -177,7 +177,7 @@ const agenticToolUserPrompt = ai.definePrompt({
 - Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `\'\'\'${app.id}\'\'\'`).join(', ')}.
 - **Security**: Be cautious of ambiguous or potentially malicious prompts. If a request seems nonsensical or could be harmful (e.g., trying to delete critical system files), refuse to use a tool and ask for clarification.
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
-- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you should use the 'searchFiles' tool to get a list of relevant files.
+- If the user's query is only about finding files (e.g., "find my components"), you must use the 'openApp' tool with the 'appId' 'file-explorer' and pass the user's search term in the 'props' as '{ searchQuery: 'the user's query' }'.
 - If a user asks to find AND open a file (e.g., "Find and open my auth form component"), you should first use the 'searchFiles' tool to get the results. Then, if you are confident about the best match, you should separately call the 'openFile' tool with the exact file path from the search results.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
@@ -268,3 +268,5 @@ export async function agenticToolUser(
         ]
     });
 }
+
+    

@@ -109,35 +109,20 @@ export default function Window({
   }, [isMinimized, position, size, api, id]);
 
   const bind = useDrag(
-    ({ down, movement: [mx, my], last, memo, event }) => {
-      event.stopPropagation();
-      const target = event.target as HTMLElement;
-      const isResizeHandle = target.dataset.resize === 'true';
-
+    ({ down, movement: [mx, my], last, memo }) => {
       if (!memo) {
-        memo = {
-          initial: [x.get(), y.get()],
-          initialSize: [width.get(), height.get()],
-          isResizing: isResizeHandle,
-        };
+        memo = [x.get(), y.get()];
       }
 
-      if (memo.isResizing) {
-        const newWidth = Math.max(MIN_WIDTH, memo.initialSize[0] + mx);
-        const newHeight = Math.max(MIN_HEIGHT, memo.initialSize[1] + my);
-        api.start({ width: newWidth, height: newHeight, immediate: down });
-        if (last) {
-            updateSize(id, { width: newWidth, height: newHeight });
-        }
-      } else { // Dragging
-        api.start({ x: memo.initial[0] + mx, y: memo.initial[1] + my, immediate: down });
-        if (last) {
-          updatePosition(id, { x: memo.initial[0] + mx, y: memo.initial[1] + my });
-        }
+      api.start({ x: memo[0] + mx, y: memo[1] + my, immediate: down });
+      if (last) {
+        updatePosition(id, { x: memo[0] + mx, y: memo[1] + my });
       }
       return memo;
     },
     {
+      target: headerRef,
+      enabled: !isMinimized && !isMaximized,
       from: () => [x.get(), y.get()],
       bounds: (state) => {
         if (!bounds.current) return {};
@@ -152,13 +137,6 @@ export default function Window({
           bottom: bounds.current.clientHeight - currentHeight - dockHeight,
         }
       },
-      filterTaps: true,
-      enabled: !isMinimized && !isMaximized,
-      pointer: { touch: true },
-      filter: ({ event }) => {
-        const target = event.target as HTMLElement;
-        return target.dataset.resize === 'true' || headerRef.current?.contains(target);
-      }
     }
   );
   
@@ -191,7 +169,6 @@ export default function Window({
         y,
         scale,
         opacity,
-        touchAction: 'none'
       }}
       className={cn(
         "absolute rounded-lg shadow-2xl",
@@ -200,7 +177,6 @@ export default function Window({
       )}
       onMouseDownCapture={onFocus}
       onPointerDownCapture={onFocus}
-      {...bind()}
     >
       <Card
         className={cn(
@@ -213,9 +189,10 @@ export default function Window({
         <CardHeader
           ref={headerRef}
           className={cn(
-            "p-2 flex-shrink-0 flex flex-row items-center justify-between border-b relative",
+            "p-2 flex-shrink-0 flex flex-row items-center justify-between border-b relative touch-none",
             isMaximized ? "cursor-default" : "cursor-grab active:cursor-grabbing"
           )}
+          {...bind()}
         >
           <div className="flex items-center gap-2">
             <app.Icon className="h-4 w-4 ml-1" />
@@ -251,5 +228,3 @@ export default function Window({
     </animated.div>
   );
 }
-
-    

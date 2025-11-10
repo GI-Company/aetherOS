@@ -85,7 +85,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
 
             let toolInput = {...step.inputs};
             
-            // Basic result piping
+            // Result piping from previous step
             if (toolInput.imageUrl === '{{result.imageUrl}}' && stepResult.imageUrl) {
                  toolInput.imageUrl = stepResult.imageUrl;
             }

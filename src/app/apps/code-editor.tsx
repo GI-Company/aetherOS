@@ -63,9 +63,6 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       const newCode = cleanCode(result.code);
       setCode(newCode);
       toast({ title: "Code Generated", description: `The code in ${filePath} has been updated.` });
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to generate code.", variant: "destructive" });
     } finally {
       setIsLoading(null);
     }
@@ -101,11 +98,8 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       `;
       const result = await aiCodeGeneration({ description: refactorPrompt });
       const newCode = cleanCode(result.code);
-setCode(newCode);
+      setCode(newCode);
       toast({ title: "Refactoring Complete", description: `The code in ${filePath} has been updated based on the project's architectural goals.` });
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to refactor code.", variant: "destructive" });
     } finally {
       setIsLoading(null);
     }

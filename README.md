@@ -28,7 +28,7 @@ AetherOS is more than just a collection of apps; it's a fully-featured, persiste
   - **Browser (Generative)**: A unique browser that doesn't fetch web pages, but *generates* them on the fly using an AI flow based on the URL or search topic.
   - **Design Studio**: Generate React components from a text prompt.
   - **Pixel Streamer**: Generate images from a text prompt and save them to your file system.
-  - **Workflow Studio**: Visualize processes by describing them in natural language; the AI generates a Mermaid.js diagram.
+  - **Workflow Studio**: Visualize *and execute* processes by describing them in natural language. The AI generates a Mermaid.js diagram and can then run the corresponding workflow.
   - **Collaboration Hub**: A real-time global chat application featuring user presence ("online", "in App"), "is typing" indicators, and a user profile browser.
   - **Settings**: Manage account, security, and UI preferences. Use AI to generate custom UI themes and accent colors from a text description.
 
@@ -80,7 +80,7 @@ This project is an active prototype. Below is a checklist of features from the o
 
 - [ ] **Inter-App Communication & Workflow**
   - [ ] Develop a secure, system-wide API for app-to-app communication.
-  - [ ] Enhance Workflow Studio to execute, not just visualize, workflows.
+  - [x] Enhance Workflow Studio to execute, not just visualize, workflows.
 - [ ] **Enhanced AI Agency**
   - [ ] Implement complex, multi-step tool chaining with conditional logic.
   - [ ] Long-term goal: AI self-healing and self-modification capabilities.

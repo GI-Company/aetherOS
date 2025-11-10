@@ -10,15 +10,21 @@
 import {ai} from '@/ai/genkit';
 import { APPS } from '@/lib/apps';
 import { GenerateAppWorkflowInputSchema, GenerateAppWorkflowOutputSchema, type GenerateAppWorkflowInput, type GenerateAppWorkflowOutput } from './schemas/workflow-schemas';
+import { TOOLS } from '@/lib/tools';
+
+
+const toolDescriptions = Object.values(TOOLS).map(tool => `- toolId: '${tool.toolId}', description: '${tool.description}'`).join('\n');
 
 
 const generateAppWorkflowPrompt = ai.definePrompt({
   name: 'generateAppWorkflowPrompt',
   input: {schema: GenerateAppWorkflowInputSchema},
   output: {schema: GenerateAppWorkflowOutputSchema},
-  prompt: `You are an AI workflow generator for AetherOS. Your job is to decompose a user's request into a structured series of steps.
+  prompt: `You are an AI workflow generator for AetherOS. Your job is to decompose a user's request into a structured series of steps using the available tools.
   
-- Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `\'\'\'${app.id}\'\'\'`).join(', ')}.
+Your knowledge of available tools is strictly limited to the following:
+${toolDescriptions}
+
 - If the request can be handled by a single tool, return a workflow with one step.
 - If the request requires multiple tools, return a workflow with all the necessary steps in the correct order.
 - **IMPORTANT**: If the user's request is purely conversational and does not require a tool (e.g., "hello", "who are you?", "thank you"), you MUST return a workflow with an empty "steps" array.

@@ -9,7 +9,7 @@ import { Folder, File, Search, Loader2, ArrowUp, RefreshCw, FilePlus, ChevronDow
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
-import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject, uploadBytes } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
@@ -99,7 +99,7 @@ const useStorageFiles = (currentPath: string) => {
 
 
 interface FileExplorerAppProps {
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, content?: string) => void;
   searchQuery?: string;
   onOpenApp?: (app: (typeof APPS)[0], props?: Record<string, any>) => void;
 }
@@ -290,24 +290,33 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
       let fullPath: string;
       let successMessage: string;
+      const isFile = isCreating === 'file';
 
-      if (isCreating === 'folder') {
+      if (isFile) {
+          fullPath = `${currentPath}/${trimmedName}`;
+          successMessage = `File "${trimmedName}" was created.`;
+      } else { // isCreating === 'folder'
           // Create a placeholder file to represent the folder
           fullPath = `${currentPath}/${trimmedName}/.placeholder`;
           successMessage = `Folder "${trimmedName}" was created.`;
-      } else { // isCreating === 'file'
-          fullPath = `${currentPath}/${trimmedName}`;
-          successMessage = `File "${trimmedName}" was created.`;
       }
 
       try {
           const storage = getStorage();
           const itemRef = ref(storage, fullPath);
           await uploadString(itemRef, '');
+          
           toast({ title: 'Success', description: successMessage });
+          
           setNewName('');
           setIsCreating(null);
           osEvent.emit('file-system-change', undefined);
+
+          // If a file was created and onOpenFile is available, open it.
+          if (isFile && onOpenFile) {
+            onOpenFile(`${currentPath}/${trimmedName}`, '');
+          }
+
       } catch (err: any) {
           console.error(`Error creating ${isCreating}:`, err);
           toast({ title: `Failed to create ${isCreating}`, description: err.message, variant: "destructive" });
@@ -508,5 +517,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
-
-    

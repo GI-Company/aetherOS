@@ -92,7 +92,8 @@
               "type": "number",
               "description": "The number of minutes of inactivity before automatically signing out. 0 means disabled."
             }
-          }
+          },
+          "required": ["autoSignOutMinutes"]
         },
         "wallpaperUrl": {
           "type": "string",

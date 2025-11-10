@@ -2,7 +2,7 @@
 'use client';
 
 import Image from "next/image";
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import TopBar from "./top-bar";
 import Dock from "./dock";
 import Window from "./window";
@@ -105,7 +105,7 @@ export default function Desktop() {
     }
   }, [user, userPreferences, applyTheme]);
   
-  const defaultWallpaperUrl = useMemo(() => `https://picsum.photos/seed/${Date.now()}/1920/1080`, []);
+  const defaultWallpaperUrl = `https://picsum.photos/seed/${Date.now()}/1920/1080`;
   const wallpaperUrl = (userPreferences as any)?.wallpaperUrl || defaultWallpaperUrl;
   const wallpaperHint = (userPreferences as any)?.wallpaperUrl ? "custom wallpaper" : "abstract background";
   

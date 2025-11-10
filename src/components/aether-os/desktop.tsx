@@ -193,23 +193,24 @@ export default function Desktop() {
         return;
     }
 
-    const desktopWidth = desktopRef.current?.clientWidth || window.innerWidth;
-    const desktopHeight = desktopRef.current?.clientHeight || window.innerHeight;
     const topBarHeight = 32;
     const dockHeight = dockRef.current?.offsetHeight || 80;
+    const desktopWidth = desktopRef.current?.clientWidth || window.innerWidth;
+    const desktopHeight = (desktopRef.current?.clientHeight || window.innerHeight) - topBarHeight - dockHeight;
+
 
     const updates = new Map<number, Partial<WindowInstance>>();
 
     updates.set(browser.id, {
         position: { x: 0, y: topBarHeight },
-        size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight - dockHeight },
+        size: { width: desktopWidth / 2, height: desktopHeight },
         isMaximized: false,
         isMinimized: false,
     });
 
     updates.set(codeEditor.id, {
         position: { x: desktopWidth / 2, y: topBarHeight },
-        size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight - dockHeight },
+        size: { width: desktopWidth / 2, height: desktopHeight },
         isMaximized: false,
         isMinimized: false,
     });
@@ -284,28 +285,43 @@ export default function Desktop() {
     const currentId = nextId.current;
     const newZIndex = highestZIndex + 1;
     
-    const desktopWidth = desktopRef.current?.clientWidth || window.innerWidth;
-    const desktopHeight = desktopRef.current?.clientHeight || window.innerHeight;
     const topBarHeight = 32;
     const dockHeight = dockRef.current?.offsetHeight || 80;
+    const availableWidth = (desktopRef.current?.clientWidth || window.innerWidth) - 20; // 20px padding
+    const availableHeight = (desktopRef.current?.clientHeight || window.innerHeight) - topBarHeight - dockHeight - 20; // 20px padding
 
+    let initialWidth = app.defaultSize.width;
+    let initialHeight = app.defaultSize.height;
+
+    // Scale down if too large for viewport
+    if (initialWidth > availableWidth) {
+        const ratio = availableWidth / initialWidth;
+        initialWidth = availableWidth;
+        initialHeight = initialHeight * ratio;
+    }
+    if (initialHeight > availableHeight) {
+        const ratio = availableHeight / initialHeight;
+        initialHeight = availableHeight;
+        initialWidth = initialWidth * ratio;
+    }
 
     let initialX = 50 + (currentId % 10) * 20;
-    let initialY = topBarHeight + (currentId % 10) * 20;
+    let initialY = topBarHeight + 10 + (currentId % 10) * 20;
 
     // Ensure the window opens within the viewport
-    if (initialX + app.defaultSize.width > desktopWidth) {
-        initialX = Math.max(0, desktopWidth - app.defaultSize.width);
+    if (initialX + initialWidth > availableWidth + 10) {
+        initialX = Math.max(10, availableWidth - initialWidth);
     }
-    if (initialY + app.defaultSize.height > desktopHeight - dockHeight) {
-        initialY = Math.max(topBarHeight, desktopHeight - app.defaultSize.height - dockHeight);
+    if (initialY + initialHeight > availableHeight + topBarHeight) {
+        initialY = Math.max(topBarHeight + 10, availableHeight - initialHeight + topBarHeight);
     }
+
 
     const newWindow: WindowInstance = {
       id: currentId,
       app: app,
       position: { x: initialX, y: initialY },
-      size: app.defaultSize,
+      size: { width: initialWidth, height: initialHeight },
       zIndex: newZIndex,
       isMinimized: false,
       isMaximized: false,
@@ -584,3 +600,5 @@ export default function Desktop() {
     </div>
   );
 }
+
+    

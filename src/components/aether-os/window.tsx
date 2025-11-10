@@ -180,7 +180,7 @@ export default function Window({
       id={`window-${id}`}
       style={{
         width: isMaximized ? '100%' : width,
-        height: isMaximized ? `calc(100% - ${32 + (dockRef.current?.offsetHeight || 80)}px)`: height,
+        height: isMaximized ? `calc(100% - ${dockRef.current?.offsetHeight || 80}px)` : height,
         zIndex,
         x,
         y,
@@ -246,3 +246,5 @@ export default function Window({
     </animated.div>
   );
 }
+
+    

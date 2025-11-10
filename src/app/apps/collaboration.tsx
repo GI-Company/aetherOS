@@ -58,11 +58,11 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user?.emailVerified) return null;
     return query(collection(firestore, 'messages'), orderBy('timestamp', 'asc'));
-  }, [firestore]);
+  }, [firestore, user?.emailVerified]);
 
-  const { data: serverMessages, isLoading } = useCollection<ChatMessage>(messagesQuery);
+  const { data: serverMessages, isLoading, error } = useCollection<ChatMessage>(messagesQuery);
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
   
   const presenceRef = useMemoFirebase(() => {
@@ -71,6 +71,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   }, [firestore, user?.uid, user?.isAnonymous]);
 
   const messages = React.useMemo(() => {
+    if (!user?.emailVerified) return [];
     const combined = [...(serverMessages || []), ...optimisticMessages];
     const uniqueMessages = Array.from(new Map(combined.map(m => [m.id, m])).values());
     return uniqueMessages.sort((a, b) => {
@@ -78,7 +79,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
         if (!b.timestamp) return -1;
         return a.timestamp.toMillis() - b.timestamp.toMillis();
     });
-  }, [serverMessages, optimisticMessages]);
+  }, [serverMessages, optimisticMessages, user?.emailVerified]);
 
   useEffect(() => {
     // Auto-scroll to bottom
@@ -223,6 +224,72 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const handleSelectUser = (userId: string) => {
     openPeopleAppWithUser(userId);
   }
+  
+  const renderMessageArea = () => {
+    if (isLoading && messages.length === 0 && user?.emailVerified) {
+      return (
+        <div className="flex justify-center items-center h-full">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+    
+    if (error) {
+        return (
+            <div className="flex flex-col justify-center items-center h-full text-muted-foreground p-4 text-center">
+                <ShieldCheck className="h-10 w-10 mb-4 text-destructive"/>
+                <p className="font-semibold text-foreground">Chat Locked</p>
+                <p className="text-sm">Please verify your email address to view and send messages.</p>
+            </div>
+        );
+    }
+
+    if (messages.length > 0) {
+      return (
+        <div className="space-y-6">
+          {messages.map((msg) => {
+            const isCurrentUser = msg.senderId === user?.uid;
+            return (
+              <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser && "justify-end")}>
+                {!isCurrentUser && (
+                  <button onClick={() => openPeopleAppWithUser(msg.senderId)} className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={msg.senderPhotoURL} />
+                      <AvatarFallback>{getInitials(msg.senderName)}</AvatarFallback>
+                    </Avatar>
+                  </button>
+                )}
+                <div className={cn(
+                  "p-3 rounded-lg max-w-xs md:max-w-md",
+                  isCurrentUser ? "bg-primary text-primary-foreground" : "bg-muted"
+                )}>
+                  {!isCurrentUser && <p className="text-xs font-semibold mb-1 text-foreground">{msg.senderName}</p>}
+                  <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                  <p className={cn("text-xs mt-1 opacity-70", isCurrentUser ? "text-right" : "text-left")}>
+                    {msg.timestamp ? format(msg.timestamp.toDate(), 'p') : 'sending...'}
+                  </p>
+                </div>
+                {isCurrentUser && (
+                  <button onClick={() => openPeopleAppWithUser(msg.senderId)} className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
+                    <Avatar className="h-8 w-8 flex-shrink-0">
+                      <AvatarImage src={user?.photoURL || ''} />
+                      <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
+                    </Avatar>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex justify-center items-center h-full text-muted-foreground">
+        <p>No messages yet. Be the first to say something!</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full bg-background flex-row">
@@ -233,51 +300,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
         </div>
         
         <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
-          {isLoading && messages.length === 0 ? (
-            <div className="flex justify-center items-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : messages && messages.length > 0 ? (
-            <div className="space-y-6">
-              {messages.map((msg) => {
-                  const isCurrentUser = msg.senderId === user?.uid;
-                  return (
-                      <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser && "justify-end")}>
-                          {!isCurrentUser && (
-                            <button onClick={() => openPeopleAppWithUser(msg.senderId)} className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
-                              <Avatar className="h-8 w-8">
-                                  <AvatarImage src={msg.senderPhotoURL} />
-                                  <AvatarFallback>{getInitials(msg.senderName)}</AvatarFallback>
-                              </Avatar>
-                            </button>
-                          )}
-                          <div className={cn(
-                              "p-3 rounded-lg max-w-xs md:max-w-md",
-                              isCurrentUser ? "bg-primary text-primary-foreground" : "bg-muted"
-                          )}>
-                              {!isCurrentUser && <p className="text-xs font-semibold mb-1 text-foreground">{msg.senderName}</p>}
-                              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                              <p className={cn("text-xs mt-1 opacity-70", isCurrentUser ? "text-right" : "text-left")}>
-                                  {msg.timestamp ? format(msg.timestamp.toDate(), 'p') : 'sending...'}
-                              </p>
-                          </div>
-                          {isCurrentUser && (
-                            <button onClick={() => openPeopleAppWithUser(msg.senderId)} className="flex-shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
-                              <Avatar className="h-8 w-8 flex-shrink-0">
-                                  <AvatarImage src={user?.photoURL || ''} />
-                                  <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
-                              </Avatar>
-                             </button>
-                          )}
-                      </div>
-                  )
-              })}
-            </div>
-          ) : (
-            <div className="flex justify-center items-center h-full text-muted-foreground">
-              <p>No messages yet. Be the first to say something!</p>
-            </div>
-          )}
+          {renderMessageArea()}
         </ScrollArea>
 
         {renderInputArea()}

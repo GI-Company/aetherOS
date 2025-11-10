@@ -39,7 +39,7 @@ import { setDocumentNonBlocking } from '@/firebase';
 
 
 interface SettingsAppProps {
-  onOpenApp?: (app: App) => void;
+  onOpenApp?: (app: App, props?: Record<string, any>) => void;
   defaultTab?: string;
 }
 
@@ -482,7 +482,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
             <p className="text-sm text-muted-foreground mb-4">
               View plans, check your current tier, and manage billing details.
             </p>
-            <Button onClick={openBillingApp}>Open Billing App</Button>
+            <Button onClick={() => onOpenApp && onOpenApp(APPS.find(app => app.id === 'billing')!)}>Open Billing App</Button>
           </div>
         </TabsContent>
          <TabsContent value="security" className="mt-6">
@@ -497,5 +497,3 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
     </div>
   );
 }
-
-    

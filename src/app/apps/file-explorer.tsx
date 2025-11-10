@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import Dropzone from "@/components/aether-os/dropzone";
 import CodePreview from "@/components/aether-os/code-preview";
+import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 
 
 const useStorageFiles = (currentPath: string) => {
@@ -334,8 +335,10 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsSearching(true);
     setCreatingItemType(null);
     try {
+      const availableFilePaths = allFiles.map(file => file.path);
+      const { results } = await semanticFileSearch({ query, availableFiles: availableFilePaths });
       const searchResults = allFiles.filter(file => 
-        file.name.toLowerCase().includes(query.toLowerCase())
+        results.some(result => result.path === file.path)
       );
       
       setDisplayedFiles(searchResults);
@@ -370,9 +373,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   
   const handleDoubleClick = (file: FileItem) => {
     if (file.type === 'folder') {
-        setCurrentPath(file.path);
-        setSearchQuery(''); 
-        setCreatingItemType(null);
+        navigateToPath(file.path);
     } else if (file.type === 'file' && onOpenFile) {
       onOpenFile(file.path);
     }

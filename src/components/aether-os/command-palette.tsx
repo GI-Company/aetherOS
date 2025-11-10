@@ -136,10 +136,11 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
 
       if (toolCalls.length > 0) {
         for (const toolCall of toolCalls) {
+            const output = toolCall.output;
             // Special handling for search to keep palette open
-            if (toolCall.toolName === 'searchFiles' && (toolCall.output as any).results.length > 0) {
+            if (toolCall.toolName === 'searchFiles' && (output as any)?.results?.length > 0) {
                  shouldClose = false;
-                 setFileSearchResults((toolCall.output as any).results);
+                 setFileSearchResults((output as any).results);
             } else {
                  executeTool(toolCall.toolName, toolCall.input);
             }

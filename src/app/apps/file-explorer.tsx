@@ -335,11 +335,26 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsSearching(true);
     setCreatingItemType(null);
     try {
-      const availableFilePaths = allFiles.map(file => file.path);
+      const storage = getStorage();
+      const rootRef = ref(storage, basePath);
+      const allPathsResult = await listAll(rootRef);
+      // This is a simplified approach. A real app might have a backend service to get all file paths.
+      const availableFilePaths = [
+          ...allPathsResult.items.map(item => item.fullPath),
+          ...allPathsResult.prefixes.map(prefix => prefix.fullPath)
+      ];
+
       const { results } = await semanticFileSearch({ query, availableFiles: availableFilePaths });
-      const searchResults = allFiles.filter(file => 
-        results.some(result => result.path === file.path)
-      );
+      
+      const searchResultPromises = results.map(async (result) => {
+          if (result.type === 'folder') {
+              return { name: result.path.split('/').pop()!, type: 'folder', path: result.path, size: 0, modified: new Date() };
+          }
+          const metadata = await getMetadata(ref(storage, result.path));
+          return { name: metadata.name, type: 'file', path: metadata.fullPath, size: metadata.size, modified: new Date(metadata.updated) };
+      });
+
+      const searchResults = (await Promise.all(searchResultPromises)) as FileItem[];
       
       setDisplayedFiles(searchResults);
       
@@ -354,15 +369,15 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     } finally {
         setIsSearching(false);
     }
-  }, [allFiles, toast]);
+  }, [basePath, toast]);
 
 
   useEffect(() => {
-     if (initialSearchQuery && allFiles.length > 0) {
+     if (initialSearchQuery) {
         handleSearch(initialSearchQuery);
      }
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSearchQuery, allFiles]);
+  }, [initialSearchQuery]);
 
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -550,13 +565,13 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             <RefreshCw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
         </Button>
         <div className="flex-grow overflow-hidden min-w-0">
-             <Breadcrumbs currentPath={currentPath} basePath={basePath} onNavigate={navigateToPath} />
+             <Breadcrumbs currentPath={searchQuery ? 'Search Results' : currentPath} basePath={basePath} onNavigate={navigateToPath} />
         </div>
         <div className="flex items-center gap-2">
             <form onSubmit={handleSearchSubmit} className="relative w-48">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                placeholder="Search folder..." 
+                placeholder="Semantic search..." 
                 className="pl-9 h-9 bg-background/50"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -636,5 +651,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
-
-    

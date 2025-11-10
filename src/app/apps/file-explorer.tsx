@@ -450,9 +450,12 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         const fileRef = ref(storage, item.path);
         await deleteObject(fileRef);
       } else if (item.type === 'folder') {
+        // Recursively delete folder contents
         const listRef = ref(storage, item.path);
         const res = await listAll(listRef);
+        // Delete all files in the folder
         await Promise.all(res.items.map(itemRef => deleteObject(itemRef)));
+        // Recursively delete all subfolders
         await Promise.all(res.prefixes.map(folderRef => deleteItem({
           name: folderRef.name,
           path: folderRef.fullPath,
@@ -460,6 +463,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
           size: 0,
           modified: new Date(),
         })));
+         // After deleting contents, try to delete the .placeholder file if it exists,
+         // which is used to represent the folder itself in some cases.
         const placeholderRef = ref(storage, `${item.path}/.placeholder`);
         try {
           await deleteObject(placeholderRef);
@@ -631,3 +636,4 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
+

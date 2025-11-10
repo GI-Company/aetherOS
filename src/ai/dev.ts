@@ -10,3 +10,4 @@ import '@/ai/flows/ai-code-generation.ts';
 import '@/ai/flows/generate-accent-color.ts';
 import '@/ai/flows/agenticToolUser.ts';
 import '@/ai/flows/generate-image.ts';
+import '@/ai/flows/generate-app-workflow.ts';

@@ -17,10 +17,16 @@ const GenerateAppWorkflowInputSchema = z
 
 export type GenerateAppWorkflowInput = z.infer<typeof GenerateAppWorkflowInputSchema>;
 
+
+const StepSchema = z.object({
+  stepName: z.string(),
+  toolId: z.string().describe('The ID of the tool to execute for this step.'),
+  inputs: z.record(z.any()).optional().describe('An object containing the inputs for the tool.'),
+});
+
 const GenerateAppWorkflowOutputSchema = z.object({
-  workflowDefinition: z
-    .string()
-    .describe('The generated workflow definition in a suitable format (e.g., JSON, YAML).'),
+   name: z.string().describe('A descriptive name for the workflow.'),
+   steps: z.array(StepSchema),
 });
 
 export type GenerateAppWorkflowOutput = z.infer<typeof GenerateAppWorkflowOutputSchema>;
@@ -33,11 +39,15 @@ const generateAppWorkflowPrompt = ai.definePrompt({
   name: 'generateAppWorkflowPrompt',
   input: {schema: GenerateAppWorkflowInputSchema},
   output: {schema: GenerateAppWorkflowOutputSchema},
-  prompt: `You are an AI workflow generator.  Given a natural language description of a complex process, generate a workflow definition that can be used to automate the process.
+  prompt: `You are an AI workflow generator. Given a natural language description of a complex process, generate a workflow definition that can be used to automate the process.
+  
+  The workflow should be a series of steps, where each step invokes a specific tool.
+  You must infer the correct 'toolId' and the 'inputs' for each step based on the description.
 
 Description: {{{$input}}}
 
-Workflow Definition:`,
+Return a JSON object that conforms to the specified output schema.
+`,
 });
 
 const generateAppWorkflowFlow = ai.defineFlow(

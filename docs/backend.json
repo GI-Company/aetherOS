@@ -206,6 +206,39 @@
         }
       },
       "required": ["status", "lastSeen"]
+    },
+    "appWorkflow": {
+      "title": "Application Workflow",
+      "description": "Defines a series of steps to be executed by the OS.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the workflow."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stepName": {
+                "type": "string"
+              },
+              "toolId": {
+                "type": "string",
+                "description": "The ID of the tool to execute for this step."
+              },
+              "inputs": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": true
+              }
+            },
+            "required": ["stepName", "toolId"]
+          }
+        }
+      },
+      "required": ["name", "steps"]
     }
   },
   "auth": {

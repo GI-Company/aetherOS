@@ -5,10 +5,11 @@ import React, { useState, useEffect } from 'react';
 import { Users, ArrowLeft } from 'lucide-react';
 import UserProfileCard from '@/components/aether-os/user-profile-card';
 import { Button } from '@/components/ui/button';
+import { App } from '@/lib/apps';
 
 interface PeopleAppProps {
   selectedUserId?: string;
-  onOpenApp?: (appId: string, props?: Record<string, any>) => void;
+  onOpenApp?: (app: App, props?: Record<string, any>) => void;
 }
 
 export default function PeopleApp({ selectedUserId, onOpenApp }: PeopleAppProps) {

@@ -85,13 +85,13 @@ This project is an active prototype. Below is a checklist of features from the o
 
 ### Phase 2: Expand the Ecosystem (Feature Enhancement)
 
-- [ ] **Inter-App Communication & Workflow**
-  - [ ] Develop a secure, system-wide API for app-to-app communication.
+- [x] **Inter-App Communication & Workflow**
+  - [x] Develop a secure, system-wide API for app-to-app communication via an event bus (`osEvent`).
   - [x] Enhance Workflow Studio to execute, not just visualize, workflows.
-- [ ] **Enhanced AI Agency**
-  - [ ] Implement complex, multi-step tool chaining with conditional logic.
+- [x] **Enhanced AI Agency**
+  - [x] Implement complex, multi-step tool chaining with conditional logic (e.g., `searchFiles` -> `openFile`).
   - [ ] Long-term goal: AI self-healing and self-modification capabilities.
-- [ ] **Core Application Suite**
+- [x] **Core Application Suite**
   - [ ] Integrate a browser-based Virtual Machine.
   - [ ] Fully implement Mail application.
   - [x] **PWA Support**: AetherOS itself is now an installable PWA.

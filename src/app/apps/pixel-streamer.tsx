@@ -11,7 +11,7 @@ import { generateImage } from "@/ai/flows/generate-image";
 import { useToast } from "@/hooks/use-toast";
 import { Layers, Loader2, Wand2, Save } from "lucide-react";
 import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
-import { ref, uploadString, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes } from "firebase/storage";
 import { osEvent } from "@/lib/events";
 
 export default function PixelStreamerApp() {
@@ -83,7 +83,7 @@ export default function PixelStreamerApp() {
             title: "Image Saved!",
             description: `${fileName} has been saved to your File Explorer.`
           });
-          osEvent.emit('file-system-change', undefined);
+          osEvent.emit('file-system-change');
         })
         .catch((serverError) => {
           const permissionError = new FirestorePermissionError({

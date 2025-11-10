@@ -294,7 +294,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       },
       () => {
         toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
-        osEvent.emit('file-system-change', undefined);
+        osEvent.emit('file-system-change');
         setIsUploading(false);
       }
     );
@@ -314,7 +314,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
           
           toast({ title: 'Success', description: `Successfully created ${creatingItemType} "${name}".` });
           
-          osEvent.emit('file-system-change', undefined);
+          osEvent.emit('file-system-change');
 
           if (isFile && onOpenFile) {
             onOpenFile(`${currentPath}/${name}`, '');
@@ -367,7 +367,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     deleteItem(itemToDelete)
       .then(() => {
         toast({ title: 'Item Deleted', description: `"${itemToDelete.name}" was successfully deleted.` });
-        osEvent.emit('file-system-change', undefined);
+        osEvent.emit('file-system-change');
       })
       .catch((err: any) => {
         console.error("Deletion failed:", err);

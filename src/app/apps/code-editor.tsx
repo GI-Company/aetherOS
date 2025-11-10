@@ -142,7 +142,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
           description: `${filePath} has been saved successfully.`,
         });
         setIsDirty(false);
-        osEvent.emit('file-system-change', undefined);
+        osEvent.emit('file-system-change');
       })
       .catch((serverError) => {
         const permissionError = new FirestorePermissionError({

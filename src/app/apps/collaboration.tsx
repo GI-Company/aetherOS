@@ -134,7 +134,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewMessage(e.target.value);
-    if (!presenceRef) return;
+    if (!presenceRef || user?.isAnonymous) return;
 
     setDocumentNonBlocking(presenceRef, { isTyping: true }, { merge: true });
 
@@ -152,11 +152,11 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
         if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
         }
-        if (presenceRef) {
+        if (presenceRef && !user?.isAnonymous) {
             setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
         }
     }
-  }, [presenceRef]);
+  }, [presenceRef, user]);
 
   const openSettingsToAccountTab = () => {
     const settingsApp = APPS.find(app => app.id === 'settings');
@@ -187,8 +187,18 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
 
     if (user && user.isAnonymous) {
       return (
-         <div className="text-center p-4 border-t bg-card text-muted-foreground text-sm">
-            <p>You are in trial mode. Chat is enabled.</p>
+         <div className="flex-shrink-0 p-4 border-t bg-card">
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+            <Input
+                value={newMessage}
+                onChange={handleTyping}
+                placeholder="Type a message..."
+                disabled={isLoading}
+            />
+            <Button type="submit" disabled={!newMessage.trim() || isLoading}>
+                <Send className="h-4 w-4" />
+            </Button>
+            </form>
         </div>
       )
     }

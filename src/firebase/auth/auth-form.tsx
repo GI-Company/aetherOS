@@ -12,7 +12,6 @@ import { Separator } from '@/components/ui/separator';
 import { User } from 'lucide-react';
 import { setDocumentNonBlocking } from '@/firebase';
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { TIERS } from '@/lib/tiers';
@@ -47,59 +46,12 @@ interface AuthFormProps {
   onUpgradeSuccess?: () => void;
 }
 
-const TierSelectionDialog = ({ open, onOpenChange, onSelectTier, selectedTier, setSelectedTier }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelectTier: () => void;
-  selectedTier: string;
-  setSelectedTier: (tierId: string) => void;
-}) => (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Choose Your Plan</DialogTitle>
-        <DialogDescription>Select a plan to get started. You can change this later in the billing settings.</DialogDescription>
-      </DialogHeader>
-      <RadioGroup value={selectedTier} onValueChange={setSelectedTier} className="grid gap-4 py-4">
-        {TIERS.filter(t => t.id !== 'free-trial').map(tier => (
-          <Label htmlFor={tier.id} key={tier.id} className={cn(
-            "flex flex-col items-start gap-2 rounded-lg border p-4 cursor-pointer transition-all",
-            "hover:bg-accent/50",
-            selectedTier === tier.id && "bg-accent/80 border-accent ring-2 ring-accent"
-          )}>
-            <div className="flex items-center w-full">
-              <RadioGroupItem value={tier.id} id={tier.id} />
-              <div className="ml-4 w-full">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-foreground">{tier.name}</span>
-                  <span className="font-bold text-lg text-foreground">{tier.price}</span>
-                </div>
-                <span className="text-sm text-muted-foreground">{tier.priceDescription}</span>
-              </div>
-            </div>
-            <ul className="mt-2 space-y-1 text-xs text-muted-foreground pl-6">
-              {tier.features.slice(0,2).map(feature => (
-                <li key={feature}>- {feature}</li>
-              ))}
-            </ul>
-          </Label>
-        ))}
-      </RadioGroup>
-      <DialogFooter>
-        <Button onClick={onSelectTier} disabled={!selectedTier}>Continue with Google</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-);
-
-
 export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgradeSuccess }: AuthFormProps) {
   const auth = getAuth();
   const firestore = getFirestore();
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   
-  const [isTierSelectionOpen, setIsTierSelectionOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState<string>('free');
 
   const provisionDefaultSubscription = async (user: FirebaseUser, tierId: string) => {
@@ -122,14 +74,11 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     });
   }
   
-  const startGoogleSignIn = async () => {
-    setIsTierSelectionOpen(false); // Close the dialog
+  const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       if (auth.currentUser?.isAnonymous) {
         await linkWithPopup(auth.currentUser, provider);
-        // The onAuthStateChanged listener will handle the user update.
-        // We can call the success callbacks here.
         if (onLinkSuccess) onLinkSuccess();
         if (onUpgradeSuccess) onUpgradeSuccess();
       } else {
@@ -145,22 +94,10 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
       });
     }
   }
-
-  const handleGoogleSignIn = async () => {
-    if (auth.currentUser?.isAnonymous) {
-      // For linking, we don't need to ask for a tier again.
-      // We can just proceed with the linking.
-      await startGoogleSignIn();
-    } else {
-      // For new sign-ups, show the tier selection
-      setIsTierSelectionOpen(true);
-    }
-  };
   
   const handleAnonymousSignIn = async () => {
     try {
       const { user } = await signInAnonymously(auth);
-      // Create the trial document immediately after anonymous sign-in
       const trialRef = doc(firestore, 'trialUsers', user.uid);
       setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
       
@@ -178,16 +115,10 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     }
   };
 
+  const isUpgrading = !!auth.currentUser?.isAnonymous;
 
   return (
     <>
-      <TierSelectionDialog
-        open={isTierSelectionOpen}
-        onOpenChange={setIsTierSelectionOpen}
-        onSelectTier={startGoogleSignIn}
-        selectedTier={selectedTier}
-        setSelectedTier={setSelectedTier}
-      />
       <div className="h-screen w-screen flex items-center justify-center font-body bg-background">
         {wallpaper && allowAnonymous && (
           <Image
@@ -206,12 +137,32 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
             {allowAnonymous && <CardDescription>The next generation of operating systems.</CardDescription>}
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            
+            {!isUpgrading && allowAnonymous && (
+                <div className="space-y-4">
+                    <Label>Choose your plan to get started:</Label>
+                    <RadioGroup value={selectedTier} onValueChange={setSelectedTier} className="grid grid-cols-2 gap-4">
+                        {TIERS.filter(t => t.id === 'free' || t.id === 'personal').map(tier => (
+                            <Label htmlFor={tier.id} key={tier.id} className={cn(
+                                "flex flex-col items-center justify-center rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground",
+                                selectedTier === tier.id && "border-accent"
+                            )}>
+                                <RadioGroupItem value={tier.id} id={tier.id} className="sr-only" />
+                                <span className="font-bold text-lg">{tier.name}</span>
+                                <span className="font-semibold text-foreground">{tier.price}</span>
+                                <span className="text-xs text-muted-foreground">{tier.priceDescription}</span>
+                            </Label>
+                        ))}
+                    </RadioGroup>
+                </div>
+            )}
+            
             <Button className="w-full" onClick={handleGoogleSignIn}>
               <GoogleIcon />
-              {auth.currentUser?.isAnonymous ? 'Upgrade with Google' : 'Sign in with Google'}
+              {isUpgrading ? 'Upgrade with Google' : 'Sign in with Google'}
             </Button>
 
-            {allowAnonymous && (
+            {allowAnonymous && !isUpgrading && (
               <>
                 <div className="relative">
                   <Separator />

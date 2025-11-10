@@ -53,7 +53,7 @@ const TypingIndicator = () => {
 
 
 export default function PeoplePanel({ showTitle = true, onSelectUser }: PeoplePanelProps) {
-    const { firestore } = useFirebase();
+    const { firestore, user } = useFirebase();
     const thirtyMinutesAgo = React.useMemo(() => new Date(Date.now() - 30 * 60 * 1000), []);
 
     const presenceQuery = useMemoFirebase(() => {

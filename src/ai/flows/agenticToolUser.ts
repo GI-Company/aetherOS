@@ -4,7 +4,6 @@
  * @fileOverview An agentic AI flow that can use tools to interact with the OS.
  */
 
-import { ai } from '@/ai/genkit';
 import { generateAppWorkflow, type GenerateAppWorkflowOutput } from './generate-app-workflow';
 
 // This is the main function that will be called from the UI.

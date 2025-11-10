@@ -8,8 +8,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import { APPS } from '@/lib/apps';
-import { GenerateAppWorkflowInputSchema, GenerateAppWorkflowOutputSchema, type GenerateAppWorkflowInput, type GenerateAppWorkflowOutput } from './schemas/workflow-schemas';
+import { GenerateAppWorkflowInputSchema, GenerateAppWorkflowOutputSchema, type GenerateAppWorkflowOutput } from './schemas/workflow-schemas';
 import { TOOLS } from '@/lib/tools';
 
 

@@ -17,9 +17,9 @@ import React, { useEffect, useState, useCallback } from "react";
 import { WindowInstance } from "./desktop";
 import { getStorage, ref, listAll } from "firebase/storage";
 import { useFirebase } from "@/firebase";
-import { FileItem as FileItemType } from "@/lib/types";
 import { TOOLS, type ToolExecutionContext } from "@/lib/tools";
-import { ai } from "@/ai/genkit";
+import { generateText } from "@/ai/flows/generate-text";
+
 
 type CommandPaletteProps = {
     open: boolean;
@@ -96,22 +96,16 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
 
             let toolInput = {...step.inputs};
             
-            // Simple result chaining (can be improved)
-            // Example: use `imageUrl` from a previous `generateImage` step
             if (toolInput.imageUrl === '{{result.imageUrl}}') toolInput.imageUrl = stepResult.imageUrl;
             if (toolInput.content === '{{result.code}}') toolInput.content = stepResult.code;
 
             stepResult = await tool.execute(toolContext, toolInput);
         }
+        setOpen(false); // Close palette after executing tools
       } else {
         // If no steps, it's a conversational response.
-         const response = await ai.generate({ prompt: searchValue });
-         setAgentResponse(response.text());
-      }
-      
-      // Close palette unless we have something to show the user here.
-      if (!agentResponse) {
-          setOpen(false);
+         const response = await generateText({prompt: searchValue });
+         setAgentResponse(response.text);
       }
 
     } catch (err: any) {
@@ -120,7 +114,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     } finally {
       setIsLoading(false);
     }
-  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile, setWallpaper, agentResponse]);
+  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile, setWallpaper]);
 
   useEffect(() => {
     if (!open) {

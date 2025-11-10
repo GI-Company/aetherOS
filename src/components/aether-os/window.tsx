@@ -134,7 +134,17 @@ export default function Window({
     },
     {
       from: () => [x.get(), y.get()],
-      bounds: bounds.current ? { left: 0, top: 0, right: bounds.current.clientWidth, bottom: bounds.current.clientHeight } : undefined,
+      bounds: (state) => {
+        if (!bounds.current) return {};
+        const currentWidth = width.get();
+        const currentHeight = height.get();
+        return {
+          left: 0,
+          top: 0,
+          right: bounds.current.clientWidth - currentWidth,
+          bottom: bounds.current.clientHeight - currentHeight,
+        }
+      },
       filterTaps: true,
       enabled: !isMinimized && !isMaximized,
       pointer: { capture: false },

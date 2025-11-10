@@ -5,23 +5,20 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Folder, File, Search, Loader2, RefreshCw, FilePlus, ChevronDown, MoreVertical, Trash2, Home, ChevronRight } from "lucide-react";
+import { Folder, File, Search, Loader2, RefreshCw, FilePlus, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
 import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { format } from "date-fns";
-import { formatBytes } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
 import { FileItem } from "@/lib/types";
-import Image from "next/image";
-import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import Dropzone from "@/components/aether-os/dropzone";
-import CodePreview from "@/components/aether-os/code-preview";
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
+import FileRow from "@/components/aether-os/file-row";
+import Breadcrumbs from "@/components/aether-os/breadcrumbs";
 
 
 const useStorageFiles = (currentPath: string) => {
@@ -101,86 +98,6 @@ interface FileExplorerAppProps {
   searchQuery?: string;
 }
 
-const FileRow = ({ file, onDoubleClick, onDelete }: { file: FileItem, onDoubleClick: (file: FileItem) => void, onDelete: (file: FileItem) => void }) => {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
-
-  const isImage = file.type === 'file' && /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-  const isCode = file.type === 'file' && /\.(ts|tsx|js|jsx|json|css|md)$/i.test(file.name);
-
-  useEffect(() => {
-    let isMounted = true;
-    const fetchUrl = async () => {
-      if (isImage) {
-        setIsLoadingUrl(true);
-        try {
-          const storage = getStorage();
-          const url = await getDownloadURL(ref(storage, file.path));
-          if (isMounted) {
-            setImageUrl(url);
-          }
-        } catch (error) {
-          console.error("Error fetching image URL for thumbnail:", error);
-          if (isMounted) {
-            setImageUrl(null);
-          }
-        } finally {
-          if (isMounted) {
-            setIsLoadingUrl(false);
-          }
-        }
-      }
-    };
-    fetchUrl();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [file.path, isImage]);
-  
-  const renderIcon = () => {
-    return <div className="w-10 h-10 rounded bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-        {file.type === 'folder' ? (
-             <Folder className="h-5 w-5 text-accent" />
-        ) : isImage ? (
-            isLoadingUrl ? <Skeleton className="h-full w-full" /> : imageUrl ? (
-             <Image src={imageUrl} alt={file.name} width={40} height={40} className="object-cover h-full w-full" />
-          ) : <File className="h-5 w-5 text-muted-foreground" />
-        ) : isCode ? (
-            <CodePreview filePath={file.path} />
-        ) : (
-            <File className="h-5 w-5 text-muted-foreground" />
-        )}
-    </div>
-  }
-
-  return (
-    <TableRow onDoubleClick={() => onDoubleClick(file)} className="cursor-pointer group">
-      <TableCell className="font-medium flex items-center gap-3">
-        {renderIcon()}
-        <span>{file.name}</span>
-      </TableCell>
-      <TableCell>{file.type === 'file' ? formatBytes(file.size) : '--'}</TableCell>
-      <TableCell className="hidden md:table-cell">{format(file.modified, "PPp")}</TableCell>
-      <TableCell className="text-right">
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-                <DropdownMenuItem onSelect={() => onDelete(file)} className="text-destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    <span>Delete</span>
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
-      </TableCell>
-    </TableRow>
-  )
-}
-
 const NewItemRow = ({
   type,
   onCancel,
@@ -247,50 +164,6 @@ const NewItemRow = ({
     </TableRow>
   );
 };
-
-const Breadcrumbs = ({
-  currentPath,
-  basePath,
-  onNavigate,
-}: {
-  currentPath: string;
-  basePath: string;
-  onNavigate: (path: string) => void;
-}) => {
-  const parts = useMemo(() => {
-    if (!currentPath.startsWith(basePath)) return [];
-    const relativePath = currentPath.substring(basePath.length);
-    return relativePath.split('/').filter(p => p);
-  }, [currentPath, basePath]);
-
-  return (
-    <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-shrink-0 min-w-0">
-      <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => onNavigate(basePath)}>
-        <Home className="h-4 w-4"/>
-      </Button>
-      <ChevronRight className="h-4 w-4 flex-shrink-0" />
-      {parts.map((part, index) => {
-        const path = `${basePath}/${parts.slice(0, index + 1).join('/')}`;
-        const isLast = index === parts.length - 1;
-        return (
-          <React.Fragment key={path}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onNavigate(path)}
-              className="h-7 px-2 text-sm truncate"
-              disabled={isLast}
-            >
-              {part}
-            </Button>
-            {!isLast && <ChevronRight className="h-4 w-4 flex-shrink-0" />}
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-};
-
 
 export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery }: FileExplorerAppProps) {
   const { user } = useFirebase();
@@ -369,7 +242,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     } finally {
         setIsSearching(false);
     }
-  }, [basePath, toast]);
+  }, [allFiles, basePath, toast]);
 
 
   useEffect(() => {

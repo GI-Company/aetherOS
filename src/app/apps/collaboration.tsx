@@ -12,6 +12,7 @@ import { Send, Loader2, UserPlus, MessagesSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { APPS, App } from '@/lib/apps';
+import PeoplePanel from '@/components/aether-os/people-panel';
 
 interface ChatMessage {
   id: string;
@@ -206,6 +207,9 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
         </ScrollArea>
 
         {renderInputArea()}
+      </div>
+      <div className="w-[240px] border-l flex-shrink-0">
+          <PeoplePanel />
       </div>
     </div>
   );

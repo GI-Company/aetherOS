@@ -61,7 +61,7 @@ export const APPS: App[] = [
     name: 'Collaboration',
     Icon: MessagesSquare,
     component: CollaborationApp,
-    defaultSize: { width: 500, height: 650 },
+    defaultSize: { width: 750, height: 650 },
   },
   {
     id: 'people',

@@ -140,7 +140,6 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       .catch((serverError) => {
         // The permission error is emitted globally, so we don't need a specific toast here
         // as the developer overlay will show the detailed error.
-        console.error("Save failed:", serverError);
         const permissionError = new FirestorePermissionError({
           path: fileRef.fullPath,
           operation: 'write', // Using 'write' for storage operations

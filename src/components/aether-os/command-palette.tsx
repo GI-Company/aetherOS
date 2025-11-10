@@ -65,18 +65,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     setAgentResponse(null);
 
     try {
-      const storage = getStorage();
-      const basePath = `users/${user.uid}`;
-      const listRef = ref(storage, basePath);
-      const res = await listAll(listRef);
-      const allFiles = res.items.map(item => item.fullPath);
-
-      const openAppNames = openApps.map(a => a.app.name);
-      
-      const workflow = await agenticToolUser(searchValue, {
-          openApps: openAppNames,
-          allFiles: allFiles,
-      });
+      const workflow = await agenticToolUser(searchValue);
 
       if (workflow.steps.length > 0) {
         let stepResult: any = {}; // Store results from steps to pass to the next
@@ -96,8 +85,13 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
 
             let toolInput = {...step.inputs};
             
-            if (toolInput.imageUrl === '{{result.imageUrl}}') toolInput.imageUrl = stepResult.imageUrl;
-            if (toolInput.content === '{{result.code}}') toolInput.content = stepResult.code;
+            // Basic result piping
+            if (toolInput.imageUrl === '{{result.imageUrl}}' && stepResult.imageUrl) {
+                 toolInput.imageUrl = stepResult.imageUrl;
+            }
+            if (toolInput.content === '{{result.code}}' && stepResult.code) {
+                 toolInput.content = stepResult.code;
+            }
 
             stepResult = await tool.execute(toolContext, toolInput);
         }
@@ -114,7 +108,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     } finally {
       setIsLoading(false);
     }
-  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile, setWallpaper]);
+  }, [searchValue, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile, setWallpaper]);
 
   useEffect(() => {
     if (!open) {

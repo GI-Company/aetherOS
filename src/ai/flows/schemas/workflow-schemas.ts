@@ -13,7 +13,6 @@ export type GenerateAppWorkflowInput = z.infer<typeof GenerateAppWorkflowInputSc
 
 
 const StepSchema = z.object({
-  stepName: z.string(),
   toolId: z.string().describe('The ID of the tool to execute for this step.'),
   inputs: z.record(z.any()).optional().describe('An object containing the inputs for the tool.'),
 });

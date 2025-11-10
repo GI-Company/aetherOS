@@ -10,10 +10,6 @@ import { generateAppWorkflow, type GenerateAppWorkflowOutput } from './generate-
 // It acts as a wrapper around the Genkit flow.
 export async function agenticToolUser(
   input: string,
-  context: {
-    openApps: string[],
-    allFiles: string[],
-  }
 ): Promise<GenerateAppWorkflowOutput> {
     // 1. First, always generate a workflow plan based on the user's request.
     const workflow = await generateAppWorkflow(input);

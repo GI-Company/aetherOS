@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { aiCodeGeneration } from "@/ai/flows/ai-code-generation";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
-import { Wand2, Sparkles, Loader2, Save } from "lucide-react";
+import { Wand2, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { useFirebase, useStorage, errorEmitter } from "@/firebase";
@@ -199,7 +199,7 @@ setCode(newCode);
           <h4 className="font-medium">Intelligent Refactoring</h4>
           <p className="text-sm text-muted-foreground">Let the AI analyze and improve the code currently in the editor based on the project's roadmap and style guides.</p>
           <Button onClick={handleRefactorCode} variant="secondary" disabled={!!isLoading} className="w-full">
-            {isLoading === 'refactor' ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            {isLoading === 'refactor' ? <Loader2 className="animate-spin" /> : <Wand2 />}
             Refactor Current Code
           </Button>
         </div>

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An agentic AI flow that can use tools to interact with the OS.
@@ -127,7 +128,7 @@ const agenticToolUserPrompt = ai.definePrompt({
 - If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you MUST use the 'openApp' tool with the 'file-explorer' appId and pass the user's query in the props, like this: { appId: 'file-explorer', props: { searchQuery: 'user query' } }. Do NOT use the searchFiles tool directly.
 - If the user asks to open a specific file, use the 'openFile' tool. You must determine the exact file path from the context of available files.
 - If a user asks to find AND open a file, you should first use the 'openApp' tool to search for it in the 'file-explorer'. Then, separately, if confident, call 'openFile' with the exact path.
-- If the user asks for a new wallpaper or background, you should first call 'generateImage' with a creative prompt based on their request. Then, take the 'imageUrl' from the output of 'generateImage' and use it to call 'setWallpaper'.
+- **Tool Chaining**: If a user asks for a new wallpaper or background (e.g., "I want a new background of a futuristic city"), you MUST chain tools together. First, call 'generateImage' with a creative prompt based on their request. Then, take the 'imageUrl' from the output of 'generateImage' and use it to call 'setWallpaper'.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
 - For any other query, do not use a tool and instead provide a helpful text response.`,

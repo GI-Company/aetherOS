@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useFirebase, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -45,7 +45,18 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     return query(collection(firestore, 'messages'), orderBy('timestamp', 'asc'));
   }, [firestore]);
 
-  const { data: messages, isLoading } = useCollection<ChatMessage>(messagesQuery);
+  const { data: serverMessages, isLoading } = useCollection<ChatMessage>(messagesQuery);
+  const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
+
+  const messages = React.useMemo(() => {
+    const combined = [...(serverMessages || []), ...optimisticMessages];
+    const uniqueMessages = Array.from(new Map(combined.map(m => [m.id, m])).values());
+    return uniqueMessages.sort((a, b) => {
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        return a.timestamp.toMillis() - b.timestamp.toMillis();
+    });
+  }, [serverMessages, optimisticMessages]);
 
   useEffect(() => {
     // Auto-scroll to bottom
@@ -57,11 +68,23 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     }
   }, [messages]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !user || !firestore || user.isAnonymous) {
       return;
     }
+
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: optimisticId,
+      text: newMessage,
+      timestamp: null, // Indicate optimistic state
+      senderId: user.uid,
+      senderName: user.displayName || 'Unnamed User',
+      senderPhotoURL: user.photoURL || '',
+    };
+    
+    setOptimisticMessages(prev => [...prev, optimisticMessage]);
 
     const messagePayload = {
       text: newMessage,
@@ -72,10 +95,16 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     };
     
     const messagesCollectionRef = collection(firestore, 'messages');
-    addDocumentNonBlocking(messagesCollectionRef, messagePayload);
+    addDocumentNonBlocking(messagesCollectionRef, messagePayload).then(docRef => {
+        // Once the message is saved, we can remove the optimistic one.
+        // The real one will come in via the `useCollection` hook.
+        if (docRef) {
+            setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticId));
+        }
+    });
 
     setNewMessage('');
-  };
+  }, [newMessage, user, firestore]);
 
   const openSettingsToAccountTab = () => {
     const settingsApp = APPS.find(app => app.id === 'settings');
@@ -124,7 +153,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
         </div>
         
         <ScrollArea className="flex-grow p-4" ref={scrollAreaRef}>
-          {isLoading ? (
+          {isLoading && messages.length === 0 ? (
             <div className="flex justify-center items-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>

@@ -9,10 +9,12 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { Wand2, Sparkles, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { useFirebase, useStorage, errorEmitter } from "@/firebase";
 import { osEvent } from "@/lib/events";
 import type Editor from "@monaco-editor/react";
-import { ref, uploadString } from 'firebase/storage';
+import { ref, uploadString, getStorage, uploadBytes } from 'firebase/storage';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
 
@@ -99,7 +101,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       `;
       const result = await aiCodeGeneration({ description: refactorPrompt });
       const newCode = cleanCode(result.code);
-      setCode(newCode);
+setCode(newCode);
       toast({ title: "Refactoring Complete", description: `The code in ${filePath} has been updated based on the project's architectural goals.` });
     } catch (e) {
       console.error(e);

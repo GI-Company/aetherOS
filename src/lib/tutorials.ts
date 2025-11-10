@@ -1,5 +1,5 @@
 
-import { LucideIcon, Save, Search, Wand2, Folder } from "lucide-react";
+import { LucideIcon, Save, Search, Wand2, Folder, Command } from "lucide-react";
 
 export type TutorialStep = {
     title: string;
@@ -22,7 +22,8 @@ export const TUTORIALS: Record<string, Tutorial> = {
             },
             {
                 title: "The Command Palette",
-                description: "Press Cmd/Ctrl + K to open the Command Palette. This is your primary way to interact with the OS. Try asking it to 'open the code editor' or 'I need an image of a cat'."
+                description: "Press Cmd/Ctrl + K to open the Command Palette. This is your primary way to interact with the OS. Try asking it to 'open the code editor' or 'I need an image of a cat'.",
+                icon: Command,
             },
             {
                 title: "The Dock",

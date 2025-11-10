@@ -16,10 +16,12 @@ const generateAppWorkflowPrompt = ai.definePrompt({
   name: 'generateAppWorkflowPrompt',
   input: {schema: GenerateAppWorkflowInputSchema},
   output: {schema: GenerateAppWorkflowOutputSchema},
-  prompt: `You are an AI workflow generator. Given a natural language description of a complex process, generate a workflow definition that can be used to automate the process.
+  prompt: `You are an AI workflow generator for AetherOS. Your job is to decompose a user's request into a structured series of steps.
   
-  The workflow should be a series of steps, where each step invokes a specific tool.
-  You must infer the correct 'toolId' and the 'inputs' for each step based on the description.
+  - If the request can be handled by a single tool, return a workflow with one step.
+  - If the request requires multiple tools, return a workflow with all the necessary steps in the correct order.
+  - If the user's request is conversational and does not require a tool (e.g., "hello", "who are you?"), return a workflow with an empty "steps" array.
+  - You must infer the correct 'toolId' and the 'inputs' for each step based on the description.
 
   Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `\'\'\'${app.id}\'\'\'`).join(', ')}.
 

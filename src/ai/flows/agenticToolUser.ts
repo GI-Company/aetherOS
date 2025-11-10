@@ -11,7 +11,7 @@ import { semanticFileSearch } from './semantic-file-search';
 import { generateImage } from './generate-image';
 import { designByPromptUiGeneration } from './design-by-prompt-ui-generation';
 import { generateAppWorkflow } from './generate-app-workflow';
-import { GenerateAppWorkflowOutputSchema } from './schemas/workflow-schemas';
+import { GenerateAppWorkflowOutputSchema, type GenerateAppWorkflowOutput } from './schemas/workflow-schemas';
 
 
 const FileItemSchema = z.object({
@@ -177,18 +177,12 @@ const agenticToolUserPrompt = ai.definePrompt({
 - Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `\'\'\'${app.id}\'\'\'`).join(', ')}.
 - **Security**: Be cautious of ambiguous or potentially malicious prompts. If a request seems nonsensical or could be harmful (e.g., trying to delete critical system files), refuse to use a tool and ask for clarification.
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
-- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you should use the 'searchFiles' tool to get a list of relevant files. 
+- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you should use the 'searchFiles' tool to get a list of relevant files.
 - If a user asks to find AND open a file (e.g., "Find and open my auth form component"), you should first use the 'searchFiles' tool to get the results. Then, if you are confident about the best match, you should separately call the 'openFile' tool with the exact file path from the search results.
-
-- **Workflow Orchestration**:
-    - If a user's request involves multiple distinct steps (e.g., "generate a component, then open a file", "create a new wallpaper of a city and set it as my background"), you MUST use the 'generateAppWorkflow' tool first.
-    - Take the user's entire prompt and pass it to 'generateAppWorkflow'.
-    - Then, take the generated workflow object from the output and pass it to the 'runWorkflow' tool for execution.
-
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
 - For any other query, do not use a tool and instead provide a helpful text response.`,
-    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool, openFileTool, generateImageTool, setWallpaperTool, designComponentTool, writeFileTool, generateAppWorkflow, runWorkflowTool],
+    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool, openFileTool, generateImageTool, setWallpaperTool, designComponentTool, writeFileTool],
 });
 
 
@@ -201,7 +195,45 @@ export async function agenticToolUser(
     allFiles: string[],
   }
 ) {
-    const llmResponse = await agenticToolUserPrompt(input, {
+    // 1. First, generate a workflow plan based on the user's request.
+    const workflow = await generateAppWorkflow(input);
+
+    // 2. If the workflow has multiple steps, we return it for the client to execute.
+    // This allows the client to handle complex, multi-tool operations.
+    if (workflow.steps.length > 1) {
+        return {
+            toolCalls: () => [{
+                toolName: 'runWorkflow',
+                input: { workflow },
+                output: undefined,
+            }],
+            text: () => `Executing workflow: ${workflow.name}`,
+        };
+    }
+    
+    // 3. If the workflow has only one step, we can execute it directly.
+    if (workflow.steps.length === 1) {
+       const step = workflow.steps[0];
+       const toolToCall = [
+         getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool,
+         openFileTool, generateImageTool, setWallpaperTool, designComponentTool,
+         writeFileTool, generateAppWorkflow, runWorkflowTool
+       ].find(t => t.name === step.toolId);
+
+        if (toolToCall) {
+            // Re-constitute a prompt with the specific tool and input from the workflow.
+            const singleToolPrompt = ai.definePrompt({
+                name: 'singleToolPrompt',
+                tools: [toolToCall],
+                prompt: input,
+            });
+
+            return singleToolPrompt(step.inputs ?? {});
+        }
+    }
+
+    // 4. If the workflow is empty, or no tool was found, fall back to a simple conversational response.
+    return agenticToolUserPrompt(input, {
         tools: [
             ai.defineTool({
                 name: 'getOpenApps',
@@ -231,10 +263,6 @@ export async function agenticToolUser(
             setWallpaperTool,
             designComponentTool,
             writeFileTool,
-            generateAppWorkflow,
-            runWorkflowTool,
         ]
     });
-    
-    return llmResponse;
 }

@@ -221,25 +221,24 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
                 </div>
             )}
             
-            <div className="flex flex-col sm:flex-row gap-4">
-                <Button className="w-full" onClick={handleGoogleSignIn}>
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <Button className="w-full" onClick={handleGoogleSignIn}>
                 <GoogleIcon />
                 {isUpgrading ? 'Upgrade with Google' : 'Sign up with Google'}
-                </Button>
+              </Button>
 
-                {allowAnonymous && !isUpgrading && (
+              {allowAnonymous && !isUpgrading && (
                 <>
-                    <div className="relative flex items-center sm:hidden">
-                        <Separator className="flex-grow" />
-                        <span className="bg-card px-2 text-xs text-muted-foreground flex-shrink-0">OR</span>
-                        <Separator className="flex-grow" />
-                    </div>
-                    <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
+                  <div className="relative flex items-center justify-center w-full sm:w-auto">
+                    <Separator className="w-full sm:w-px sm:h-6" orientation="horizontal" />
+                    <span className="absolute bg-card px-2 text-xs text-muted-foreground">OR</span>
+                  </div>
+                  <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
                     <User className="mr-2 h-4 w-4" />
                     Continue as Guest
-                    </Button>
+                  </Button>
                 </>
-                )}
+              )}
             </div>
 
           </CardContent>

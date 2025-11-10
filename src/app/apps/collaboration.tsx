@@ -58,9 +58,9 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const messagesQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.emailVerified) return null;
+    if (!firestore) return null;
     return query(collection(firestore, 'messages'), orderBy('timestamp', 'asc'));
-  }, [firestore, user?.emailVerified]);
+  }, [firestore]);
 
   const { data: serverMessages, isLoading, error } = useCollection<ChatMessage>(messagesQuery);
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
@@ -71,7 +71,6 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   }, [firestore, user?.uid, user?.isAnonymous]);
 
   const messages = React.useMemo(() => {
-    if (!user?.emailVerified) return [];
     const combined = [...(serverMessages || []), ...optimisticMessages];
     const uniqueMessages = Array.from(new Map(combined.map(m => [m.id, m])).values());
     return uniqueMessages.sort((a, b) => {
@@ -79,7 +78,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
         if (!b.timestamp) return -1;
         return a.timestamp.toMillis() - b.timestamp.toMillis();
     });
-  }, [serverMessages, optimisticMessages, user?.emailVerified]);
+  }, [serverMessages, optimisticMessages]);
 
   useEffect(() => {
     // Auto-scroll to bottom
@@ -93,7 +92,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
 
   const handleSendMessage = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !firestore || user.isAnonymous || !user.emailVerified) {
+    if (!newMessage.trim() || !user || !firestore) {
       return;
     }
 
@@ -103,7 +102,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
       text: newMessage,
       timestamp: null, // Indicate optimistic state
       senderId: user.uid,
-      senderName: user.displayName || 'Unnamed User',
+      senderName: user.displayName || 'Guest User',
       senderPhotoURL: user.photoURL || '',
     };
     
@@ -113,7 +112,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
       text: newMessage,
       timestamp: serverTimestamp(),
       senderId: user.uid,
-      senderName: user.displayName || 'Unnamed User',
+      senderName: user.displayName || 'Guest User',
       senderPhotoURL: user.photoURL || '',
     };
     
@@ -183,19 +182,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   }
 
   const renderInputArea = () => {
-    if (user?.isAnonymous) {
-      return (
-        <div className="text-center p-4 border-t bg-card text-muted-foreground text-sm">
-          <p className="mb-2">You are in trial mode. Please upgrade to a full account to send messages.</p>
-          <Button variant="secondary" onClick={openSettingsToAccountTab}>
-            <UserPlus className="mr-2 h-4 w-4"/>
-            Upgrade Account
-          </Button>
-        </div>
-      )
-    }
-
-    if (user && !user.emailVerified) {
+    if (user && !user.isAnonymous && !user.emailVerified) {
          return (
             <div className="text-center p-4 border-t bg-card text-muted-foreground text-sm">
             <p className="mb-2">Please verify your email address to participate in the chat.</p>
@@ -229,7 +216,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   }
   
   const renderMessageArea = () => {
-    if (isLoading && messages.length === 0 && user?.emailVerified) {
+    if (isLoading && messages.length === 0) {
       return (
         <div className="flex justify-center items-center h-full">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -242,7 +229,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
             <div className="flex flex-col justify-center items-center h-full text-muted-foreground p-4 text-center">
                 <ShieldCheck className="h-10 w-10 mb-4 text-destructive"/>
                 <p className="font-semibold text-foreground">Chat Locked</p>
-                <p className="text-sm">Please verify your email address to view and send messages.</p>
+                <p className="text-sm">An error occurred while loading messages. You may not have permission to view this chat.</p>
             </div>
         );
     }
@@ -314,5 +301,3 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     </div>
   );
 }
-
-    

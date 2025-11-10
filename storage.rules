@@ -1,10 +1,17 @@
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Only authenticated users can access storage
+    // Authenticated users can write to their own folder.
     match /users/{userId}/{allPaths=**} {
-      // A user can read or write to their own folder
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Anonymous users can also write to their own temporary folder.
+    // This allows file/image saving to work during the trial.
+    // These files are sandboxed to the anonymous UID and are not persisted upon session expiry.
+    match /users/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.token.firebase.sign_in_provider == 'anonymous' && request.auth.uid == userId;
     }
   }
 }

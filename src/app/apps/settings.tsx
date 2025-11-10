@@ -420,7 +420,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
             <div className="space-y-4">
                <h3 className="text-lg font-medium">AI Theme Generation</h3>
                 <p className="text-sm text-muted-foreground">
-                    Describe a theme and let the AI generate it. This is disabled in trial mode.
+                    Describe a theme and let the AI generate it.
                 </p>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -430,11 +430,11 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
                     placeholder="e.g., 'A dark, modern theme with high contrast for coding', 'A light, airy theme for writing'..."
                     value={themePrompt}
                     onChange={e => setThemePrompt(e.target.value)}
-                    disabled={!!isLoading || user?.isAnonymous}
+                    disabled={!!isLoading}
                   />
                   <Button
                     onClick={handleGenerateTheme}
-                    disabled={!!isLoading || user?.isAnonymous}
+                    disabled={!!isLoading}
                     className="w-full sm:w-auto"
                   >
                     {isLoading === 'theme' ? (
@@ -452,11 +452,11 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
                     placeholder="e.g., 'A vibrant electric blue', 'A calming, soft lavender'..."
                     value={accentPrompt}
                     onChange={e => setAccentPrompt(e.target.value)}
-                    disabled={!!isLoading || user?.isAnonymous}
+                    disabled={!!isLoading}
                   />
                   <Button
                     onClick={handleGenerateAccent}
-                    disabled={!!isLoading || user?.isAnonymous}
+                    disabled={!!isLoading}
                     className="w-full sm:w-auto"
                   >
                     {isLoading === 'accent' ? (
@@ -496,5 +496,3 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
     </div>
   );
 }
-
-    

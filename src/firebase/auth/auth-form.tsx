@@ -11,7 +11,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
 import { User, CheckCircle2 } from 'lucide-react';
 import { setDocumentNonBlocking } from '@/firebase';
-import React, { useState } from 'react';
+import React from 'react';
 import { TIERS, Tier } from '@/lib/tiers';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -47,7 +47,7 @@ interface AuthFormProps {
 
 export const TierCard = ({ tier, isSelected, onSelect, currentTierId }: { tier: Tier, isSelected: boolean, onSelect: (id: Tier['id']) => void, currentTierId?: Tier['id'] }) => {
   const isCurrent = currentTierId === tier.id;
-  const showSelect = !isCurrent;
+  const showSelect = !isCurrent && tier.id !== 'enterprise';
 
   const handleClick = () => {
     if (showSelect) {
@@ -55,13 +55,26 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId }: { tier: 
     }
   }
 
+  const getButtonVariant = () => {
+    if (isCurrent || tier.id === 'enterprise' || !showSelect) return 'outline';
+    return isSelected ? 'default' : 'secondary';
+  }
+  
+  const getButtonText = () => {
+      if(isCurrent) return "Your Current Plan";
+      if(tier.id === 'enterprise') return 'Contact Sales';
+      if(isSelected) return 'Selected Plan';
+      return tier.cta;
+  }
+
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all flex flex-col",
-        isSelected && !isCurrent ? "border-accent ring-2 ring-accent" : "hover:border-muted-foreground/50",
-        isCurrent && "border-accent ring-2 ring-accent",
-        tier.id === 'enterprise' && 'bg-card/50 border-dashed'
+        "transition-all flex flex-col",
+        isCurrent ? "border-accent ring-2 ring-accent" : "hover:border-muted-foreground/50",
+        isSelected && !isCurrent && "border-accent ring-2 ring-accent",
+        tier.id === 'enterprise' && 'bg-card/50 border-dashed',
+        showSelect && "cursor-pointer"
       )}
       onClick={handleClick}
     >
@@ -83,17 +96,9 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId }: { tier: 
         </ul>
       </CardContent>
       <CardFooter className="flex-col items-stretch gap-2 !pt-4">
-        {tier.id === 'enterprise' ? (
-          <Button variant="outline" disabled>Contact Sales</Button>
-        ) : isCurrent ? (
-           <Button variant={'outline'} disabled className="w-full">
-            Your Current Plan
-          </Button>
-        ) : (
-          <Button variant={isSelected ? "default" : "secondary"} className="w-full">
-            {isSelected ? "Selected Plan" : tier.cta}
-          </Button>
-        )}
+        <Button variant={getButtonVariant()} className="w-full" disabled={isCurrent || tier.id === 'enterprise'}>
+          {getButtonText()}
+        </Button>
       </CardFooter>
     </Card>
   );
@@ -106,22 +111,22 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   
-  const [selectedTier, setSelectedTier] = useState<Tier['id']>('free');
-
-  const provisionDefaultSubscription = async (user: FirebaseUser, tierId: string) => {
+  const provisionDefaultSubscription = async (user: FirebaseUser, tierId: Tier['id']) => {
     const subscriptionRef = doc(firestore, 'subscriptions', user.uid);
     const subscriptionSnap = await getDoc(subscriptionRef);
     if (!subscriptionSnap.exists()) {
       setDocumentNonBlocking(subscriptionRef, {
         tier: tierId,
-        status: 'active',
+        status: tierId === 'free-trial' ? 'trialing' : 'active',
         startedAt: serverTimestamp(),
       });
     }
   };
 
-  const handleAuthSuccess = (user: FirebaseUser, tierId: string) => {
-    provisionDefaultSubscription(user, tierId as Tier['id']);
+  const handleAuthSuccess = (user: FirebaseUser, isNewUser: boolean) => {
+    if (isNewUser) {
+        provisionDefaultSubscription(user, 'free');
+    }
     toast({
       title: 'Authentication Successful',
       description: 'Welcome to AetherOS.',
@@ -132,14 +137,25 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     const provider = new GoogleAuthProvider();
     try {
       if (auth.currentUser?.isAnonymous) {
-        await linkWithPopup(auth.currentUser, provider);
-        // On upgrade, they keep their 'free-trial' status until it expires, or we could change it.
-        // For now, we won't change the tier on upgrade, only on new sign-up.
+        // This is an account upgrade
+        const result = await linkWithPopup(auth.currentUser, provider);
+        const user = result.user;
+
+        // Persist the trial subscription as a permanent free one
+        const subscriptionRef = doc(firestore, 'subscriptions', user.uid);
+        setDocumentNonBlocking(subscriptionRef, {
+            tier: 'free',
+            status: 'active',
+        }, { merge: true });
+
         if (onLinkSuccess) onLinkSuccess();
         if (onUpgradeSuccess) onUpgradeSuccess();
       } else {
+        // This is a fresh sign-up or sign-in
         const result = await signInWithPopup(auth, provider);
-        handleAuthSuccess(result.user, selectedTier);
+        const userDocRef = doc(firestore, 'users', result.user.uid);
+        const userDoc = await getDoc(userDocRef);
+        handleAuthSuccess(result.user, !userDoc.exists());
       }
     } catch (error: any) {
       console.error(error);
@@ -188,43 +204,20 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
             priority
           />
         )}
-        <Card className="w-full max-w-4xl z-10 bg-card/80 backdrop-blur-xl border-white/20">
+        <Card className="w-full max-w-lg z-10 bg-card/80 backdrop-blur-xl border-white/20">
           <CardHeader className="text-center">
             <CardTitle className="text-3xl font-headline">{isUpgrading ? 'Upgrade Your Account' : 'Welcome to AetherOS'}</CardTitle>
              {isUpgrading ? (
-              <CardDescription>Create a permanent account to save your work and unlock all features.</CardDescription>
+              <CardDescription>Link a Google account to save your work and unlock all features.</CardDescription>
             ) : (
-               allowAnonymous && <CardDescription>Choose your plan to get started, or continue as a guest.</CardDescription>
+               allowAnonymous && <CardDescription>Sign up with Google or continue as a guest.</CardDescription>
             )}
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
-            
-            {!isUpgrading && allowAnonymous && (
-                <div className="space-y-4">
-                    <ScrollArea className="max-h-[420px] w-full">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-1">
-                           {TIERS.filter(t => t.id !== 'free-trial' && t.id !== 'enterprise').map(tier => (
-                                <TierCard
-                                    key={tier.id}
-                                    tier={tier}
-                                    isSelected={selectedTier === tier.id}
-                                    onSelect={setSelectedTier}
-                                />
-                           ))}
-                            <TierCard
-                                tier={TIERS.find(t => t.id === 'enterprise')!}
-                                isSelected={false}
-                                onSelect={() => {}} // Contact sales is a different flow
-                            />
-                        </div>
-                    </ScrollArea>
-                </div>
-            )}
-            
             <div className="flex flex-col sm:flex-row items-center gap-4">
               <Button className="w-full" onClick={handleGoogleSignIn}>
                 <GoogleIcon />
-                {isUpgrading ? 'Upgrade with Google' : 'Sign up with Google'}
+                {isUpgrading ? 'Link Google Account' : 'Continue with Google'}
               </Button>
 
               {allowAnonymous && !isUpgrading && (
@@ -235,7 +228,7 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
                   </div>
                   <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
                     <User className="mr-2 h-4 w-4" />
-                    Continue as Guest
+                    Start 15-Min Trial
                   </Button>
                 </>
               )}

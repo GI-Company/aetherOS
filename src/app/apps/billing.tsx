@@ -12,7 +12,7 @@ import { useState } from 'react';
 
 export default function BillingApp() {
     const { user, firestore } = useFirebase();
-    const [selectedTier, setSelectedTier] = useState<string>('');
+    const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
 
 
     const subscriptionRef = useMemoFirebase(() => {
@@ -24,6 +24,14 @@ export default function BillingApp() {
     
     // In a real app, this would be updated by a backend webhook from a payment processor
     const currentTierId = (subscription as any)?.tier || (user?.isAnonymous ? 'free-trial' : 'free');
+
+    const handleSelectTier = (tierId: string) => {
+        const selected = TIERS.find(t => t.id === tierId);
+        if (!selected || selected.id === 'enterprise' || selected.id === currentTierId) {
+            return;
+        }
+        setSelectedTierId(tierId);
+    }
 
   return (
     <div className="p-4 md:p-8 h-full bg-background overflow-y-auto">
@@ -40,8 +48,8 @@ export default function BillingApp() {
                     <TierCard
                         key={tier.id}
                         tier={tier}
-                        isSelected={currentTierId === tier.id || selectedTier === tier.id}
-                        onSelect={() => setSelectedTier(tier.id)}
+                        isSelected={selectedTierId === tier.id}
+                        onSelect={() => handleSelectTier(tier.id)}
                         currentTierId={currentTierId}
                     />
                 ))}

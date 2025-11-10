@@ -33,7 +33,7 @@ export const TIERS: Tier[] = [
         'Standard AI models',
         'Community support',
       ],
-      cta: 'Upgrade to Personal',
+      cta: 'Upgrade',
     },
     {
       id: 'business',
@@ -46,7 +46,7 @@ export const TIERS: Tier[] = [
         'Team collaboration features',
         'Priority email support',
       ],
-      cta: 'Upgrade to Business',
+      cta: 'Upgrade',
     },
      {
       id: 'business-plus',
@@ -59,7 +59,7 @@ export const TIERS: Tier[] = [
         'Increased API rate limits',
         'Early access to new features',
       ],
-      cta: 'Upgrade to Business Plus',
+      cta: 'Upgrade',
     },
       {
       id: 'enterprise',

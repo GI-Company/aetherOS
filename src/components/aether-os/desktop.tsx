@@ -524,7 +524,7 @@ export default function Desktop() {
                 onFocus={() => focusApp(window.id)}
                 onMinimize={() => toggleMinimize(window.id)}
                 onMaximize={() => toggleMaximize(window.id)}
-                updatePosition={updateAppPosition}
+                updatePosition={updatePosition}
                 updateSize={updateAppSize}
                 isFocused={focusedAppId === window.id}
                 bounds={desktopRef}

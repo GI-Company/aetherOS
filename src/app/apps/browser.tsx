@@ -53,6 +53,7 @@ export default function BrowserApp() {
   }, [currentUrl, pageCache, toast]);
 
   const navigateTo = (url: string) => {
+    // If we are navigating from a point in history, truncate the future history
     const newHistory = history.slice(0, currentUrlIndex + 1);
     newHistory.push(url);
     setHistory(newHistory);

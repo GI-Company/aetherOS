@@ -98,6 +98,23 @@
           "type": "string",
           "format": "uri",
           "description": "The URL of the user's custom desktop wallpaper."
+        },
+        "tutorials": {
+          "type": "object",
+          "description": "Stores user preferences for tutorials.",
+          "properties": {
+            "hideWelcomeTutorial": {
+              "type": "boolean",
+              "description": "If true, the initial welcome tutorial will not be shown."
+            },
+            "hiddenAppTutorials": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "A list of app IDs for which the tutorial has been permanently hidden."
+            }
+          }
         }
       }
     },

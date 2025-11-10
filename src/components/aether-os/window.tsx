@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader } from "../ui/card";
 import { X, Minus, Square } from "lucide-react";
 import type { WindowInstance } from "./desktop";
 import { cn } from "@/lib/utils";
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useSpring, animated } from "@react-spring/web";
 import { useDrag } from "@use-gesture/react";
+import TutorialDialog from "./tutorial-dialog";
+import { TUTORIALS } from "@/lib/tutorials";
 
 type WindowProps = {
   instance: WindowInstance;
@@ -21,6 +23,8 @@ type WindowProps = {
   bounds: React.RefObject<HTMLElement>;
   dockRef: React.RefObject<HTMLElement>;
   children: React.ReactNode;
+  userPreferences: any;
+  onHideTutorial: (appId: string) => void;
 };
 
 export default function Window({
@@ -34,12 +38,26 @@ export default function Window({
   isFocused,
   bounds,
   dockRef,
-  children
+  children,
+  userPreferences,
+  onHideTutorial,
 }: WindowProps) {
   const { id, app, position, size, zIndex, isMinimized, isMaximized } = instance;
   const headerRef = useRef<HTMLDivElement>(null);
   const MIN_WIDTH = 300;
   const MIN_HEIGHT = 200;
+
+  const appTutorial = TUTORIALS[app.id];
+  const isAppTutorialHidden = userPreferences?.tutorials?.hiddenAppTutorials?.includes(app.id);
+  const [showAppTutorial, setShowAppTutorial] = useState(false);
+
+  useEffect(() => {
+      // Show tutorial if it exists and hasn't been hidden
+      if (appTutorial && !isAppTutorialHidden) {
+          setShowAppTutorial(true);
+      }
+  }, [app.id, appTutorial, isAppTutorialHidden]);
+
 
   const getDockPosition = () => {
     if (dockRef.current) {
@@ -126,6 +144,14 @@ export default function Window({
       }
     }
   );
+  
+  const handleFinishAppTutorial = (dontShowAgain: boolean) => {
+    setShowAppTutorial(false);
+    if (dontShowAgain) {
+        onHideTutorial(app.id);
+    }
+  };
+
 
   return (
     <animated.div
@@ -175,7 +201,18 @@ export default function Window({
           </div>
         </CardHeader>
         <CardContent className="p-0 flex-grow relative">
-          {children}
+            {showAppTutorial && appTutorial && (
+                 <div className="absolute inset-0 z-50">
+                    <TutorialDialog
+                        tutorial={appTutorial}
+                        onFinish={handleFinishAppTutorial}
+                        onSkip={() => setShowAppTutorial(false)}
+                    />
+                </div>
+            )}
+          <div className={cn("w-full h-full", showAppTutorial && "blur-sm")}>
+            {children}
+          </div>
            {!isMaximized && (
              <div 
                data-resize="true"

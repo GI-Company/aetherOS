@@ -15,11 +15,13 @@ import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking 
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2, PartyPopper } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
-import { doc, serverTimestamp } from "firebase/firestore";
+import { doc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
 import { getAuth, signOut } from "firebase/auth";
+import TutorialDialog from "./tutorial-dialog";
+import { TUTORIALS } from "@/lib/tutorials";
 
 export type WindowInstance = {
   id: number;
@@ -65,6 +67,8 @@ export default function Desktop() {
   const desktopRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
+
+  const [showWelcomeTutorial, setShowWelcomeTutorial] = useState(false);
   
   // Presence logic
   useEffect(() => {
@@ -94,6 +98,10 @@ export default function Desktop() {
   useEffect(() => {
     if (user && !user.isAnonymous && userPreferences) {
       applyTheme(userPreferences as any, false);
+      if (!(userPreferences as any).tutorials?.hideWelcomeTutorial) {
+        // Use a timeout to let the desktop load before showing the tutorial
+        setTimeout(() => setShowWelcomeTutorial(true), 500);
+      }
     }
   }, [user, userPreferences, applyTheme]);
   
@@ -431,6 +439,24 @@ export default function Desktop() {
     }
   }
 
+  const handleFinishWelcomeTutorial = (dontShowAgain: boolean) => {
+    setShowWelcomeTutorial(false);
+    if (dontShowAgain && userPreferencesRef) {
+        setDocumentNonBlocking(userPreferencesRef, {
+            tutorials: { hideWelcomeTutorial: true }
+        }, { merge: true });
+    }
+  };
+
+  const handleHideAppTutorial = useCallback((appId: string) => {
+    if (userPreferencesRef) {
+        setDocumentNonBlocking(userPreferencesRef, {
+            tutorials: { hiddenAppTutorials: arrayUnion(appId) }
+        }, { merge: true });
+    }
+  }, [userPreferencesRef]);
+
+
   if (isUserLoading || (user && !user.isAnonymous && (isPreferencesLoading || isWorkspaceLoading))) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
@@ -458,6 +484,15 @@ export default function Desktop() {
       )}
       <div className="relative z-10 flex-grow w-full flex flex-col" ref={desktopRef}>
         <TopBar onUpgrade={() => setUpgradeDialogOpen(true)} />
+
+        {showWelcomeTutorial && TUTORIALS.welcome && (
+            <TutorialDialog
+                tutorial={TUTORIALS.welcome}
+                onFinish={handleFinishWelcomeTutorial}
+                onSkip={() => setShowWelcomeTutorial(false)}
+            />
+        )}
+
         <div className="flex-grow relative" >
           {openApps.map((window) => {
             const AppComponent = window.app.component;
@@ -483,6 +518,8 @@ export default function Desktop() {
                 isFocused={focusedAppId === window.id}
                 bounds={desktopRef}
                 dockRef={dockRef}
+                userPreferences={userPreferences}
+                onHideTutorial={handleHideAppTutorial}
               >
                  <AppComponent {...componentProps} />
               </Window>

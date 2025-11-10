@@ -125,9 +125,8 @@ const agenticToolUserPrompt = ai.definePrompt({
     system: `You are an AI assistant for AetherOS. Your goal is to help the user by using the available tools.
 - Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `"${app.id}"`).join(', ')}.
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
-- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you MUST use the 'openApp' tool with the 'file-explorer' appId and pass the user's query in the props, like this: { appId: 'file-explorer', props: { searchQuery: 'user query' } }. Do NOT use the searchFiles tool directly.
-- If the user asks to open a specific file, use the 'openFile' tool. You must determine the exact file path from the context of available files.
-- If a user asks to find AND open a file, you should first use the 'openApp' tool to search for it in the 'file-explorer'. Then, separately, if confident, call 'openFile' with the exact path.
+- If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you should use the 'searchFiles' tool to get a list of relevant files. 
+- If a user asks to find AND open a file (e.g., "Find and open my auth form component"), you should first use the 'searchFiles' tool to get the results. Then, if you are confident about the best match, you should separately call the 'openFile' tool with the exact file path from the search results.
 - **Tool Chaining**: If a user asks for a new wallpaper or background (e.g., "I want a new background of a futuristic city"), you MUST chain tools together. First, call 'generateImage' with a creative prompt based on their request. Then, take the 'imageUrl' from the output of 'generateImage' and use it to call 'setWallpaper'.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.

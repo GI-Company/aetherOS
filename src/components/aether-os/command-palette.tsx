@@ -17,7 +17,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { WindowInstance } from "./desktop";
 import { getStorage, ref, listAll } from "firebase/storage";
 import { useFirebase } from "@/firebase";
-import { FileItem } from "@/lib/types";
+import { FileItem as FileItemType } from "@/lib/types";
 
 type CommandPaletteProps = {
     open: boolean;
@@ -33,7 +33,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
   const settingsApp = APPS.find(app => app.id === 'settings');
   const [searchValue, setSearchValue] = useState("");
   const [agentResponse, setAgentResponse] = useState<string | null>(null);
-  const [fileSearchResults, setFileSearchResults] = useState<FileItem[]>([]);
+  const [fileSearchResults, setFileSearchResults] = useState<FileItemType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useFirebase();
 
@@ -210,7 +210,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                     <Layout className="mr-2 h-4 w-4" />
                     <span>Arrange windows for coding</span>
                 </CommandItem>
-                 <CommandItem onSelect={() => {setSearchValue("find my auth form component"); handleSubmit(new Event('submit') as any);}}>
+                 <CommandItem onSelect={() => {setSearchValue("find my auth form component and open it"); handleSubmit(new Event('submit') as any);}}>
                   <File className="mr-2 h-4 w-4" />
                   <span>Find and open a file...</span>
                 </CommandItem>

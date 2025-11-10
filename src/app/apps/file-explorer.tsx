@@ -180,7 +180,17 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   const [currentPath, setCurrentPath] = useState(basePath);
   
   const { allFiles, isLoading, refresh } = useStorageFiles(currentPath);
-  const [displayedFiles, setDisplayedFiles] = useState<FileItem[]>([]);
+  const [optimisticFiles, setOptimisticFiles] = useState<FileItem[]>([]);
+  
+  const displayedFiles = useMemo(() => {
+    const combined = [...allFiles, ...optimisticFiles];
+    const unique = Array.from(new Map(combined.map(f => [f.path, f])).values());
+     return unique.sort((a, b) => {
+        if (a.type === 'folder' && b.type === 'file') return -1;
+        if (a.type === 'file' && b.type === 'folder') return 1;
+        return a.name.localeCompare(b.name);
+    });
+  }, [allFiles, optimisticFiles]);
   
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
   const [isSearching, setIsSearching] = useState(false);
@@ -205,18 +215,18 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query) {
-      setDisplayedFiles(allFiles); // Reset to all files if search is cleared
+      setOptimisticFiles([]); // Clear optimistic files on search
+      refresh();
       return;
     }
     setIsSearching(true);
+    setOptimisticFiles([]);
     try {
-      // In a deep file structure, we'd need to recursively list all files,
-      // but for this prototype, we'll search the current directory.
       const allFilePaths = allFiles.map(f => f.path);
       const result = await semanticFileSearch({ query: query, availableFiles: allFilePaths });
       
       const searchResultFiles = allFiles.filter(f => result.results.some(r => r.path === f.path));
-      setDisplayedFiles(searchResultFiles);
+       setOptimisticFiles(searchResultFiles.map(f => ({ ...f, path: f.path + '-search' }))); // temporary hack for display
       
       toast({
           title: "Search Complete",
@@ -229,21 +239,20 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     } finally {
         setIsSearching(false);
     }
-  }, [allFiles, toast]);
+  }, [allFiles, toast, refresh]);
 
 
   useEffect(() => {
-    // If an initial search query is passed, run the search.
-    if (initialSearchQuery) {
-        setSearchQuery(initialSearchQuery);
-        if (allFiles.length > 0) {
-            handleSearch(initialSearchQuery);
-        }
-    } else {
-        // By default, display all files from storage.
-        setDisplayedFiles(allFiles);
+    if (!initialSearchQuery) {
+        setOptimisticFiles([]);
     }
-  }, [allFiles, initialSearchQuery, handleSearch]);
+  }, [allFiles, initialSearchQuery]);
+  
+  useEffect(() => {
+     if (initialSearchQuery && allFiles.length > 0) {
+        handleSearch(initialSearchQuery);
+     }
+  }, [initialSearchQuery, allFiles, handleSearch]);
 
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -255,6 +264,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     if (file.type === 'folder') {
         setCurrentPath(file.path);
         setSearchQuery(''); // Clear search when navigating
+        setOptimisticFiles([]);
     } else if (file.type === 'file' && onOpenFile) {
       onOpenFile(file.path);
     }
@@ -289,30 +299,44 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       if (!trimmedName) return;
 
       let fullPath: string;
-      let successMessage: string;
+      let optimisticItem: FileItem;
       const isFile = isCreating === 'file';
 
       if (isFile) {
           fullPath = `${currentPath}/${trimmedName}`;
-          successMessage = `File "${trimmedName}" was created.`;
+          optimisticItem = {
+              name: trimmedName,
+              type: 'file',
+              path: fullPath,
+              size: 0,
+              modified: new Date(),
+          };
       } else { // isCreating === 'folder'
-          // Create a placeholder file to represent the folder
           fullPath = `${currentPath}/${trimmedName}/.placeholder`;
-          successMessage = `Folder "${trimmedName}" was created.`;
+          optimisticItem = {
+              name: trimmedName,
+              type: 'folder',
+              path: `${currentPath}/${trimmedName}`,
+              size: 0,
+              modified: new Date(),
+          };
       }
+      
+      setOptimisticFiles(prev => [...prev, optimisticItem]);
+      setNewName('');
+      setIsCreating(null);
 
       try {
           const storage = getStorage();
           const itemRef = ref(storage, fullPath);
           await uploadString(itemRef, '');
           
-          toast({ title: 'Success', description: successMessage });
+          toast({ title: 'Success', description: `Successfully created ${isCreating} "${trimmedName}".` });
           
-          setNewName('');
-          setIsCreating(null);
           osEvent.emit('file-system-change', undefined);
+          setOptimisticFiles(prev => prev.filter(f => f.path !== optimisticItem.path));
 
-          // If a file was created and onOpenFile is available, open it.
+
           if (isFile && onOpenFile) {
             onOpenFile(`${currentPath}/${trimmedName}`, '');
           }
@@ -320,6 +344,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       } catch (err: any) {
           console.error(`Error creating ${isCreating}:`, err);
           toast({ title: `Failed to create ${isCreating}`, description: err.message, variant: "destructive" });
+          setOptimisticFiles(prev => prev.filter(f => f.path !== optimisticItem.path));
       }
   }
 
@@ -370,6 +395,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
       setCurrentPath(parentPath);
       setSearchQuery(''); // Clear search when navigating
+      setOptimisticFiles([]);
   }
   
   const cancelCreation = () => {
@@ -436,7 +462,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={currentPath === basePath || isLoading}>
                 <ArrowUp className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={refresh} disabled={isLoading}>
+            <Button variant="ghost" size="icon" onClick={() => { setOptimisticFiles([]); refresh(); }} disabled={isLoading}>
                 <RefreshCw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
             </Button>
         </div>
@@ -490,7 +516,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isLoading && displayedFiles.length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={4} className="text-center p-8">
                         <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />

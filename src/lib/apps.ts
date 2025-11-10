@@ -1,4 +1,5 @@
-import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor, CreditCard, Image, MessagesSquare, ShieldCheck } from "lucide-react";
+
+import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Container, CreditCard, Image, MessagesSquare, ShieldCheck } from "lucide-react";
 import React from "react";
 import SettingsApp from "@/app/apps/settings";
 import FileExplorerApp from "@/app/apps/file-explorer";
@@ -94,7 +95,7 @@ export const APPS: App[] = [
   {
     id: 'virtual-machine',
     name: 'Virtual Machine',
-    Icon: Monitor,
+    Icon: Container,
     component: VirtualMachineApp,
     defaultSize: { width: 1024, height: 768 },
   },

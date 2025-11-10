@@ -114,6 +114,13 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     }
   }
 
+  const openPeopleApp = () => {
+      const peopleApp = APPS.find(app => app.id === 'people');
+      if (peopleApp && onOpenApp) {
+          onOpenApp(peopleApp);
+      }
+  }
+
   const renderInputArea = () => {
     if (user?.isAnonymous) {
       return (
@@ -164,10 +171,12 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
                   return (
                       <div key={msg.id} className={cn("flex items-start gap-3", isCurrentUser && "justify-end")}>
                           {!isCurrentUser && (
+                            <button onClick={openPeopleApp} className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background">
                               <Avatar className="h-8 w-8">
                                   <AvatarImage src={msg.senderPhotoURL} />
                                   <AvatarFallback>{getInitials(msg.senderName)}</AvatarFallback>
                               </Avatar>
+                            </button>
                           )}
                           <div className={cn(
                               "p-3 rounded-lg max-w-xs md:max-w-md",

@@ -180,13 +180,9 @@ const agenticToolUserPrompt = ai.definePrompt({
 - If a user asks to find AND open a file (e.g., "Find and open my auth form component"), you should first use the 'searchFiles' tool to get the results. Then, if you are confident about the best match, you should separately call the 'openFile' tool with the exact file path from the search results.
 
 - **Workflow Orchestration**:
-    - If a user's request involves multiple distinct steps (e.g., "generate a component, then open a file, then arrange windows"), you MUST use the 'generateAppWorkflow' tool first.
+    - If a user's request involves multiple distinct steps (e.g., "generate a component, then open a file", "create a new wallpaper of a city and set it as my background"), you MUST use the 'generateAppWorkflow' tool first.
     - Take the user's entire prompt and pass it to 'generateAppWorkflow'.
     - Then, take the generated workflow object from the output and pass it to the 'runWorkflow' tool for execution.
-
-- **Simple Tool Chaining (Legacy - Prefer Workflows)**:
-    - **Wallpaper**: If a user asks for a new wallpaper or background (e.g., "I want a new background of a futuristic city"), you MUST chain tools. First, call 'generateImage'. Then, take the 'imageUrl' from its output and use it to call 'setWallpaper'.
-    - **Design & Write Component**: If a user asks you to design or create a new component and save it to a file (e.g., "Design a login form and save it to components/login.tsx"), you MUST chain tools. First, call 'designComponent' with a detailed prompt. Then, take the 'code' from its output and use it to call 'writeFile' with the specified file path and the generated code. The file path must be a valid path within the user's workspace, such as 'src/app/components/my-new-component.tsx'.
 
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.

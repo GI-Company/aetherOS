@@ -154,7 +154,7 @@ export default function Window({
       },
       filterTaps: true,
       enabled: !isMinimized && !isMaximized,
-      pointer: { capture: false },
+      pointer: { touch: true },
       filter: ({ event }) => {
         const target = event.target as HTMLElement;
         return target.dataset.resize === 'true' || headerRef.current?.contains(target);
@@ -251,3 +251,5 @@ export default function Window({
     </animated.div>
   );
 }
+
+    

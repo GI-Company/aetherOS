@@ -367,7 +367,7 @@ export default function Desktop() {
     }));
   };
   
- const openFile = async (filePath: string) => {
+ const openFile = async (filePath: string, content?: string) => {
     const fileExtension = filePath.split('.').pop()?.toLowerCase();
     const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
@@ -378,27 +378,31 @@ export default function Desktop() {
       appToOpen = APPS.find(a => a.id === 'image-viewer');
     } else {
       appToOpen = APPS.find(a => a.id === 'code-editor');
-      try {
-        toast({
-            title: "Opening File...",
-            description: `Loading content for ${filePath}`,
-        });
-        const storage = getStorage();
-        const fileRef = ref(storage, filePath);
-        const downloadUrl = await getDownloadURL(fileRef);
-        
-        const response = await fetch(`${downloadUrl}?t=${new Date().getTime()}`);
-        if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
-        
-        props.initialContent = await response.text();
-      } catch (error: any) {
-        console.error("Failed to open file content:", error);
-        toast({
-            title: "Error Opening File",
-            description: error.message || `Could not load content for ${filePath}.`,
-            variant: "destructive"
-        });
-        return; // Don't open the app if content fails to load
+      if (typeof content === 'string') {
+        props.initialContent = content;
+      } else {
+        try {
+          toast({
+              title: "Opening File...",
+              description: `Loading content for ${filePath}`,
+          });
+          const storage = getStorage();
+          const fileRef = ref(storage, filePath);
+          const downloadUrl = await getDownloadURL(fileRef);
+          
+          const response = await fetch(`${downloadUrl}?t=${new Date().getTime()}`);
+          if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
+          
+          props.initialContent = await response.text();
+        } catch (error: any) {
+          console.error("Failed to open file content:", error);
+          toast({
+              title: "Error Opening File",
+              description: error.message || `Could not load content for ${filePath}.`,
+              variant: "destructive"
+          });
+          return; // Don't open the app if content fails to load
+        }
       }
     }
 

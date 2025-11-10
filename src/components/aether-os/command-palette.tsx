@@ -25,7 +25,7 @@ type CommandPaletteProps = {
     onOpenApp: (app: App, props?: Record<string, any>) => void;
     openApps: WindowInstance[];
     onArrangeWindows: () => void;
-    onOpenFile: (filePath: string) => void;
+    onOpenFile: (filePath: string, content?: string) => void;
     setWallpaper: (imageUrl: string) => void;
 }
 
@@ -125,6 +125,13 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                     setWallpaper(imageUrl);
                 }
                 break;
+            case 'writeFile':
+                const { filePath: writePath, content } = toolCall.input as any;
+                if (writePath && content) {
+                    // This action opens the file in the editor with the new content
+                    onOpenFile(writePath, content); 
+                }
+                break;
           }
         }
       }
@@ -206,7 +213,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                 </CommandGroup>
             ) : !searchValue ? (
                 <CommandGroup heading="Suggestions">
-                <CommandItem onSelect={() => {setSearchValue("Open the code editor and the browser, then arrange them side by side"); handleSubmit(new Event('submit') as any);}}>
+                <CommandItem onSelect={() => {setSearchValue("Arrange windows for coding"); handleSubmit(new Event('submit') as any);}}>
                     <Layout className="mr-2 h-4 w-4" />
                     <span>Arrange windows for coding</span>
                 </CommandItem>
@@ -214,9 +221,9 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                   <File className="mr-2 h-4 w-4" />
                   <span>Find and open a file...</span>
                 </CommandItem>
-                <CommandItem onSelect={() => {setSearchValue("What applications are running?"); handleSubmit(new Event('submit') as any);}}>
-                    <BrainCircuit className="mr-2 h-4 w-4" />
-                    <span>Ask about the OS state...</span>
+                 <CommandItem onSelect={() => {setSearchValue("Design a login form and save it to components/login-form.tsx"); handleSubmit(new Event('submit') as any);}}>
+                  <BrainCircuit className="mr-2 h-4 w-4" />
+                  <span>Design a component...</span>
                 </CommandItem>
                 <CommandItem onSelect={handleOpenSettings}>
                     <Settings className="mr-2 h-4 w-4" />

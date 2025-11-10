@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { APPS } from '@/lib/apps';
 import { semanticFileSearch } from './semantic-file-search';
 import { generateImage } from './generate-image';
+import { designByPromptUiGeneration } from './design-by-prompt-ui-generation';
 
 
 const FileItemSchema = z.object({
@@ -42,6 +43,15 @@ const GenerateImageInputSchema = z.object({
 
 const SetWallpaperInputSchema = z.object({
     imageUrl: z.string().describe('The URL of the image to set as the wallpaper.')
+});
+
+const DesignComponentInputSchema = z.object({
+    prompt: z.string().describe('A detailed description of the React component to generate. Include details about functionality, styling, and any desired libraries like shadcn/ui.'),
+});
+
+const WriteFileInputSchema = z.object({
+    filePath: z.string().describe('The destination path for the file to be written (e.g., "users/uid/components/new-component.tsx").'),
+    content: z.string().describe('The full code or text content to write into the file.'),
 });
 
 const getOpenAppsTool = ai.defineTool(
@@ -119,19 +129,45 @@ const setWallpaperTool = ai.defineTool(
     async () => {} // Placeholder, client implements
 );
 
+const designComponentTool = ai.defineTool(
+    {
+      name: 'designComponent',
+      description: 'Generates React component code from a text description.',
+      inputSchema: DesignComponentInputSchema,
+      outputSchema: z.object({ code: z.string() }),
+    },
+    async ({ prompt }) => {
+        const result = await designByPromptUiGeneration({ prompt });
+        const cleanedCode = result.uiElementCode.replace(/```.*\n/g, '').replace(/```/g, '').trim();
+        return { code: cleanedCode };
+    }
+);
+
+const writeFileTool = ai.defineTool(
+    {
+      name: 'writeFile',
+      description: 'Writes content to a specified file. This is useful for saving generated code into a new file.',
+      inputSchema: WriteFileInputSchema,
+      outputSchema: z.void(),
+    },
+    async () => {} // Placeholder, client implements
+);
+
 
 const agenticToolUserPrompt = ai.definePrompt({
     name: 'agenticToolUserPrompt',
     system: `You are an AI assistant for AetherOS. Your goal is to help the user by using the available tools.
-- Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `"${app.id}"`).join(', ')}.
+- Your knowledge of available applications is limited to the following app IDs: ${APPS.map(app => `\'\'\'${app.id}\'\'\'`).join(', ')}.
 - If the user asks to open an app, use the 'openApp' tool. You must infer the correct 'appId' from the user's prompt and the available app IDs. For example, if the user says "open the code editor", the appId is "code-editor".
 - If the user's query implies searching for a file (e.g., "find," "look for," "where is"), you should use the 'searchFiles' tool to get a list of relevant files. 
 - If a user asks to find AND open a file (e.g., "Find and open my auth form component"), you should first use the 'searchFiles' tool to get the results. Then, if you are confident about the best match, you should separately call the 'openFile' tool with the exact file path from the search results.
-- **Tool Chaining**: If a user asks for a new wallpaper or background (e.g., "I want a new background of a futuristic city"), you MUST chain tools together. First, call 'generateImage' with a creative prompt based on their request. Then, take the 'imageUrl' from the output of 'generateImage' and use it to call 'setWallpaper'.
+- **Tool Chaining**:
+    - **Wallpaper**: If a user asks for a new wallpaper or background (e.g., "I want a new background of a futuristic city"), you MUST chain tools. First, call 'generateImage'. Then, take the 'imageUrl' from its output and use it to call 'setWallpaper'.
+    - **Design & Write Component**: If a user asks you to design or create a new component and save it to a file (e.g., "Design a login form and save it to components/login.tsx"), you MUST chain tools. First, call 'designComponent' with a detailed prompt. Then, take the 'code' from its output and use it to call 'writeFile' with the specified file path and the generated code.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
 - For any other query, do not use a tool and instead provide a helpful text response.`,
-    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool, openFileTool, generateImageTool, setWallpaperTool],
+    tools: [getOpenAppsTool, openAppTool, arrangeWindowsTool, searchFilesTool, openFileTool, generateImageTool, setWallpaperTool, designComponentTool, writeFileTool],
 });
 
 
@@ -171,7 +207,9 @@ export async function agenticToolUser(
             arrangeWindowsTool,
             openFileTool,
             generateImageTool,
-            setWallpaperTool
+            setWallpaperTool,
+            designComponentTool,
+            writeFileTool,
         ]
     });
     

@@ -2,7 +2,7 @@
 'use client';
 
 import {Button} from '@/components/ui/button';
-import {Label} from '@/components/ui/label';
+import {Label}from '@/components/ui/label';
 import {Textarea} from '@/components/ui/textarea';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {generateAdaptivePalette} from '@/ai/flows/adaptive-color-palettes';
@@ -497,3 +497,5 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
     </div>
   );
 }
+
+    

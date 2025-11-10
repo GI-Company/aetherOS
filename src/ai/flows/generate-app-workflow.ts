@@ -9,7 +9,7 @@
 
 import {ai} from '@/ai/genkit';
 import { APPS } from '@/lib/apps';
-import { GenerateAppWorkflowInputSchema, GenerateAppWorkflowOutputSchema, type GenerateAppWorkflowInput } from './schemas/workflow-schemas';
+import { GenerateAppWorkflowInputSchema, GenerateAppWorkflowOutputSchema, type GenerateAppWorkflowInput, type GenerateAppWorkflowOutput } from './schemas/workflow-schemas';
 
 
 const generateAppWorkflowPrompt = ai.definePrompt({
@@ -33,6 +33,8 @@ Description: {{{$input}}}
 Return a JSON object that conforms to the specified output schema.
 `,
 });
+
+export { GenerateAppWorkflowOutput };
 
 export const generateAppWorkflow = ai.defineFlow(
   {

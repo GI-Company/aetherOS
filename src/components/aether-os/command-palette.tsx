@@ -18,6 +18,9 @@ import { WindowInstance } from "./desktop";
 import { getStorage, ref, listAll } from "firebase/storage";
 import { useFirebase } from "@/firebase";
 import { FileItem as FileItemType } from "@/lib/types";
+import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
+import { generateImage } from "@/ai/flows/generate-image";
+import { designByPromptUiGeneration } from "@/ai/flows/design-by-prompt-ui-generation";
 
 type CommandPaletteProps = {
     open: boolean;
@@ -63,48 +66,6 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
       onOpenFile(path);
       setOpen(false);
   }
-
-  const executeTool = (toolName: string, input: any) => {
-    switch (toolName) {
-        case 'openApp':
-            const appToOpen = APPS.find(a => a.id === input.appId);
-            if (appToOpen) {
-              onOpenApp(appToOpen, input.props);
-            }
-            break;
-        case 'arrangeWindows':
-            onArrangeWindows();
-            break;
-        case 'openFile':
-            if(input.filePath) {
-                onOpenFile(input.filePath);
-            }
-            break;
-        case 'searchFiles':
-            if(input.results && input.results.length > 0) {
-                setFileSearchResults(input.results);
-            }
-            break;
-         case 'setWallpaper':
-            if(input.imageUrl) {
-                setWallpaper(input.imageUrl);
-            }
-            break;
-        case 'writeFile':
-            if (input.filePath && input.content) {
-                onOpenFile(input.filePath, input.content); 
-            }
-            break;
-        case 'runWorkflow':
-            const workflow = input.workflow;
-            if (workflow && workflow.steps) {
-                workflow.steps.forEach((step: any) => {
-                    executeTool(step.toolId, step.inputs || {});
-                });
-            }
-            break;
-      }
-  }
   
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,47 +76,55 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     setFileSearchResults([]);
 
     try {
-      // Fetch all files to provide context to the agent
       const storage = getStorage();
       const basePath = `users/${user.uid}`;
-      // In a real large-scale app, you'd want a more efficient way to get all file paths
-      // like a periodically updated index in Firestore. For now, listAll is fine.
       const listRef = ref(storage, basePath);
       const res = await listAll(listRef);
       const allFiles = res.items.map(item => item.fullPath);
 
       const openAppNames = openApps.map(a => a.app.name);
       
-      const response = await agenticToolUser(searchValue, {
+      const workflow = await agenticToolUser(searchValue, {
           openApps: openAppNames,
           allFiles: allFiles,
       });
 
-      const toolCalls = response.toolCalls();
-      let shouldClose = true;
+      if (workflow.steps.length > 0) {
+        let stepResult: any = {}; // Store results from steps to pass to the next
+        for (const step of workflow.steps) {
+            let toolInput = {...step.inputs};
+            // Allow chaining results. e.g. use `imageUrl` from `generateImage` in `setWallpaper`
+            if (toolInput.imageUrl === '{{result.imageUrl}}') toolInput.imageUrl = stepResult.imageUrl;
+            if (toolInput.content === '{{result.code}}') toolInput.content = stepResult.code;
+            if (toolInput.filePath === '{{result.filePath}}' && stepResult.filePath) toolInput.filePath = stepResult.filePath;
+            else if (toolInput.filePath === '{{result.filePath}}' && stepResult.results?.[0]?.path) toolInput.filePath = stepResult.results[0].path;
 
-      if (toolCalls.length > 0) {
-        for (const toolCall of toolCalls) {
-            const output = toolCall.output;
-            // Special handling for search to keep palette open
-            if (toolCall.toolName === 'searchFiles' && (output as any)?.results?.length > 0) {
-                 shouldClose = false;
-                 setFileSearchResults((output as any).results);
-            } else {
-                 executeTool(toolCall.toolName, toolCall.input);
+
+            switch(step.toolId) {
+                case 'openApp': onOpenApp(APPS.find(a => a.id === toolInput.appId)!, toolInput.props); break;
+                case 'arrangeWindows': onArrangeWindows(); break;
+                case 'openFile': onOpenFile(toolInput.filePath); break;
+                case 'searchFiles': 
+                    stepResult = await semanticFileSearch({query: toolInput.query, availableFiles: allFiles}); 
+                    break;
+                case 'setWallpaper': setWallpaper(toolInput.imageUrl); break;
+                case 'writeFile': onOpenFile(toolInput.filePath, toolInput.content); break;
+                case 'generateImage': stepResult = await generateImage({prompt: toolInput.prompt}); break;
+                case 'designComponent': 
+                    const result = await designByPromptUiGeneration({ prompt: toolInput.prompt });
+                    stepResult = { code: result.uiElementCode.replace(/```.*\n/g, '').replace(/```/g, '').trim() };
+                    break;
             }
         }
+      } else {
+        // If no steps, it's a conversational response. We can call the model again without tools for a text response.
+         const response = await ai.generate({ prompt: searchValue });
+         setAgentResponse(response.text());
       }
       
-      const textResponse = response.text();
-      if (textResponse) {
-          setAgentResponse(textResponse);
-          // If there's a text response, we shouldn't close the palette.
-          shouldClose = false;
-      }
-
-      if (shouldClose) {
-        setOpen(false);
+      // Close palette unless we have something to show the user here.
+      if (!agentResponse) {
+          setOpen(false);
       }
 
     } catch (err) {
@@ -164,7 +133,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
     } finally {
       setIsLoading(false);
     }
-  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile, setWallpaper]);
+  }, [searchValue, openApps, onOpenApp, setOpen, onArrangeWindows, user, onOpenFile, setWallpaper, agentResponse]);
 
   useEffect(() => {
     if (!open) {

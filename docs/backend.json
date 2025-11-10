@@ -22,33 +22,92 @@
         }
       }
     },
+    "customer": {
+      "title": "Stripe Customer",
+      "description": "Maps a Firebase user to a Stripe Customer ID.",
+      "type": "object",
+      "properties": {
+        "stripeId": {
+          "type": "string",
+          "description": "The user's Stripe Customer ID."
+        },
+        "stripeLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "A link to the customer's profile in the Stripe dashboard."
+        }
+      },
+      "required": ["stripeId", "stripeLink"]
+    },
+    "product": {
+      "title": "Stripe Product",
+      "description": "Represents a product or subscription plan in Stripe.",
+      "type": "object",
+      "properties": {
+        "active": { "type": "boolean" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "role": { "type": "string", "description": "Corresponds to a tier ID, e.g., 'personal', 'business'." },
+        "images": { "type": "array", "items": { "type": "string", "format": "uri" }},
+        "metadata": { "type": "object", "properties": {}}
+      }
+    },
+    "price": {
+      "title": "Stripe Price",
+      "description": "Represents the pricing for a product in Stripe.",
+      "type": "object",
+      "properties": {
+        "active": { "type": "boolean" },
+        "currency": { "type": "string" },
+        "description": { "type": "string" },
+        "unit_amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["one_time", "recurring"]},
+        "interval": { "type": "string", "enum": ["day", "week", "month", "year"]},
+        "interval_count": { "type": "number" },
+        "trial_period_days": { "type": "number" },
+        "metadata": { "type": "object", "properties": {}}
+      }
+    },
+     "checkoutSession": {
+      "title": "Stripe Checkout Session",
+      "description": "A session created to collect payment details from a customer.",
+      "type": "object",
+      "properties": {
+        "price": { "type": "string", "description": "The ID of the price object."},
+        "success_url": { "type": "string", "format": "uri" },
+        "cancel_url": { "type": "string", "format": "uri" },
+        "url": { "type": "string", "format": "uri", "description": "The URL to the Stripe-hosted checkout page."},
+        "error": { "type": "object", "properties": { "message": { "type": "string" } }}
+      }
+    },
     "subscription": {
       "title": "Subscription",
       "description": "Defines a user's subscription tier and status.",
       "type": "object",
       "properties": {
-        "tier": {
-          "type": "string",
-          "enum": ["free", "personal", "business", "enterprise", "free-trial"],
-          "description": "The subscription tier of the user."
-        },
+        "stripeId": { "type": "string", "description": "The Stripe subscription ID."},
         "status": {
           "type": "string",
-          "enum": ["active", "trialing", "past_due", "canceled"],
-          "description": "The current status of the subscription."
+          "enum": ["trialing", "active", "past_due", "unpaid", "canceled", "incomplete", "incomplete_expired"],
+          "description": "The current status of the subscription from Stripe."
         },
-        "startedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp when the subscription started."
-        },
-        "renewsAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The timestamp for the next renewal."
-        }
+        "metadata": { "type": "object" },
+        "cancel_at_period_end": { "type": "boolean"},
+        "created": { "type": "string", "format": "date-time"},
+        "current_period_start": { "type": "string", "format": "date-time"},
+        "current_period_end": { "type": "string", "format": "date-time"},
+        "ended_at": { "type": "string", "format": "date-time"},
+        "cancel_at": { "type": "string", "format": "date-time"},
+        "canceled_at": { "type": "string", "format": "date-time"},
+        "trial_start": { "type": "string", "format": "date-time"},
+        "trial_end": { "type": "string", "format": "date-time"},
+        "items": { "type": "array" },
+        "price": { "type": "string", "$ref": "#/entities/price" },
+        "product": { "type": "string", "$ref": "#/entities/product" },
+        "prices": { "type": "array" },
+        "role": { "type": "string", "description": "The role associated with this subscription, e.g., 'personal', 'business'."}
       },
-      "required": ["tier", "status", "startedAt"]
+      "required": ["stripeId", "status", "price", "product"]
     },
     "userPreference": {
       "title": "User Preference",
@@ -278,7 +337,23 @@
       },
       "description": "User profile information."
     },
-    "/subscriptions/{userId}": {
+    "/customers/{userId}": {
+        "schema": { "$ref": "#/entities/customer" },
+        "description": "Stripe customer information for a Firebase user."
+    },
+    "/products/{productId}": {
+        "schema": { "$ref": "#/entities/product" },
+        "description": "Details of a Stripe product, typically a subscription tier."
+    },
+    "/products/{productId}/prices/{priceId}": {
+        "schema": { "$ref": "#/entities/price" },
+        "description": "Pricing information for a specific Stripe product."
+    },
+    "/customers/{userId}/checkout_sessions/{sessionId}": {
+        "schema": { "$ref": "#/entities/checkoutSession" },
+        "description": "A session created for a user to complete a Stripe payment."
+    },
+    "/users/{userId}/subscriptions/{subscriptionId}": {
       "schema": {
         "$ref": "#/entities/subscription"
       },

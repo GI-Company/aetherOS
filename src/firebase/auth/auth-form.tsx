@@ -2,7 +2,7 @@
 'use client';
 
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, serverTimestamp, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -12,7 +12,6 @@ import { Separator } from '@/components/ui/separator';
 import { User } from 'lucide-react';
 import { setDocumentNonBlocking } from '@/firebase';
 import React from 'react';
-import { Tier } from '@/lib/tiers';
 
 function GoogleIcon() {
   return (
@@ -49,22 +48,18 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   
-  const provisionDefaultSubscription = async (user: FirebaseUser, tierId: Tier['id']) => {
-    const subscriptionRef = doc(firestore, 'subscriptions', user.uid);
-    const subscriptionSnap = await getDoc(subscriptionRef);
-    if (!subscriptionSnap.exists()) {
-      setDocumentNonBlocking(subscriptionRef, {
-        tier: tierId,
-        status: tierId === 'free-trial' ? 'trialing' : 'active',
-        startedAt: serverTimestamp(),
-      });
-    }
-  };
+  const handleAuthSuccess = async (user: FirebaseUser) => {
+    // This is a simplified check. A robust implementation would use Cloud Functions
+    // to check for existing Stripe customers upon new user creation.
+    const q = query(collection(firestore, `users/${user.uid}/subscriptions`));
+    const subsSnap = await getDocs(q);
 
-  const handleAuthSuccess = (user: FirebaseUser, isNewUser: boolean) => {
-    if (isNewUser) {
-        provisionDefaultSubscription(user, 'free');
+    if (subsSnap.empty) {
+      // This is likely a new user with no subscriptions, give them the free plan.
+      // This is a placeholder as the Stripe extension manages subscriptions.
+      console.log('New user detected, but subscription management is handled by the Stripe extension.');
     }
+    
     toast({
       title: 'Authentication Successful',
       description: 'Welcome to AetherOS.',
@@ -77,23 +72,12 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
       if (auth.currentUser?.isAnonymous) {
         // This is an account upgrade
         const result = await linkWithPopup(auth.currentUser, provider);
-        const user = result.user;
-
-        // Persist the trial subscription as a permanent free one
-        const subscriptionRef = doc(firestore, 'subscriptions', user.uid);
-        setDocumentNonBlocking(subscriptionRef, {
-            tier: 'free',
-            status: 'active',
-        }, { merge: true });
-
         if (onLinkSuccess) onLinkSuccess();
         if (onUpgradeSuccess) onUpgradeSuccess();
       } else {
         // This is a fresh sign-up or sign-in
         const result = await signInWithPopup(auth, provider);
-        const userDocRef = doc(firestore, 'users', result.user.uid);
-        const userDoc = await getDoc(userDocRef);
-        handleAuthSuccess(result.user, !userDoc.exists());
+        handleAuthSuccess(result.user);
       }
     } catch (error: any) {
       console.error(error);
@@ -110,7 +94,6 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
       const { user } = await signInAnonymously(auth);
       const trialRef = doc(firestore, 'trialUsers', user.uid);
       setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
-       await provisionDefaultSubscription(user, 'free-trial');
       
       toast({
         title: 'Entering Trial Mode',

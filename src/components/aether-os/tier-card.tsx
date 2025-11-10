@@ -5,12 +5,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Tier } from '@/lib/tiers';
 import { cn } from '@/lib/utils';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 
 
 export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectable = true }: { tier: Tier, isSelected: boolean, onSelect: (id: Tier['id']) => void, currentTierId?: Tier['id'], isSelectable?: boolean }) => {
   const isCurrent = currentTierId === tier.id;
-  const showSelect = isSelectable && !isCurrent && tier.id !== 'enterprise';
+  const showSelect = isSelectable && !isCurrent && tier.id !== 'enterprise' && tier.id !== 'free-trial';
 
   const handleClick = () => {
     if (showSelect) {
@@ -19,14 +19,15 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
   }
 
   const getButtonVariant = () => {
-    if (isCurrent || tier.id === 'enterprise' || !showSelect) return 'outline';
+    if (isCurrent || !showSelect) return 'outline';
     return isSelected ? 'default' : 'secondary';
   }
   
   const getButtonText = () => {
       if(isCurrent) return "Your Current Plan";
       if(tier.id === 'enterprise') return 'Contact Sales';
-      if(isSelected) return 'Selected Plan';
+      if(tier.id === 'free-trial') return 'Guest Session';
+      if(isSelected) return 'Proceed to Checkout';
       return tier.cta;
   }
 
@@ -36,7 +37,7 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
         "transition-all flex flex-col",
         isCurrent ? "border-accent ring-2 ring-accent" : "hover:border-muted-foreground/50",
         isSelected && !isCurrent && "border-accent ring-2 ring-accent",
-        tier.id === 'enterprise' && 'bg-card/50 border-dashed',
+        !showSelect && "opacity-80",
         showSelect && "cursor-pointer"
       )}
       onClick={handleClick}
@@ -59,8 +60,9 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
         </ul>
       </CardContent>
       <CardFooter className="flex-col items-stretch gap-2 !pt-4">
-        <Button variant={getButtonVariant()} className="w-full" disabled={isCurrent || tier.id === 'enterprise'}>
-          {getButtonText()}
+        <Button variant={getButtonVariant()} className="w-full" disabled={!showSelect || isSelected}>
+            {isSelected && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {getButtonText()}
         </Button>
       </CardFooter>
     </Card>

@@ -1,57 +1,105 @@
 
 'use client';
 
-import { useFirebase, useMemoFirebase, useDoc, setDocumentNonBlocking } from '@/firebase';
+import { useFirebase, useMemoFirebase, useDoc, useCollection, addDocumentNonBlocking } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
-import { doc } from 'firebase/firestore';
+import { doc, collection, query, where } from 'firebase/firestore';
 import { TIERS, Tier } from '@/lib/tiers';
 import { TierCard } from '@/components/aether-os/tier-card';
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { loadStripe } from '@stripe/stripe-js';
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+
+interface Product {
+    id: string;
+    role: string;
+    // other product fields
+}
+
+interface Price {
+    id: string;
+    // other price fields
+}
 
 export default function BillingApp() {
     const { user, firestore } = useFirebase();
     const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
-    const [isUpgrading, setIsUpgrading] = useState(false);
+    const [isRedirecting, setIsRedirecting] = useState(false);
     const { toast } = useToast();
 
-    const subscriptionRef = useMemoFirebase(() => {
+    // Fetch the user's current subscription
+    const subscriptionsQuery = useMemoFirebase(() => {
         if (!firestore || !user?.uid) return null;
-        return doc(firestore, 'subscriptions', user.uid);
+        return query(
+            collection(firestore, `users/${user.uid}/subscriptions`),
+            where('status', 'in', ['trialing', 'active'])
+        );
     }, [firestore, user?.uid]);
 
-    const { data: subscription, isLoading } = useDoc(subscriptionRef);
-    
-    const currentTierId = (subscription as any)?.tier || (user?.isAnonymous ? 'free-trial' : 'free');
-    const selectedTier = TIERS.find(t => t.id === selectedTierId);
+    const { data: subscriptions, isLoading: isSubscriptionLoading } = useCollection(subscriptionsQuery);
+    const subscription = subscriptions?.[0];
+    const currentTierId = (subscription as any)?.role || (user?.isAnonymous ? 'free-trial' : 'free');
 
-    const handleSelectTier = (tierId: string) => {
-        const selected = TIERS.find(t => t.id === tierId);
-        if (!selected || selected.id === 'enterprise' || selected.id === currentTierId) {
+    // Fetch available products from Firestore (which are synced from Stripe by the extension)
+    const productsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'products'), where('active', '==', true));
+    }, [firestore]);
+
+    const { data: products, isLoading: isProductsLoading } = useCollection<Product>(productsQuery);
+
+    const redirectToCheckout = async (tier: Tier) => {
+        if (!user || !firestore || !products) return;
+        
+        const product = products.find(p => p.role === tier.id);
+        if (!product) {
+            toast({ title: 'Error', description: 'Selected plan is not available.', variant: 'destructive'});
             return;
         }
-        setSelectedTierId(tierId);
-    }
-    
-    const handleConfirmUpgrade = () => {
-        if (!selectedTierId || !subscriptionRef) return;
-        setIsUpgrading(true);
-        
-        setDocumentNonBlocking(subscriptionRef, { tier: selectedTierId }, { merge: true });
 
-        // Simulate a delay for the non-blocking update to process
-        setTimeout(() => {
-            toast({
-                title: "Upgrade Successful!",
-                description: `You are now on the ${selectedTier?.name} plan.`
+        // Fetch the price for the selected product
+        const pricesQuery = query(collection(firestore, `products/${product.id}/prices`));
+        const priceSnap = await getDocs(pricesQuery);
+        const price = priceSnap.docs[0]?.data() as Price | undefined;
+
+        if (!price) {
+             toast({ title: 'Error', description: 'Pricing for this plan is not available.', variant: 'destructive'});
+            return;
+        }
+
+        setIsRedirecting(true);
+        setSelectedTierId(tier.id);
+
+        // Create a checkout session document
+        const checkoutSessionRef = collection(firestore, `customers/${user.uid}/checkout_sessions`);
+        const docRef = await addDocumentNonBlocking(checkoutSessionRef, {
+            price: price.id,
+            success_url: window.location.origin,
+            cancel_url: window.location.href,
+        });
+
+        // Listen for the checkout URL to be populated by the extension
+        if(docRef) {
+            const unsub = onSnapshot(docRef, (snap) => {
+                const { error, url } = snap.data() || {};
+                if (error) {
+                    toast({ title: 'Checkout Error', description: error.message, variant: 'destructive' });
+                    setIsRedirecting(false);
+                    unsub();
+                }
+                if (url) {
+                    window.location.assign(url);
+                    unsub();
+                }
             });
-            setSelectedTierId(null);
-            setIsUpgrading(false);
-        }, 1500);
-    }
-
+        }
+    };
+    
+    const isLoading = isSubscriptionLoading || isProductsLoading;
 
   return (
     <div className="p-4 md:p-8 h-full bg-background overflow-y-auto">
@@ -60,17 +108,14 @@ export default function BillingApp() {
             <h2 className="text-3xl font-headline mb-2">Plans & Pricing</h2>
             <p className="text-muted-foreground">Choose the plan that's right for you.</p>
         </div>
-        {selectedTier && (
+        {isRedirecting && selectedTierId && (
             <Card className="p-4 bg-card/80 backdrop-blur-sm">
                 <div className="flex items-center gap-4">
                     <div>
-                        <p className="text-sm text-muted-foreground">Upgrading to:</p>
-                        <p className="text-lg font-semibold">{selectedTier.name}</p>
+                        <p className="text-sm text-muted-foreground">Redirecting for:</p>
+                        <p className="text-lg font-semibold">{TIERS.find(t => t.id === selectedTierId)?.name}</p>
                     </div>
-                    <Button onClick={handleConfirmUpgrade} disabled={isUpgrading}>
-                        {isUpgrading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Confirm Upgrade
-                    </Button>
+                     <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
             </Card>
         )}
@@ -87,12 +132,16 @@ export default function BillingApp() {
                         key={tier.id}
                         tier={tier}
                         isSelected={selectedTierId === tier.id}
-                        onSelect={() => handleSelectTier(tier.id)}
+                        onSelect={() => redirectToCheckout(tier)}
                         currentTierId={currentTierId}
+                        isSelectable={!isRedirecting && !user?.isAnonymous}
                     />
                 ))}
             </div>
         )}
+         <div className="text-center text-xs text-muted-foreground mt-8">
+            <p>To make this fully functional, you need to install the official "Run Payments with Stripe" Firebase Extension and configure your Stripe account with matching products and prices.</p>
+        </div>
     </div>
   );
 }

@@ -128,7 +128,10 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
 
     setNewMessage('');
     if (presenceRef) {
-        setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
+        // Use a small timeout to prevent race condition with handleTyping
+        setTimeout(() => {
+            setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
+        }, 100);
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     }
   }, [newMessage, user, firestore, presenceRef]);
@@ -311,3 +314,5 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     </div>
   );
 }
+
+    

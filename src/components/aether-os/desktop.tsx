@@ -527,7 +527,7 @@ export default function Desktop() {
           priority
         />
       )}
-      <div className="relative z-10 flex-grow w-full flex flex-col">
+      <div className="relative z-10 flex-grow w-full flex flex-col" ref={desktopRef}>
         <TopBar onUpgrade={() => setUpgradeDialogOpen(true)} />
 
         {showWelcomeTutorial && TUTORIALS.welcome && (
@@ -575,7 +575,7 @@ export default function Desktop() {
             );
           })}
         </div>
-        <Dock ref={dockRef} onAppClick={openApp} openApps={openApps} onAppFocus={focusApp} />
+        <Dock ref={dockRef} onAppClick={openApp} openApps={openApps} onAppFocus={focusApp} focusedAppId={focusedAppId} />
       </div>
       <CommandPalette 
         open={commandPaletteOpen} 
@@ -600,3 +600,5 @@ export default function Desktop() {
     </div>
   );
 }
+
+    

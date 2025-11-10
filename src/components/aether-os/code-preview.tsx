@@ -5,6 +5,7 @@ import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { useEffect, useState } from 'react';
 import { Skeleton } from '../ui/skeleton';
 import { AlertTriangle, Code2 } from 'lucide-react';
+import { summarizeCode } from '@/ai/flows/summarize-code';
 
 interface CodePreviewProps {
   filePath: string;
@@ -12,13 +13,13 @@ interface CodePreviewProps {
 
 // Fetch and display a small preview of a code file
 const CodePreview = ({ filePath }: CodePreviewProps) => {
-  const [content, setContent] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    const fetchContent = async () => {
+    const fetchContentAndSummarize = async () => {
       setIsLoading(true);
       setError(null);
       try {
@@ -29,11 +30,13 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         if (!response.ok) {
           throw new Error('Failed to fetch file content');
         }
-        const text = await response.text();
-        // Get the first 15 lines for the preview
-        const previewContent = text.split('\n').slice(0, 15).join('\n');
+        const code = await response.text();
+        
         if (isMounted) {
-            setContent(previewContent);
+          const result = await summarizeCode({ code });
+          if(isMounted) {
+            setSummary(result.summary);
+          }
         }
       } catch (e: any) {
          if (isMounted) {
@@ -45,7 +48,7 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         }
       }
     };
-    fetchContent();
+    fetchContentAndSummarize();
 
     return () => {
       isMounted = false;
@@ -53,7 +56,11 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
   }, [filePath]);
 
   if (isLoading) {
-    return <Skeleton className="w-full h-full" />;
+    return <Skeleton className="w-full h-full p-2 space-y-1">
+        <Skeleton className="h-2 w-11/12" />
+        <Skeleton className="h-2 w-10/12" />
+        <Skeleton className="h-2 w-9/12" />
+      </Skeleton>
   }
 
   if (error) {
@@ -64,11 +71,11 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
     );
   }
 
-  if (content) {
+  if (summary) {
     return (
-      <pre className="text-[5px] leading-tight font-code overflow-hidden p-1 bg-background rounded-sm">
-        <code>{content}</code>
-      </pre>
+      <div className="text-[10px] leading-tight font-body overflow-hidden p-1.5 bg-background rounded-sm h-full w-full">
+        <p>{summary}</p>
+      </div>
     );
   }
 

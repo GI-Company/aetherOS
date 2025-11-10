@@ -196,19 +196,20 @@ export default function Desktop() {
     const desktopWidth = desktopRef.current?.clientWidth || window.innerWidth;
     const desktopHeight = desktopRef.current?.clientHeight || window.innerHeight;
     const topBarHeight = 32;
+    const dockHeight = dockRef.current?.offsetHeight || 80;
 
     const updates = new Map<number, Partial<WindowInstance>>();
 
     updates.set(browser.id, {
         position: { x: 0, y: topBarHeight },
-        size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight },
+        size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight - dockHeight },
         isMaximized: false,
         isMinimized: false,
     });
 
     updates.set(codeEditor.id, {
         position: { x: desktopWidth / 2, y: topBarHeight },
-        size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight },
+        size: { width: desktopWidth / 2, height: desktopHeight - topBarHeight - dockHeight },
         isMaximized: false,
         isMinimized: false,
     });
@@ -281,18 +282,35 @@ export default function Desktop() {
     }
 
     const currentId = nextId.current;
-    setHighestZIndex((prev) => prev + 1);
+    const newZIndex = highestZIndex + 1;
+    
+    const desktopWidth = desktopRef.current?.clientWidth || window.innerWidth;
+    const desktopHeight = desktopRef.current?.clientHeight || window.innerHeight;
+
+    let initialX = 50 + (currentId % 10) * 20;
+    let initialY = 50 + (currentId % 10) * 20;
+
+    // Ensure the window opens within the viewport
+    if (initialX + app.defaultSize.width > desktopWidth) {
+        initialX = Math.max(0, desktopWidth - app.defaultSize.width);
+    }
+    if (initialY + app.defaultSize.height > desktopHeight) {
+        initialY = Math.max(0, desktopHeight - app.defaultSize.height);
+    }
+
     const newWindow: WindowInstance = {
       id: currentId,
       app: app,
-      position: { x: 50 + (currentId % 10) * 20, y: 50 + (currentId % 10) * 20 },
+      position: { x: initialX, y: initialY },
       size: app.defaultSize,
-      zIndex: highestZIndex + 1,
+      zIndex: newZIndex,
       isMinimized: false,
       isMaximized: false,
       isDirty: false,
       props,
     };
+    
+    setHighestZIndex(newZIndex);
     setOpenApps((prev) => [...prev, newWindow]);
     setFocusedAppId(currentId);
     nextId.current += 1;
@@ -563,3 +581,5 @@ export default function Desktop() {
     </div>
   );
 }
+
+    

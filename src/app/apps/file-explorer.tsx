@@ -270,11 +270,11 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }, [basePath, currentPath])
 
   useEffect(() => {
-    // If we're not searching, display all files. Search results handled separately.
-    if (!isSearching) {
+    // If not searching, show all files in the current directory
+    if (!searchQuery) {
         setDisplayedFiles(allFiles);
     }
-  }, [allFiles, isSearching]);
+  }, [allFiles, searchQuery]);
 
 
   const handleSearch = useCallback(async (query: string) => {
@@ -285,9 +285,12 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsSearching(true);
     setCreatingItemType(null); // Cancel creation if searching
     try {
+      // In a real app with many files, you might search the whole storage bucket.
+      // For this prototype, we'll just search the currently visible files for simplicity.
       const allFilePaths = allFiles.map(f => f.path);
       const result = await semanticFileSearch({ query: query, availableFiles: allFilePaths });
       
+      // Filter the original `allFiles` array to preserve the rich metadata for thumbnails.
       const searchResultFiles = allFiles.filter(f => result.results.some(r => r.path === f.path));
       setDisplayedFiles(searchResultFiles);
       
@@ -307,9 +310,11 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
   useEffect(() => {
      if (initialSearchQuery && allFiles.length > 0) {
+        setSearchQuery(initialSearchQuery);
         handleSearch(initialSearchQuery);
      }
-  }, [initialSearchQuery, allFiles, handleSearch]);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSearchQuery, allFiles]); // handleSearch is memoized and safe
 
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -569,3 +574,5 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
+
+    

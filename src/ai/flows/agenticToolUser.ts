@@ -18,7 +18,15 @@ const OpenAppInputSchema = z.object({
 });
 
 const WriteFileInputSchema = z.object({
-    filePath: z.string().describe('The destination path for the file to be written (e.g., "src/components/new-component.tsx"). The path must start with a valid directory like "src/components" or "src/app".'),
+    filePath: z.string().describe('The destination path for the file to be written (e.g., "src/components/new-component.tsx"). The path must start with a valid directory like "src/components" or "src/app".').refine(
+      (path) => {
+        const allowedPrefixes = ['src/components/', 'src/app/', 'users/'];
+        return allowedPrefixes.some(prefix => path.startsWith(prefix));
+      },
+      {
+        message: "File path is not in an allowed directory. Must start with 'src/components/', 'src/app/', or be a user file path.",
+      }
+    ),
     content: z.string().describe('The full code or text content to write into the file.'),
 });
 

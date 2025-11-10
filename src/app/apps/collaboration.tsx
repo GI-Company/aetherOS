@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useFirebase, useCollection, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { useFirebase, useCollection, useMemoFirebase, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { collection, query, orderBy, serverTimestamp, Timestamp, doc } from 'firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
   const { firestore, user } = useFirebase();
   const [newMessage, setNewMessage] = useState('');
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const messagesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -48,6 +49,11 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
 
   const { data: serverMessages, isLoading } = useCollection<ChatMessage>(messagesQuery);
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessage[]>([]);
+  
+  const presenceRef = useMemoFirebase(() => {
+    if (!firestore || !user?.uid || user.isAnonymous) return null;
+    return doc(firestore, 'userPresence', user.uid);
+  }, [firestore, user?.uid, user?.isAnonymous]);
 
   const messages = React.useMemo(() => {
     const combined = [...(serverMessages || []), ...optimisticMessages];
@@ -105,7 +111,42 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     });
 
     setNewMessage('');
-  }, [newMessage, user, firestore]);
+    if (presenceRef) {
+        setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+  }, [newMessage, user, firestore, presenceRef]);
+  
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+    if (!presenceRef) return;
+
+    // Set isTyping to true immediately
+    setDocumentNonBlocking(presenceRef, { isTyping: true }, { merge: true });
+
+    // Clear previous timeout
+    if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set a new timeout to mark as not typing after 2 seconds
+    typingTimeoutRef.current = setTimeout(() => {
+        setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
+    }, 2000);
+  }
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+        }
+         // Set typing to false when the component unmounts
+        if (presenceRef) {
+            setDocumentNonBlocking(presenceRef, { isTyping: false }, { merge: true });
+        }
+    }
+  }, [presenceRef]);
 
   const openSettingsToAccountTab = () => {
     const settingsApp = APPS.find(app => app.id === 'settings');
@@ -140,7 +181,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
         <form onSubmit={handleSendMessage} className="flex gap-2">
           <Input
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleTyping}
             placeholder="Type a message..."
             disabled={isLoading}
           />

@@ -203,6 +203,10 @@
         "focusedApp": {
           "type": "string",
           "description": "The ID of the app the user is currently focused on."
+        },
+        "isTyping": {
+          "type": "boolean",
+          "description": "Whether the user is currently typing in the chat."
         }
       },
       "required": ["status", "lastSeen"]

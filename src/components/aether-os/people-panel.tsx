@@ -10,6 +10,8 @@ import { Loader2, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { APPS } from '@/lib/apps';
 import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { animated, useSpring } from '@react-spring/web';
 
 interface UserPresence {
     id: string;
@@ -18,6 +20,7 @@ interface UserPresence {
     displayName: string;
     photoURL: string;
     focusedApp?: string;
+    isTyping?: boolean;
 }
 
 const getInitials = (name?: string | null) => {
@@ -32,6 +35,21 @@ const getInitials = (name?: string | null) => {
 interface PeoplePanelProps {
     showTitle?: boolean;
 }
+
+const TypingIndicator = () => {
+    const styles = useSpring({
+        from: { opacity: 0.5, transform: 'translateY(2px)' },
+        to: async (next) => {
+            while (1) {
+                await next({ opacity: 1, transform: 'translateY(0px)' })
+                await next({ opacity: 0.5, transform: 'translateY(2px)' })
+            }
+        },
+        config: { duration: 500 },
+    })
+    return <animated.span style={styles}>typing...</animated.span>
+}
+
 
 export default function PeoplePanel({ showTitle = true }: PeoplePanelProps) {
     const { firestore } = useFirebase();
@@ -77,11 +95,18 @@ export default function PeoplePanel({ showTitle = true }: PeoplePanelProps) {
                                         <Avatar className="h-10 w-10 relative flex-shrink-0">
                                             <AvatarImage src={pUser.photoURL} />
                                             <AvatarFallback>{getInitials(pUser.displayName)}</AvatarFallback>
-                                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-card rounded-full" />
+                                            <div className={cn(
+                                                "absolute bottom-0 right-0 w-3 h-3 border-2 border-card rounded-full",
+                                                pUser.isTyping ? "bg-blue-500 animate-pulse" : "bg-green-500"
+                                            )} />
                                         </Avatar>
                                         <div className="text-sm overflow-hidden">
                                             <p className="font-semibold truncate">{pUser.displayName}</p>
-                                            {appInfo ? (
+                                            {pUser.isTyping ? (
+                                                <div className="text-xs text-blue-400">
+                                                    <TypingIndicator />
+                                                </div>
+                                            ) : appInfo ? (
                                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                                                     <appInfo.Icon className="h-3 w-3" />
                                                     <span className="truncate">in {appInfo.name}</span>

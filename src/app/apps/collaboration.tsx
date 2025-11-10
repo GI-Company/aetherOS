@@ -311,5 +311,3 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
     </div>
   );
 }
-
-    

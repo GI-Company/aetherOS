@@ -3,7 +3,7 @@
 
 import {Button} from '@/components/ui/button';
 import {Label}from '@/components/ui/label';
-import {Textarea} from '@/components/ui/textarea';
+import {Textarea}from '@/components/ui/textarea';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {generateAdaptivePalette} from '@/ai/flows/adaptive-color-palettes';
 import {generateAccentColor} from '@/ai/flows/generate-accent-color';

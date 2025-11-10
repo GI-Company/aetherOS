@@ -51,10 +51,10 @@ This project is an active prototype. Below is a checklist of features from the o
 
 - [x] **Comprehensive Security Review**
   - [x] Firestore Rules implemented for all current data models.
-  - [ ] Input Sanitization for all AI flows.
-  - [ ] Dependency Audit process.
+  - [x] Input Sanitization for all AI flows.
+  - [x] Dependency Audit process.
 - [x] **Scalability & Performance**
-  - [ ] Firestore Indexing strategy for complex queries.
+  - [x] Firestore Indexing strategy for complex queries.
   - [x] AI Flow Optimization (core agent logic has been refactored).
   - [x] Client-Side Performance (window management has been optimized).
   - [x] Code Splitting (handled by Next.js App Router).

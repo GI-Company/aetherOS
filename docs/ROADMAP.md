@@ -8,11 +8,11 @@ This phase focuses on security, stability, and performance to ensure the system 
 
 ### 1.1. Comprehensive Security Review
 - **Firestore Rules:** Conduct a full audit of all `firestore.rules`. While the current rules are secure for the existing features (users can only access their own data), they must be expanded and rigorously tested for any new data models.
-- **Input Sanitization:** Ensure all inputs to AI flows and system tools are properly sanitized to prevent prompt injection and other vulnerabilities.
-- **Dependency Audit:** Regularly scan all third-party dependencies (npm packages) for known security vulnerabilities.
+- **Input Sanitization:** Ensure all inputs to AI flows and system tools are properly sanitized to prevent prompt injection and other vulnerabilities. All user-facing AI flows now sanitize text input to treat it as data, not as instructions.
+- **Dependency Audit:** Regularly scan all third-party dependencies (npm packages) for known security vulnerabilities. The `npm-check-updates` package has been added. Run `npx npm-check-updates` to check for new versions and `npx npm-check-updates -u` to upgrade `package.json`.
 
 ### 1.2. Scalability & Performance
-- **Firestore Indexing:** As the data model grows, custom Firestore indexes will be required to ensure queries remain fast and cost-effective at scale.
+- **Firestore Indexing:** As the data model grows, custom Firestore indexes will be required to ensure queries remain fast and cost-effective at scale. A `firestore.indexes.json` file has been created to define composite indexes required by the application.
 - **AI Flow Optimization:** Monitor the performance and cost of all Genkit flows. Implement caching strategies for common AI requests where possible.
 - **Client-Side Performance:** Profile the React components to identify and eliminate any performance bottlenecks. Optimize re-renders and leverage `React.memo` where appropriate.
 - **Code Splitting:** While Next.js handles this well, ensure that new applications (`/src/app/apps/*`) are properly code-split and loaded on demand.

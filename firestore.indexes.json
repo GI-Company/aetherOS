@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "userPresence",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastSeen",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ]
+}

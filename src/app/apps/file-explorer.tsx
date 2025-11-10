@@ -9,7 +9,7 @@ import { Folder, File, Search, Loader2, ArrowUp, RefreshCw, FilePlus, ChevronDow
 import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase, useMemoFirebase } from "@/firebase";
-import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject, uploadBytes } from 'firebase/storage';
+import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
@@ -280,67 +280,43 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }, [basePath, currentPath])
 
   useEffect(() => {
-    // If not searching, show all files in the current directory
     if (!searchQuery) {
-        setDisplayedFiles(allFiles);
+        const filtered = allFiles.filter(file => {
+            const parentPath = file.path.substring(0, file.path.lastIndexOf('/'));
+            return parentPath === currentPath || (parentPath === '' && currentPath === basePath);
+        });
+        setDisplayedFiles(filtered);
     }
-  }, [allFiles, searchQuery]);
+  }, [allFiles, searchQuery, currentPath, basePath]);
 
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query) {
-      setDisplayedFiles(allFiles); // Go back to normal list
+      setSearchQuery(''); // Clear search query
+      // The useEffect above will handle resetting displayedFiles
       return;
     }
     setIsSearching(true);
-    setCreatingItemType(null); // Cancel creation if searching
+    setCreatingItemType(null);
     try {
-      // Get all files recursively from the user's root for a full search
-      const storage = getStorage();
-      const userRootRef = ref(storage, `users/${user?.uid}`);
-      const res = await listAll(userRootRef);
-      const allFilePaths = res.items.map(item => item.fullPath);
-
-      const result = await semanticFileSearch({ query: query, availableFiles: allFilePaths });
-      
-      // We need to fetch metadata for the search results to display them correctly
-      const searchResultFiles: FileItem[] = await Promise.all(
-        result.results.map(async (item) => {
-          if (item.type === 'folder') {
-            return {
-              name: item.path.split('/').pop() || '',
-              type: 'folder',
-              path: item.path,
-              size: 0,
-              modified: new Date(),
-            }
-          }
-          const itemRef = ref(storage, item.path);
-          const metadata = await getMetadata(itemRef);
-          return {
-            name: metadata.name,
-            type: 'file',
-            path: metadata.fullPath,
-            size: metadata.size,
-            modified: new Date(metadata.updated),
-          }
-        })
+      const searchResults = allFiles.filter(file => 
+        file.name.toLowerCase().includes(query.toLowerCase())
       );
       
-      setDisplayedFiles(searchResultFiles);
+      setDisplayedFiles(searchResults);
       
       toast({
           title: "Search Complete",
-          description: `Found ${result.results.length} matching item(s).`
+          description: `Found ${searchResults.length} matching item(s).`
       });
 
     } catch (err: any) {
-        console.error("Semantic search failed:", err);
+        console.error("Search failed:", err);
         toast({ title: "Search Failed", description: err.message, variant: "destructive" });
     } finally {
         setIsSearching(false);
     }
-  }, [allFiles, toast, user]);
+  }, [allFiles, toast]);
 
 
   useEffect(() => {
@@ -349,7 +325,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         handleSearch(initialSearchQuery);
      }
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSearchQuery, allFiles]); // handleSearch is memoized and safe
+  }, [initialSearchQuery, allFiles]);
 
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -371,21 +347,28 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     if (!files || files.length === 0 || !user) return;
     setIsUploading(true);
     setUploadProgress(0);
+    
     const file = files[0];
-    try {
-        const storage = getStorage();
-        const storageRef = ref(storage, `${currentPath}/${file.name}`);
-        // In a real app, you'd use `uploadBytesResumable` to get progress
-        await uploadBytes(storageRef, file);
-        setUploadProgress(100);
+    const storage = getStorage();
+    const storageRef = ref(storage, `${currentPath}/${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        console.error(error);
+        toast({ title: "Upload Failed", description: error.message, variant: "destructive"});
+        setIsUploading(false);
+      },
+      () => {
         toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
         osEvent.emit('file-system-change', undefined);
-    } catch(err: any) {
-        console.error(err);
-        toast({ title: "Upload Failed", description: err.message, variant: "destructive"});
-    } finally {
         setIsUploading(false);
-    }
+      }
+    );
   }
 
   const handleCreate = async (name: string) => {
@@ -543,7 +526,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
          <form onSubmit={handleSearchSubmit} className="relative flex-grow">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Semantic Search your files..." 
+              placeholder="Search current folder..." 
               className="pl-9 bg-background/50"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -622,3 +605,5 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
+
+    

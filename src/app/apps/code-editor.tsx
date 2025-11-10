@@ -188,7 +188,7 @@ setCode(newCode);
             disabled={!!isLoading}
           />
           <Button onClick={handleGenerateCode} disabled={!!isLoading} className="w-full">
-            {isLoading === 'generate' ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            {isLoading === 'generate' ? <Loader2 className="animate-spin" /> : <Wand2 />}
             Generate & Replace
           </Button>
         </div>

@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -174,32 +174,89 @@ const FileRow = ({ file, onDoubleClick, onDelete }: { file: FileItem, onDoubleCl
   )
 }
 
+const NewItemRow = ({
+  type,
+  onCancel,
+  onCreate,
+}: {
+  type: 'file' | 'folder';
+  onCancel: () => void;
+  onCreate: (name: string) => void;
+}) => {
+  const [name, setName] = useState(type === 'file' ? '.tsx' : '');
+  const [isCreating, setIsCreating] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setIsCreating(true);
+    onCreate(name.trim());
+  };
+  
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (type === 'file') {
+      // Select the filename without the extension
+      const dotIndex = e.target.value.lastIndexOf('.');
+      if (dotIndex !== -1) {
+        e.target.setSelectionRange(0, dotIndex);
+      } else {
+        e.target.select();
+      }
+    }
+  }
+
+  return (
+    <TableRow className="bg-muted/50">
+      <TableCell colSpan={4} className="p-2">
+        <form onSubmit={handleCreate} className="flex items-center gap-2">
+          {type === 'folder' ? (
+            <Folder className="h-5 w-5 text-accent flex-shrink-0" />
+          ) : (
+            <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          )}
+          <Input
+            ref={inputRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onFocus={handleInputFocus}
+            onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+            placeholder={`Enter ${type} name...`}
+            className="h-8"
+            disabled={isCreating}
+          />
+          <Button type="submit" size="sm" className="h-8" disabled={isCreating}>
+            {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Create
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="h-8" onClick={onCancel} disabled={isCreating}>
+            Cancel
+          </Button>
+        </form>
+      </TableCell>
+    </TableRow>
+  );
+};
+
+
 export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery, onOpenApp }: FileExplorerAppProps) {
   const { user } = useFirebase();
   const basePath = useMemo(() => user ? `users/${user.uid}` : '', [user]);
   const [currentPath, setCurrentPath] = useState(basePath);
   
   const { allFiles, isLoading, refresh } = useStorageFiles(currentPath);
-  const [optimisticFiles, setOptimisticFiles] = useState<FileItem[]>([]);
-  
-  const displayedFiles = useMemo(() => {
-    const combined = [...allFiles, ...optimisticFiles];
-    const unique = Array.from(new Map(combined.map(f => [f.path, f])).values());
-     return unique.sort((a, b) => {
-        if (a.type === 'folder' && b.type === 'file') return -1;
-        if (a.type === 'file' && b.type === 'folder') return 1;
-        return a.name.localeCompare(b.name);
-    });
-  }, [allFiles, optimisticFiles]);
+  const [displayedFiles, setDisplayedFiles] = useState<FileItem[]>([]);
   
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
   const [isSearching, setIsSearching] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const [isCreating, setIsCreating] = useState<'folder' | 'file' | null>(null);
-  const [newName, setNewName] = useState('');
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [creatingItemType, setCreatingItemType] = useState<'folder' | 'file' | null>(null);
 
   const [itemToDelete, setItemToDelete] = useState<FileItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -212,21 +269,27 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     }
   }, [basePath, currentPath])
 
+  useEffect(() => {
+    // If we're not searching, display all files. Search results handled separately.
+    if (!isSearching) {
+        setDisplayedFiles(allFiles);
+    }
+  }, [allFiles, isSearching]);
+
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query) {
-      setOptimisticFiles([]); // Clear optimistic files on search
-      refresh();
+      setDisplayedFiles(allFiles); // Go back to normal list
       return;
     }
     setIsSearching(true);
-    setOptimisticFiles([]);
+    setCreatingItemType(null); // Cancel creation if searching
     try {
       const allFilePaths = allFiles.map(f => f.path);
       const result = await semanticFileSearch({ query: query, availableFiles: allFilePaths });
       
       const searchResultFiles = allFiles.filter(f => result.results.some(r => r.path === f.path));
-       setOptimisticFiles(searchResultFiles.map(f => ({ ...f, path: f.path + '-search' }))); // temporary hack for display
+      setDisplayedFiles(searchResultFiles);
       
       toast({
           title: "Search Complete",
@@ -239,15 +302,9 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     } finally {
         setIsSearching(false);
     }
-  }, [allFiles, toast, refresh]);
+  }, [allFiles, toast]);
 
 
-  useEffect(() => {
-    if (!initialSearchQuery) {
-        setOptimisticFiles([]);
-    }
-  }, [allFiles, initialSearchQuery]);
-  
   useEffect(() => {
      if (initialSearchQuery && allFiles.length > 0) {
         handleSearch(initialSearchQuery);
@@ -264,7 +321,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     if (file.type === 'folder') {
         setCurrentPath(file.path);
         setSearchQuery(''); // Clear search when navigating
-        setOptimisticFiles([]);
+        setCreatingItemType(null);
     } else if (file.type === 'file' && onOpenFile) {
       onOpenFile(file.path);
     }
@@ -291,60 +348,30 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     }
   }
 
-  const handleCreate = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!newName || !user || !isCreating) return;
-
-      const trimmedName = newName.trim();
-      if (!trimmedName) return;
-
-      let fullPath: string;
-      let optimisticItem: FileItem;
-      const isFile = isCreating === 'file';
-
-      if (isFile) {
-          fullPath = `${currentPath}/${trimmedName}`;
-          optimisticItem = {
-              name: trimmedName,
-              type: 'file',
-              path: fullPath,
-              size: 0,
-              modified: new Date(),
-          };
-      } else { // isCreating === 'folder'
-          fullPath = `${currentPath}/${trimmedName}/.placeholder`;
-          optimisticItem = {
-              name: trimmedName,
-              type: 'folder',
-              path: `${currentPath}/${trimmedName}`,
-              size: 0,
-              modified: new Date(),
-          };
-      }
+  const handleCreate = async (name: string) => {
+      if (!name || !user || !creatingItemType) return;
       
-      setOptimisticFiles(prev => [...prev, optimisticItem]);
-      setNewName('');
-      setIsCreating(null);
-
+      const isFile = creatingItemType === 'file';
+      const pathSegment = isFile ? name : `${name}/.placeholder`;
+      const fullPath = `${currentPath}/${pathSegment}`;
+      
       try {
           const storage = getStorage();
           const itemRef = ref(storage, fullPath);
           await uploadString(itemRef, '');
           
-          toast({ title: 'Success', description: `Successfully created ${isCreating} "${trimmedName}".` });
+          toast({ title: 'Success', description: `Successfully created ${creatingItemType} "${name}".` });
           
           osEvent.emit('file-system-change', undefined);
-          setOptimisticFiles(prev => prev.filter(f => f.path !== optimisticItem.path));
-
 
           if (isFile && onOpenFile) {
-            onOpenFile(`${currentPath}/${trimmedName}`, '');
+            onOpenFile(`${currentPath}/${name}`, '');
           }
-
       } catch (err: any) {
-          console.error(`Error creating ${isCreating}:`, err);
-          toast({ title: `Failed to create ${isCreating}`, description: err.message, variant: "destructive" });
-          setOptimisticFiles(prev => prev.filter(f => f.path !== optimisticItem.path));
+          console.error(`Error creating ${creatingItemType}:`, err);
+          toast({ title: `Failed to create ${creatingItemType}`, description: err.message, variant: "destructive" });
+      } finally {
+          setCreatingItemType(null);
       }
   }
 
@@ -395,12 +422,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
       setCurrentPath(parentPath);
       setSearchQuery(''); // Clear search when navigating
-      setOptimisticFiles([]);
-  }
-  
-  const cancelCreation = () => {
-    setIsCreating(null);
-    setNewName('');
   }
   
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
@@ -462,7 +483,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             <Button variant="ghost" size="icon" onClick={goUpOneLevel} disabled={currentPath === basePath || isLoading}>
                 <ArrowUp className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => { setOptimisticFiles([]); refresh(); }} disabled={isLoading}>
+            <Button variant="ghost" size="icon" onClick={() => { refresh(); setSearchQuery(''); }} disabled={isLoading}>
                 <RefreshCw className={isLoading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
             </Button>
         </div>
@@ -477,32 +498,24 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             />
              {isSearching && <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin" />}
         </form>
-        {!isCreating ? (
-             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                        New Item
-                        <ChevronDown className="h-4 w-4 ml-2"/>
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                    <DropdownMenuItem onSelect={() => setIsCreating('file')}>
-                        <FilePlus className="h-4 w-4 mr-2" />
-                        New File
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setIsCreating('folder')}>
-                        <Folder className="h-4 w-4 mr-2" />
-                        New Folder
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        ) : (
-            <form onSubmit={handleCreate} className="flex items-center gap-2">
-                <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder={`New ${isCreating} name...`} autoFocus />
-                <Button type="submit">Create</Button>
-                <Button variant="ghost" onClick={cancelCreation}>Cancel</Button>
-            </form>
-        )}
+         <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={!!creatingItemType}>
+                    New Item
+                    <ChevronDown className="h-4 w-4 ml-2"/>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                <DropdownMenuItem onSelect={() => setCreatingItemType('file')}>
+                    <FilePlus className="h-4 w-4 mr-2" />
+                    New File
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setCreatingItemType('folder')}>
+                    <Folder className="h-4 w-4 mr-2" />
+                    New Folder
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       {isUploading && <Progress value={uploadProgress} className="w-full h-1" />}
       <ScrollArea className="flex-grow">
@@ -522,16 +535,29 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
                         <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
                     </TableCell>
                 </TableRow>
-            ) : displayedFiles.length > 0 ? (
-                 displayedFiles.map((file) => (
-                    <FileRow key={file.path} file={file} onDoubleClick={handleDoubleClick} onDelete={setItemToDelete} />
-                ))
             ) : (
-                 <TableRow>
-                    <TableCell colSpan={4} className="text-center p-8 text-muted-foreground">
-                        {searchQuery ? 'No items matched your search.' : 'This folder is empty.'}
-                    </TableCell>
-                 </TableRow>
+                <>
+                    {creatingItemType && (
+                        <NewItemRow
+                            type={creatingItemType}
+                            onCancel={() => setCreatingItemType(null)}
+                            onCreate={handleCreate}
+                        />
+                    )}
+                    {displayedFiles.length > 0 ? (
+                        displayedFiles.map((file) => (
+                            <FileRow key={file.path} file={file} onDoubleClick={handleDoubleClick} onDelete={setItemToDelete} />
+                        ))
+                    ) : (
+                         !creatingItemType && (
+                             <TableRow>
+                                <TableCell colSpan={4} className="text-center p-8 text-muted-foreground">
+                                    {searchQuery ? 'No items matched your search.' : 'This folder is empty.'}
+                                </TableCell>
+                             </TableRow>
+                         )
+                    )}
+                </>
             )}
           </TableBody>
         </Table>

@@ -36,6 +36,7 @@ export type WindowInstance = {
     size: { width: number; height: number };
   },
   props?: Record<string, any>; // For passing props to app components
+  isDirty?: boolean; // For tracking unsaved changes in apps like CodeEditor
 };
 
 export default function Desktop() {
@@ -132,7 +133,7 @@ export default function Desktop() {
           // Find the max zIndex from restored windows to continue from there
           setHighestZIndex(prev => Math.max(prev, w.zIndex));
           nextId.current = Math.max(nextId.current, w.id + 1);
-          return { ...w, app };
+          return { ...w, app, isDirty: false }; // Initialize isDirty state
         }).filter(Boolean) as WindowInstance[];
         setOpenApps(restoredWindows);
       }
@@ -154,8 +155,9 @@ export default function Desktop() {
         const windowsToSave = openApps.map(({ app, ...rest }) => ({
           ...rest,
           appId: app.id,
-          // We don't save the props here for simplicity, but could be extended
+          // We don't save the props or dirty state here for simplicity
           props: {},
+          isDirty: false,
         }));
         setDocumentNonBlocking(userWorkspaceRef, { windows: windowsToSave });
       }
@@ -288,6 +290,7 @@ export default function Desktop() {
       zIndex: highestZIndex + 1,
       isMinimized: false,
       isMaximized: false,
+      isDirty: false,
       props,
     };
     setOpenApps((prev) => [...prev, newWindow]);
@@ -318,6 +321,10 @@ export default function Desktop() {
       )
     );
   };
+
+  const setAppDirtyState = useCallback((id: number, isDirty: boolean) => {
+    setOpenApps(prev => prev.map(app => app.id === id ? { ...app, isDirty } : app));
+  }, []);
   
   const updateAppPosition = (id: number, position: { x: number, y: number }) => {
     setOpenApps(prev => prev.map(app => app.id === id ? { ...app, position } : app));
@@ -498,6 +505,10 @@ export default function Desktop() {
             const AppComponent = window.app.component;
             const componentProps: any = { ...window.props };
 
+            if (window.app.id === 'code-editor') {
+              componentProps.isDirty = window.isDirty;
+              componentProps.setIsDirty = (isDirty: boolean) => setAppDirtyState(window.id, isDirty);
+            }
             if (window.app.id === 'file-explorer' || window.app.id === 'people') {
               componentProps.onOpenFile = openFile;
             }

@@ -42,7 +42,7 @@ export default function Window({
   userPreferences,
   onHideTutorial,
 }: WindowProps) {
-  const { id, app, position, size, zIndex, isMinimized, isMaximized } = instance;
+  const { id, app, position, size, zIndex, isMinimized, isMaximized, isDirty } = instance;
   const headerRef = useRef<HTMLDivElement>(null);
   const MIN_WIDTH = 300;
   const MIN_HEIGHT = 200;
@@ -152,6 +152,16 @@ export default function Window({
     }
   };
 
+  const handleClose = () => {
+    if (isDirty) {
+      if(window.confirm('You have unsaved changes. Are you sure you want to close this window?')) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
 
   return (
     <animated.div
@@ -192,12 +202,12 @@ export default function Window({
         >
           <div className="flex items-center gap-2">
             <app.Icon className="h-4 w-4 ml-1" />
-            <span className="text-sm font-medium select-none">{app.name}</span>
+            <span className="text-sm font-medium select-none">{app.name}{isDirty ? '*' : ''}</span>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={onMinimize} className="p-1.5 rounded-full hover:bg-white/10"><Minus className="h-3 w-3" /></button>
             <button onClick={onMaximize} className="p-1.5 rounded-full hover:bg-white/10 hidden md:block"><Square className="h-3 w-3" /></button>
-            <button onClick={onClose} className="p-1.5 rounded-full hover:bg-red-500/50"><X className="h-3 w-3" /></button>
+            <button onClick={handleClose} className="p-1.5 rounded-full hover:bg-red-500/50"><X className="h-3 w-3" /></button>
           </div>
         </CardHeader>
         <CardContent className="p-0 flex-grow relative">

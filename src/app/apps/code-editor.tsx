@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { aiCodeGeneration } from "@/ai/flows/ai-code-generation";
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, lazy, Suspense, useCallback } from "react";
 import { Wand2, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { useFirebase, useStorage, errorEmitter } from "@/firebase";
 import { osEvent } from "@/lib/events";
 import type Editor from "@monaco-editor/react";
-import { ref, uploadString, getStorage, uploadBytes } from 'firebase/storage';
+import { ref, uploadString } from 'firebase/storage';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 
@@ -21,9 +21,11 @@ const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
 interface CodeEditorAppProps {
   filePath?: string;
   initialContent?: string;
+  isDirty: boolean;
+  setIsDirty: (isDirty: boolean) => void;
 }
 
-export default function CodeEditorApp({ filePath: initialFilePath, initialContent = '' }: CodeEditorAppProps) {
+export default function CodeEditorApp({ filePath: initialFilePath, initialContent = '', isDirty, setIsDirty }: CodeEditorAppProps) {
   const [filePath, setFilePath] = useState(initialFilePath || '/untitled.tsx');
   const [code, setCode] = useState(initialContent);
   const [prompt, setPrompt] = useState("");
@@ -31,7 +33,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
   const { toast } = useToast();
   const { user } = useFirebase();
   const storage = useStorage();
-  const editorRef = useRef<InstanceType<typeof Editor> | null>(null);
+  const editorRef = useRef<any | null>(null);
 
   useEffect(() => {
     if (initialFilePath) {
@@ -41,11 +43,17 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
 
   useEffect(() => {
     setCode(initialContent);
-  }, [initialContent]);
+    setIsDirty(false);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialContent, initialFilePath]);
 
-  const handleEditorDidMount = (editor: InstanceType<typeof Editor>) => {
+  const handleEditorDidMount = (editor: any) => {
     editorRef.current = editor;
   };
+  
+  const handleEditorChange = (value: string | undefined) => {
+    setIsDirty(true);
+  }
 
   const cleanCode = (rawCode: string) => {
     return rawCode.replace(/^```(?:\w+\n)?/, '').replace(/```$/, '').trim();
@@ -62,6 +70,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       const result = await aiCodeGeneration({ description: fullPrompt });
       const newCode = cleanCode(result.code);
       setCode(newCode);
+      setIsDirty(true);
       toast({ title: "Code Generated", description: `The code in ${filePath} has been updated.` });
     } finally {
       setIsLoading(null);
@@ -99,13 +108,14 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       const result = await aiCodeGeneration({ description: refactorPrompt });
       const newCode = cleanCode(result.code);
       setCode(newCode);
+      setIsDirty(true);
       toast({ title: "Refactoring Complete", description: `The code in ${filePath} has been updated based on the project's architectural goals.` });
     } finally {
       setIsLoading(null);
     }
   }
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
      const currentCode = editorRef.current?.getValue();
      if (!user || !filePath || filePath === '/untitled.tsx' || !storage || typeof currentCode === 'undefined') {
       toast({
@@ -131,11 +141,10 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
           title: "File Saved!",
           description: `${filePath} has been saved successfully.`,
         });
+        setIsDirty(false);
         osEvent.emit('file-system-change', undefined);
       })
       .catch((serverError) => {
-        // The permission error is emitted globally, so we don't need a specific toast here
-        // as the developer overlay will show the detailed error.
         const permissionError = new FirestorePermissionError({
           path: fileRef.fullPath,
           operation: 'write', // Using 'write' for storage operations
@@ -146,14 +155,14 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
       .finally(() => {
         setIsLoading(null);
       });
-  }
+  }, [user, filePath, storage, toast, setIsDirty]);
 
   return (
     <div className="flex h-full bg-background flex-col md:flex-row">
       <div className="flex-grow flex flex-col md:w-2/3">
         <div className="flex-shrink-0 p-2 border-b text-sm text-muted-foreground flex justify-between items-center">
-          <span>File: {filePath}</span>
-          <Button variant="ghost" size="sm" onClick={handleSave} disabled={!!isLoading}>
+          <span>File: {filePath}{isDirty ? '*' : ''}</span>
+          <Button variant="ghost" size="sm" onClick={handleSave} disabled={!!isLoading || !isDirty}>
             {isLoading === 'save' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             Save
           </Button>
@@ -163,6 +172,7 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
             <MonacoEditor
               value={code}
               onMount={handleEditorDidMount}
+              onChange={handleEditorChange}
               language="typescript"
             />
           </Suspense>

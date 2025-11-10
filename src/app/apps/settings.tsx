@@ -401,12 +401,12 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="appearance" className="mt-4 pr-4 flex-grow overflow-y-auto">
-          <div className="space-y-8">
-            <div>
-              <h3 className="text-lg font-medium mb-2">Color Scheme</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Select your preferred color scheme.
+        <TabsContent value="appearance" className="mt-4 flex-grow overflow-y-auto pr-4 -mr-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Color Scheme</h3>
+              <p className="text-sm text-muted-foreground">
+                Select your preferred light or dark mode.
               </p>
               <div className="flex gap-4">
                 <Button variant="outline" onClick={() => setScheme('light')}>
@@ -417,13 +417,11 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
                 </Button>
               </div>
             </div>
-            <Separator />
-            <div>
-              <h3 className="text-lg font-medium mb-2">AI Theme Generation</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Describe the kind of theme you want, and let the AI generate it
-                for you. This feature is disabled in trial mode.
-              </p>
+            <div className="space-y-4">
+               <h3 className="text-lg font-medium">AI Theme Generation</h3>
+                <p className="text-sm text-muted-foreground">
+                    Describe a theme and let the AI generate it. This is disabled in trial mode.
+                </p>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="theme-prompt">Base Theme (Background/Text)</Label>
@@ -473,10 +471,10 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
             </div>
           </div>
         </TabsContent>
-        <TabsContent value="account" className="mt-4 pr-4 flex-grow overflow-y-auto">
+        <TabsContent value="account" className="mt-4 flex-grow overflow-y-auto pr-4 -mr-4">
           {renderAccountContent()}
         </TabsContent>
-        <TabsContent value="billing" className="mt-4 pr-4 flex-grow overflow-y-auto">
+        <TabsContent value="billing" className="mt-4 flex-grow overflow-y-auto pr-4 -mr-4">
           <div className="text-center mt-8">
             <CreditCard className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium">Manage Your Subscription</h3>
@@ -486,10 +484,10 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
             <Button onClick={() => onOpenApp && onOpenApp(APPS.find(app => app.id === 'billing')!)}>Open Billing App</Button>
           </div>
         </TabsContent>
-        <TabsContent value="security" className="mt-4 pr-4 flex-grow overflow-y-auto">
+        <TabsContent value="security" className="mt-4 flex-grow overflow-y-auto pr-4 -mr-4">
             {renderSecurityContent()}
         </TabsContent>
-        <TabsContent value="system" className="mt-4 pr-4 flex-grow overflow-y-auto">
+        <TabsContent value="system" className="mt-4 flex-grow overflow-y-auto pr-4 -mr-4">
           <p className="text-muted-foreground">
             System settings will be here.
           </p>
@@ -498,3 +496,5 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
     </div>
   );
 }
+
+    

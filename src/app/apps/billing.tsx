@@ -2,15 +2,18 @@
 'use client';
 
 import { useFirebase, useMemoFirebase, useDoc } from '@/firebase';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { doc } from 'firebase/firestore';
 import { TIERS } from '@/lib/tiers';
+import { TierCard } from '@/firebase/auth/auth-form';
+import { useState } from 'react';
 
 export default function BillingApp() {
     const { user, firestore } = useFirebase();
+    const [selectedTier, setSelectedTier] = useState<string>('');
+
 
     const subscriptionRef = useMemoFirebase(() => {
         if (!firestore || !user?.uid) return null;
@@ -34,39 +37,16 @@ export default function BillingApp() {
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {TIERS.map((tier) => (
-                <Card key={tier.id} className={cn("flex flex-col", currentTierId === tier.id && "border-accent ring-2 ring-accent")}>
-                    <CardHeader>
-                    <CardTitle>{tier.name}</CardTitle>
-                    <CardDescription className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold">{tier.price}</span>
-                        <span>{tier.priceDescription}</span>
-                    </CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-grow">
-                    <ul className="space-y-2 text-sm">
-                        {tier.features.map((feature) => (
-                        <li key={feature} className="flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            <span>{feature}</span>
-                        </li>
-                        ))}
-                    </ul>
-                    </CardContent>
-                    <CardFooter>
-                    <Button 
-                        className="w-full"
-                        disabled={currentTierId === tier.id || isLoading}
-                        variant={currentTierId === tier.id ? 'outline' : 'default'}
-                    >
-                        {currentTierId === tier.id ? 'Your Current Plan' : tier.cta}
-                    </Button>
-                    </CardFooter>
-                </Card>
+                    <TierCard
+                        key={tier.id}
+                        tier={tier}
+                        isSelected={currentTierId === tier.id || selectedTier === tier.id}
+                        onSelect={() => setSelectedTier(tier.id)}
+                        currentTierId={currentTierId}
+                    />
                 ))}
             </div>
         )}
     </div>
   );
 }
-
-    

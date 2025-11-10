@@ -45,15 +45,25 @@ interface AuthFormProps {
   onUpgradeSuccess?: () => void;
 }
 
-const TierCard = ({ tier, isSelected, onSelect }: { tier: Tier, isSelected: boolean, onSelect: (id: Tier['id']) => void }) => {
+export const TierCard = ({ tier, isSelected, onSelect, currentTierId }: { tier: Tier, isSelected: boolean, onSelect: (id: Tier['id']) => void, currentTierId?: Tier['id'] }) => {
+  const isCurrent = currentTierId === tier.id;
+  const showSelect = !isCurrent;
+
+  const handleClick = () => {
+    if (showSelect) {
+      onSelect(tier.id);
+    }
+  }
+
   return (
     <Card
       className={cn(
         "cursor-pointer transition-all flex flex-col",
-        isSelected ? "border-accent ring-2 ring-accent" : "hover:border-muted-foreground/50",
+        isSelected && !isCurrent ? "border-accent ring-2 ring-accent" : "hover:border-muted-foreground/50",
+        isCurrent && "border-accent ring-2 ring-accent",
         tier.id === 'enterprise' && 'bg-card/50 border-dashed'
       )}
-      onClick={() => onSelect(tier.id)}
+      onClick={handleClick}
     >
       <CardHeader>
         <CardTitle>{tier.name}</CardTitle>
@@ -75,12 +85,15 @@ const TierCard = ({ tier, isSelected, onSelect }: { tier: Tier, isSelected: bool
       <CardFooter className="flex-col items-stretch gap-2 !pt-4">
         {tier.id === 'enterprise' ? (
           <Button variant="outline" disabled>Contact Sales</Button>
+        ) : isCurrent ? (
+           <Button variant={'outline'} disabled className="w-full">
+            Your Current Plan
+          </Button>
         ) : (
           <Button variant={isSelected ? "default" : "secondary"} className="w-full">
-            {isSelected ? "Selected Plan" : "Select Plan"}
+            {isSelected ? "Selected Plan" : tier.cta}
           </Button>
         )}
-        <Button variant="link" size="sm" className="text-xs h-auto">More details</Button>
       </CardFooter>
     </Card>
   );
@@ -120,6 +133,8 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     try {
       if (auth.currentUser?.isAnonymous) {
         await linkWithPopup(auth.currentUser, provider);
+        // On upgrade, they keep their 'free-trial' status until it expires, or we could change it.
+        // For now, we won't change the tier on upgrade, only on new sign-up.
         if (onLinkSuccess) onLinkSuccess();
         if (onUpgradeSuccess) onUpgradeSuccess();
       } else {
@@ -141,6 +156,7 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
       const { user } = await signInAnonymously(auth);
       const trialRef = doc(firestore, 'trialUsers', user.uid);
       setDocumentNonBlocking(trialRef, { trialStartedAt: serverTimestamp() });
+       await provisionDefaultSubscription(user, 'free-trial');
       
       toast({
         title: 'Entering Trial Mode',
@@ -174,8 +190,12 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
         )}
         <Card className="w-full max-w-4xl z-10 bg-card/80 backdrop-blur-xl border-white/20">
           <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-headline">AetherOS</CardTitle>
-            {allowAnonymous && <CardDescription>Choose your plan to get started, or continue as a guest.</CardDescription>}
+            <CardTitle className="text-3xl font-headline">{isUpgrading ? 'Upgrade Your Account' : 'Welcome to AetherOS'}</CardTitle>
+             {isUpgrading ? (
+              <CardDescription>Create a permanent account to save your work and unlock all features.</CardDescription>
+            ) : (
+               allowAnonymous && <CardDescription>Choose your plan to get started, or continue as a guest.</CardDescription>
+            )}
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
             
@@ -183,7 +203,7 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
                 <div className="space-y-4">
                     <ScrollArea className="max-h-[420px] w-full">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-1">
-                           {TIERS.filter(t => t.id !== 'free-trial').map(tier => (
+                           {TIERS.filter(t => t.id !== 'free-trial' && t.id !== 'enterprise').map(tier => (
                                 <TierCard
                                     key={tier.id}
                                     tier={tier}
@@ -191,6 +211,11 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
                                     onSelect={setSelectedTier}
                                 />
                            ))}
+                            <TierCard
+                                tier={TIERS.find(t => t.id === 'enterprise')!}
+                                isSelected={false}
+                                onSelect={() => {}} // Contact sales is a different flow
+                            />
                         </div>
                     </ScrollArea>
                 </div>
@@ -199,7 +224,7 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
             <div className="flex flex-col sm:flex-row gap-4">
                 <Button className="w-full" onClick={handleGoogleSignIn}>
                 <GoogleIcon />
-                {isUpgrading ? 'Upgrade with Google' : 'Sign in with Google'}
+                {isUpgrading ? 'Upgrade with Google' : 'Sign up with Google'}
                 </Button>
 
                 {allowAnonymous && !isUpgrading && (

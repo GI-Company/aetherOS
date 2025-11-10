@@ -83,8 +83,9 @@ export const TIERS: Tier[] = [
         'Access to all applications',
         'Limited AI interactions',
         'No data persistence after session',
+        'Your Current Plan'
       ],
-      cta: 'Your Current Plan',
+      cta: 'Current Plan',
     },
 ];
     

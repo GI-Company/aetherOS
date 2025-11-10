@@ -4,17 +4,15 @@
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser } from 'firebase/auth';
 import { getFirestore, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
-import { User, CheckCircle2 } from 'lucide-react';
+import { User } from 'lucide-react';
 import { setDocumentNonBlocking } from '@/firebase';
 import React from 'react';
-import { TIERS, Tier } from '@/lib/tiers';
-import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tier } from '@/lib/tiers';
 
 function GoogleIcon() {
   return (
@@ -44,66 +42,6 @@ interface AuthFormProps {
   onLinkSuccess?: () => void;
   onUpgradeSuccess?: () => void;
 }
-
-export const TierCard = ({ tier, isSelected, onSelect, currentTierId }: { tier: Tier, isSelected: boolean, onSelect: (id: Tier['id']) => void, currentTierId?: Tier['id'] }) => {
-  const isCurrent = currentTierId === tier.id;
-  const showSelect = !isCurrent && tier.id !== 'enterprise';
-
-  const handleClick = () => {
-    if (showSelect) {
-      onSelect(tier.id);
-    }
-  }
-
-  const getButtonVariant = () => {
-    if (isCurrent || tier.id === 'enterprise' || !showSelect) return 'outline';
-    return isSelected ? 'default' : 'secondary';
-  }
-  
-  const getButtonText = () => {
-      if(isCurrent) return "Your Current Plan";
-      if(tier.id === 'enterprise') return 'Contact Sales';
-      if(isSelected) return 'Selected Plan';
-      return tier.cta;
-  }
-
-  return (
-    <Card
-      className={cn(
-        "transition-all flex flex-col",
-        isCurrent ? "border-accent ring-2 ring-accent" : "hover:border-muted-foreground/50",
-        isSelected && !isCurrent && "border-accent ring-2 ring-accent",
-        tier.id === 'enterprise' && 'bg-card/50 border-dashed',
-        showSelect && "cursor-pointer"
-      )}
-      onClick={handleClick}
-    >
-      <CardHeader>
-        <CardTitle>{tier.name}</CardTitle>
-        <CardDescription className="flex items-baseline gap-1">
-          <span className="text-2xl font-bold text-foreground">{tier.price}</span>
-          <span className="text-sm">{tier.priceDescription}</span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex-grow">
-        <ul className="space-y-2 text-sm text-muted-foreground">
-          {tier.features.slice(0, 3).map((feature) => (
-            <li key={feature} className="flex items-start gap-2">
-              <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
-              <span>{feature}</span>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-      <CardFooter className="flex-col items-stretch gap-2 !pt-4">
-        <Button variant={getButtonVariant()} className="w-full" disabled={isCurrent || tier.id === 'enterprise'}>
-          {getButtonText()}
-        </Button>
-      </CardFooter>
-    </Card>
-  );
-};
-
 
 export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgradeSuccess }: AuthFormProps) {
   const auth = getAuth();

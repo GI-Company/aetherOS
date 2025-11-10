@@ -242,7 +242,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     }
   }
 
-  const handleUpload = async (files: FileList | null) => {
+  const handleUpload = async (files: File[] | FileList) => {
     if (!files || files.length === 0 || !user) return;
     setIsUploading(true);
     setUploadProgress(0);
@@ -330,7 +330,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     e.stopPropagation();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleUpload(e.dataTransfer.files);
+      handleUpload(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -427,7 +427,5 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </div>
   );
 }
-
-    
 
     

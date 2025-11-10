@@ -80,7 +80,7 @@ export default function Window({
     config: { friction: 25, tension: 180 },
     onRest: (result) => {
       // After minimizing animation, if scale is 0, hide the element
-      if (isMinimized && result.value.scale === 0) {
+      if (isMinimized && result.value.scale < 0.1) {
         const el = document.getElementById(`window-${id}`);
         if(el) el.style.display = 'none';
       }
@@ -134,7 +134,7 @@ export default function Window({
     },
     {
       from: () => [x.get(), y.get()],
-      bounds,
+      bounds: bounds.current ? { left: 0, top: 0, right: bounds.current.clientWidth, bottom: bounds.current.clientHeight } : undefined,
       filterTaps: true,
       enabled: !isMinimized && !isMaximized,
       pointer: { capture: false },
@@ -168,7 +168,7 @@ export default function Window({
       id={`window-${id}`}
       style={{
         width: isMaximized ? '100%' : width,
-        height: isMaximized ? '100%' : height,
+        height: isMaximized ? 'calc(100% - 32px)' : height,
         zIndex,
         x,
         y,

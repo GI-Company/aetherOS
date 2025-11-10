@@ -357,6 +357,7 @@ export default function Desktop() {
         const isNowMaximized = !app.isMaximized;
         if (isNowMaximized) {
           const topBarHeight = 32;
+          const dockHeight = dockRef.current?.offsetHeight || 80;
           return {
             ...app,
             isMaximized: true,
@@ -364,7 +365,7 @@ export default function Desktop() {
             position: { x: 0, y: topBarHeight },
             size: {
               width: window.innerWidth,
-              height: window.innerHeight - topBarHeight,
+              height: window.innerHeight - topBarHeight - dockHeight,
             }
           };
         } else {

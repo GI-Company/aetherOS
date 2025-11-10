@@ -251,7 +251,3 @@ export default function Window({
     </animated.div>
   );
 }
-
-    
-
-    

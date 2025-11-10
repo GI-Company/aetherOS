@@ -600,5 +600,3 @@ export default function Desktop() {
     </div>
   );
 }
-
-    

@@ -303,9 +303,6 @@
           "items": {
             "type": "object",
             "properties": {
-              "stepName": {
-                "type": "string"
-              },
               "toolId": {
                 "type": "string",
                 "description": "The ID of the tool to execute for this step."
@@ -316,7 +313,7 @@
                 "additionalProperties": true
               }
             },
-            "required": ["stepName", "toolId"]
+            "required": ["toolId"]
           }
         }
       },
@@ -391,5 +388,3 @@
     }
   }
 }
-
-    

@@ -36,7 +36,6 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 interface SettingsAppProps {
@@ -401,101 +400,100 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
-        <ScrollArea className="flex-grow mt-2">
-          <TabsContent value="appearance" className="mt-4 pr-4">
-            <div className="space-y-8">
-              <div>
-                <h3 className="text-lg font-medium mb-2">Color Scheme</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Select your preferred color scheme.
-                </p>
-                <div className="flex gap-4">
-                  <Button variant="outline" onClick={() => setScheme('light')}>
-                    Light
-                  </Button>
-                  <Button variant="outline" onClick={() => setScheme('dark')}>
-                    Dark
-                  </Button>
-                </div>
-              </div>
-              <Separator />
-              <div>
-                <h3 className="text-lg font-medium mb-2">AI Theme Generation</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Describe the kind of theme you want, and let the AI generate it
-                  for you. This feature is disabled in trial mode.
-                </p>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="theme-prompt">Base Theme (Background/Text)</Label>
-                    <Textarea
-                      id="theme-prompt"
-                      placeholder="e.g., 'A dark, modern theme with high contrast for coding', 'A light, airy theme for writing'..."
-                      value={themePrompt}
-                      onChange={e => setThemePrompt(e.target.value)}
-                      disabled={!!isLoading || user?.isAnonymous}
-                    />
-                    <Button
-                      onClick={handleGenerateTheme}
-                      disabled={!!isLoading || user?.isAnonymous}
-                      className="w-full sm:w-auto"
-                    >
-                      {isLoading === 'theme' ? (
-                        <Loader2 className="animate-spin" />
-                      ) : (
-                        <Palette />
-                      )}
-                      Generate Base Theme
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="accent-prompt">Accent Color</Label>
-                    <Textarea
-                      id="accent-prompt"
-                      placeholder="e.g., 'A vibrant electric blue', 'A calming, soft lavender'..."
-                      value={accentPrompt}
-                      onChange={e => setAccentPrompt(e.target.value)}
-                      disabled={!!isLoading || user?.isAnonymous}
-                    />
-                    <Button
-                      onClick={handleGenerateAccent}
-                      disabled={!!isLoading || user?.isAnonymous}
-                      className="w-full sm:w-auto"
-                    >
-                      {isLoading === 'accent' ? (
-                        <Loader2 className="animate-spin" />
-                      ) : (
-                        <Sparkles />
-                      )}
-                      Generate Accent
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-          <TabsContent value="account" className="mt-4 pr-4">
-            {renderAccountContent()}
-          </TabsContent>
-          <TabsContent value="billing" className="mt-4 pr-4">
-            <div className="text-center mt-8">
-              <CreditCard className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium">Manage Your Subscription</h3>
+        
+        <TabsContent value="appearance" className="mt-4 pr-4 flex-grow overflow-y-auto">
+          <div className="space-y-8">
+            <div>
+              <h3 className="text-lg font-medium mb-2">Color Scheme</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                View plans, check your current tier, and manage billing details.
+                Select your preferred color scheme.
               </p>
-              <Button onClick={() => onOpenApp && onOpenApp(APPS.find(app => app.id === 'billing')!)}>Open Billing App</Button>
+              <div className="flex gap-4">
+                <Button variant="outline" onClick={() => setScheme('light')}>
+                  Light
+                </Button>
+                <Button variant="outline" onClick={() => setScheme('dark')}>
+                  Dark
+                </Button>
+              </div>
             </div>
-          </TabsContent>
-          <TabsContent value="security" className="mt-4 pr-4">
-              {renderSecurityContent()}
-          </TabsContent>
-          <TabsContent value="system" className="mt-4 pr-4">
-            <p className="text-muted-foreground">
-              System settings will be here.
+            <Separator />
+            <div>
+              <h3 className="text-lg font-medium mb-2">AI Theme Generation</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Describe the kind of theme you want, and let the AI generate it
+                for you. This feature is disabled in trial mode.
+              </p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="theme-prompt">Base Theme (Background/Text)</Label>
+                  <Textarea
+                    id="theme-prompt"
+                    placeholder="e.g., 'A dark, modern theme with high contrast for coding', 'A light, airy theme for writing'..."
+                    value={themePrompt}
+                    onChange={e => setThemePrompt(e.target.value)}
+                    disabled={!!isLoading || user?.isAnonymous}
+                  />
+                  <Button
+                    onClick={handleGenerateTheme}
+                    disabled={!!isLoading || user?.isAnonymous}
+                    className="w-full sm:w-auto"
+                  >
+                    {isLoading === 'theme' ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <Palette />
+                    )}
+                    Generate Base Theme
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accent-prompt">Accent Color</Label>
+                  <Textarea
+                    id="accent-prompt"
+                    placeholder="e.g., 'A vibrant electric blue', 'A calming, soft lavender'..."
+                    value={accentPrompt}
+                    onChange={e => setAccentPrompt(e.target.value)}
+                    disabled={!!isLoading || user?.isAnonymous}
+                  />
+                  <Button
+                    onClick={handleGenerateAccent}
+                    disabled={!!isLoading || user?.isAnonymous}
+                    className="w-full sm:w-auto"
+                  >
+                    {isLoading === 'accent' ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <Sparkles />
+                    )}
+                    Generate Accent
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+        <TabsContent value="account" className="mt-4 pr-4 flex-grow overflow-y-auto">
+          {renderAccountContent()}
+        </TabsContent>
+        <TabsContent value="billing" className="mt-4 pr-4 flex-grow overflow-y-auto">
+          <div className="text-center mt-8">
+            <CreditCard className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">Manage Your Subscription</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              View plans, check your current tier, and manage billing details.
             </p>
-          </TabsContent>
-        </ScrollArea>
+            <Button onClick={() => onOpenApp && onOpenApp(APPS.find(app => app.id === 'billing')!)}>Open Billing App</Button>
+          </div>
+        </TabsContent>
+        <TabsContent value="security" className="mt-4 pr-4 flex-grow overflow-y-auto">
+            {renderSecurityContent()}
+        </TabsContent>
+        <TabsContent value="system" className="mt-4 pr-4 flex-grow overflow-y-auto">
+          <p className="text-muted-foreground">
+            System settings will be here.
+          </p>
+        </TabsContent>
       </Tabs>
     </div>
   );

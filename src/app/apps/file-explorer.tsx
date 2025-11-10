@@ -327,8 +327,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
 
   const handleSearch = useCallback(async (query: string) => {
+    setSearchQuery(query);
     if (!query) {
-      setSearchQuery('');
       setDisplayedFiles(allFiles);
       return;
     }
@@ -359,7 +359,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
   useEffect(() => {
      if (initialSearchQuery && allFiles.length > 0) {
-        setSearchQuery(initialSearchQuery);
         handleSearch(initialSearchQuery);
      }
      // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,4 +1,4 @@
-import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor, CreditCard, Image, MessagesSquare } from "lucide-react";
+import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Monitor, CreditCard, Image, MessagesSquare, ShieldCheck } from "lucide-react";
 import React from "react";
 import SettingsApp from "@/app/apps/settings";
 import FileExplorerApp from "@/app/apps/file-explorer";

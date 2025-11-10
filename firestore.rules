@@ -21,8 +21,8 @@ service cloud.firestore {
       allow read, create: if request.auth != null && request.auth.uid == userId && request.auth.token.firebase.sign_in_provider == 'anonymous';
     }
     match /messages/{messageId} {
-      // Any authenticated user can read and create messages.
-      allow read, create: if request.auth != null;
+      // Only authenticated users with a verified email can read and create messages.
+      allow read, create: if request.auth != null && request.auth.token.email_verified == true;
       // Nobody can update or delete messages to preserve chat history.
       allow update, delete: if false;
     }

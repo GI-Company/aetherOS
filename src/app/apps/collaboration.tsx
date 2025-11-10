@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Send, Loader2, UserPlus, MessagesSquare } from 'lucide-react';
+import { Send, Loader2, UserPlus, MessagesSquare, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { APPS, App } from '@/lib/apps';
@@ -77,7 +77,7 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
 
   const handleSendMessage = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !user || !firestore || user.isAnonymous) {
+    if (!newMessage.trim() || !user || !firestore || user.isAnonymous || !user.emailVerified) {
       return;
     }
 
@@ -174,6 +174,18 @@ export default function CollaborationApp({ onOpenApp }: CollaborationAppProps) {
           </Button>
         </div>
       )
+    }
+
+    if (user && !user.emailVerified) {
+         return (
+            <div className="text-center p-4 border-t bg-card text-muted-foreground text-sm">
+            <p className="mb-2">Please verify your email address to participate in the chat.</p>
+            <Button variant="secondary" onClick={openSettingsToAccountTab}>
+                <ShieldCheck className="mr-2 h-4 w-4"/>
+                Go to Account Settings
+            </Button>
+            </div>
+        )
     }
 
     return (

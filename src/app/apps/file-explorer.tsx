@@ -281,19 +281,15 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
   useEffect(() => {
     if (!searchQuery) {
-        const filtered = allFiles.filter(file => {
-            const parentPath = file.path.substring(0, file.path.lastIndexOf('/'));
-            return parentPath === currentPath || (parentPath === '' && currentPath === basePath);
-        });
-        setDisplayedFiles(filtered);
+        setDisplayedFiles(allFiles);
     }
-  }, [allFiles, searchQuery, currentPath, basePath]);
+  }, [allFiles, searchQuery]);
 
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query) {
       setSearchQuery(''); // Clear search query
-      // The useEffect above will handle resetting displayedFiles
+      setDisplayedFiles(allFiles);
       return;
     }
     setIsSearching(true);
@@ -526,7 +522,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
          <form onSubmit={handleSearchSubmit} className="relative flex-grow">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Search current folder..." 
+              placeholder="Search files and folders..." 
               className="pl-9 bg-background/50"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -605,5 +601,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
+
+    
 
     

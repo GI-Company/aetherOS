@@ -221,7 +221,7 @@ export default function CommandPalette({ open, setOpen, onOpenApp, openApps, onA
                   <File className="mr-2 h-4 w-4" />
                   <span>Find and open a file...</span>
                 </CommandItem>
-                 <CommandItem onSelect={() => {setSearchValue("Design a login form and save it to components/login-form.tsx"); handleSubmit(new Event('submit') as any);}}>
+                 <CommandItem onSelect={() => {setSearchValue("Design a login form and save it to src/components/login-form.tsx"); handleSubmit(new Event('submit') as any);}}>
                   <BrainCircuit className="mr-2 h-4 w-4" />
                   <span>Design a component...</span>
                 </CommandItem>

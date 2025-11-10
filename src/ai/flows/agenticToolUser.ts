@@ -50,7 +50,7 @@ const DesignComponentInputSchema = z.object({
 });
 
 const WriteFileInputSchema = z.object({
-    filePath: z.string().describe('The destination path for the file to be written (e.g., "users/uid/components/new-component.tsx").'),
+    filePath: z.string().describe('The destination path for the file to be written (e.g., "src/components/new-component.tsx"). The path must start with a valid directory like "src/components" or "src/app".'),
     content: z.string().describe('The full code or text content to write into the file.'),
 });
 
@@ -146,7 +146,7 @@ const designComponentTool = ai.defineTool(
 const writeFileTool = ai.defineTool(
     {
       name: 'writeFile',
-      description: 'Writes content to a specified file. This is useful for saving generated code into a new file.',
+      description: 'Writes content to a specified file path in the user\'s workspace. This is useful for saving generated code into a new file.',
       inputSchema: WriteFileInputSchema,
       outputSchema: z.void(),
     },
@@ -163,7 +163,7 @@ const agenticToolUserPrompt = ai.definePrompt({
 - If a user asks to find AND open a file (e.g., "Find and open my auth form component"), you should first use the 'searchFiles' tool to get the results. Then, if you are confident about the best match, you should separately call the 'openFile' tool with the exact file path from the search results.
 - **Tool Chaining**:
     - **Wallpaper**: If a user asks for a new wallpaper or background (e.g., "I want a new background of a futuristic city"), you MUST chain tools. First, call 'generateImage'. Then, take the 'imageUrl' from its output and use it to call 'setWallpaper'.
-    - **Design & Write Component**: If a user asks you to design or create a new component and save it to a file (e.g., "Design a login form and save it to components/login.tsx"), you MUST chain tools. First, call 'designComponent' with a detailed prompt. Then, take the 'code' from its output and use it to call 'writeFile' with the specified file path and the generated code.
+    - **Design & Write Component**: If a user asks you to design or create a new component and save it to a file (e.g., "Design a login form and save it to components/login.tsx"), you MUST chain tools. First, call 'designComponent' with a detailed prompt. Then, take the 'code' from its output and use it to call 'writeFile' with the specified file path and the generated code. The file path must be a valid path within the user's workspace, such as 'src/app/components/my-new-component.tsx'.
 - If the user asks what apps are currently open, use the 'getOpenApps' tool to get the list and then formulate a text response based on its output.
 - If the user asks to arrange, tile, or organize their windows, use the 'arrangeWindows' tool.
 - For any other query, do not use a tool and instead provide a helpful text response.`,

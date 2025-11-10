@@ -101,7 +101,6 @@ const useStorageFiles = (currentPath: string) => {
 interface FileExplorerAppProps {
   onOpenFile?: (filePath: string, content?: string) => void;
   searchQuery?: string;
-  onOpenApp?: (app: (typeof APPS)[0], props?: Record<string, any>) => void;
 }
 
 const FileRow = ({ file, onDoubleClick, onDelete }: { file: FileItem, onDoubleClick: (file: FileItem) => void, onDelete: (file: FileItem) => void }) => {
@@ -243,7 +242,7 @@ const NewItemRow = ({
 };
 
 
-export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery, onOpenApp }: FileExplorerAppProps) {
+export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery }: FileExplorerAppProps) {
   const { user } = useFirebase();
   const basePath = useMemo(() => user ? `users/${user.uid}` : '', [user]);
   const [currentPath, setCurrentPath] = useState(basePath);
@@ -255,6 +254,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   const [isSearching, setIsSearching] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const [creatingItemType, setCreatingItemType] = useState<'folder' | 'file' | null>(null);
 

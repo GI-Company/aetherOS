@@ -23,5 +23,3 @@ export default function Dropzone({ visible }: DropzoneProps) {
         </div>
     );
 }
-
-    

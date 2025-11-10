@@ -11,7 +11,7 @@ import { generateImage } from "@/ai/flows/generate-image";
 import { useToast } from "@/hooks/use-toast";
 import { Layers, Loader2, Wand2, Save } from "lucide-react";
 import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadString, uploadBytes } from "firebase/storage";
 import { osEvent } from "@/lib/events";
 
 export default function PixelStreamerApp() {
@@ -63,6 +63,8 @@ export default function PixelStreamerApp() {
         description: "Your new creation is being saved to the File Explorer."
     });
     
+    setIsLoading("save");
+
     try {
       // Create a filename from the prompt
       const safePrompt = prompt.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 50);
@@ -90,6 +92,8 @@ export default function PixelStreamerApp() {
             requestResourceData: '(image data)',
           });
           errorEmitter.emit('permission-error', permissionError);
+        }).finally(() => {
+            setIsLoading(null);
         });
 
     } catch (error) {
@@ -99,6 +103,7 @@ export default function PixelStreamerApp() {
             description: "An unexpected error occurred while preparing the image.",
             variant: "destructive"
         });
+        setIsLoading(null);
     }
   };
 

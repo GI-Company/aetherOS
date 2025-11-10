@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { Wand2, Sparkles, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { useFirebase, useStorage, setDocumentNonBlocking, errorEmitter, FirestorePermissionError } from "@/firebase";
+import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
 import { osEvent } from "@/lib/events";
 import type Editor from "@monaco-editor/react";
 import { ref, uploadString } from 'firebase/storage';
@@ -125,7 +125,8 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
         title: "Saving...",
         description: `${filePath} is being saved to your cloud storage.`,
     });
-
+    
+    setIsLoading("save");
     const fileRef = ref(storage, filePath);
     
     uploadString(fileRef, currentCode)
@@ -145,6 +146,9 @@ export default function CodeEditorApp({ filePath: initialFilePath, initialConten
           requestResourceData: `(file content of ${currentCode.length} bytes)`,
         });
         errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsLoading(null);
       });
   }
 

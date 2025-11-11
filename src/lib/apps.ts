@@ -12,6 +12,7 @@ import BillingApp from "@/app/apps/billing";
 import CollaborationApp from "@/app/apps/collaboration";
 import ImageViewerApp from "@/app/apps/image-viewer";
 import PeopleApp from "@/app/apps/people";
+import VmTerminalApp from "@/app/apps/vm-terminal";
 
 
 export type App = {
@@ -24,7 +25,6 @@ export type App = {
 };
 
 const MailApp = () => React.createElement('div', { className: 'p-4' }, 'Mail App Content');
-const VirtualMachineApp = () => React.createElement('div', { className: 'p-4 flex items-center justify-center h-full text-muted-foreground' }, 'Embedded VM would be displayed here.');
 
 
 export const APPS: App[] = [
@@ -96,8 +96,8 @@ export const APPS: App[] = [
     id: 'virtual-machine',
     name: 'Virtual Machine',
     Icon: Container,
-    component: VirtualMachineApp,
-    defaultSize: { width: 1024, height: 768 },
+    component: VmTerminalApp,
+    defaultSize: { width: 640, height: 480 },
   },
   {
     id: "mail",
@@ -121,5 +121,3 @@ export const APPS: App[] = [
     defaultSize: { width: 900, height: 700 },
   },
 ];
-
-    

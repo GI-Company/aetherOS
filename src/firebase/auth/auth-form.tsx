@@ -2,7 +2,7 @@
 'use client';
 
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser, OAuthProvider } from 'firebase/auth';
-import { getFirestore, doc, getDoc, serverTimestamp, setDoc, collection, query, getDocs, addDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -10,9 +10,8 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
 import { User } from 'lucide-react';
-import { addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import React from 'react';
-import { TIERS } from '@/lib/tiers';
+import { setDocumentNonBlocking } from '@/firebase';
+import React, { useState } from 'react';
 
 function GoogleIcon() {
   return (
@@ -57,9 +56,9 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   
+  const [isSignIn, setIsSignIn] = useState(false);
+
   const handleAuthSuccess = async (user: FirebaseUser) => {
-    // For every new user, just create their customer record.
-    // They will be directed to select a plan (including the free one) after this.
     const customerRef = doc(firestore, 'customers', user.uid);
     const customerSnap = await getDoc(customerRef);
 
@@ -129,56 +128,71 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   };
 
   const isUpgrading = !!auth.currentUser?.isAnonymous;
+  const actionText = isUpgrading ? "Link" : (isSignIn ? "Sign in with" : "Sign up with");
 
   return (
-    <>
-      <div className="h-screen w-screen flex items-center justify-center font-body bg-background p-4">
-        {wallpaper && allowAnonymous && (
-          <Image
-            src={wallpaper.imageUrl}
-            alt={wallpaper.description}
-            data-ai-hint={wallpaper.imageHint}
-            fill
-            quality={100}
-            className="object-cover z-0"
-            priority
-          />
-        )}
-        <Card className="w-full max-w-lg z-10 bg-card/80 backdrop-blur-xl border-white/20">
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-headline">{isUpgrading ? 'Upgrade Your Account' : 'Welcome to AetherOS'}</CardTitle>
-             {isUpgrading ? (
-              <CardDescription>Link a Google or Apple account to save your work and unlock all features.</CardDescription>
-            ) : (
-               allowAnonymous && <CardDescription>Sign up or continue as a guest.</CardDescription>
-            )}
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-             {allowAnonymous && !isUpgrading && (
-                <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
-                    <User className="mr-2 h-4 w-4" />
-                    Start 15-Min Trial
-                </Button>
-            )}
-
-             <div className="relative flex items-center justify-center w-full">
+    <div className="h-screen w-screen flex flex-col items-center justify-center font-body bg-background p-4">
+      {wallpaper && allowAnonymous && (
+        <Image
+          src={wallpaper.imageUrl}
+          alt={wallpaper.description}
+          data-ai-hint={wallpaper.imageHint}
+          fill
+          quality={100}
+          className="object-cover z-0"
+          priority
+        />
+      )}
+      <Card className="w-full max-w-lg z-10 bg-card/80 backdrop-blur-xl border-white/20">
+        <CardHeader className="text-center">
+          <CardTitle className="text-3xl font-headline">
+            {isUpgrading ? 'Upgrade Your Account' : (isSignIn ? 'Sign In to AetherOS' : 'Welcome to AetherOS')}
+          </CardTitle>
+          <CardDescription>
+            {isUpgrading
+              ? 'Link an account to save your work and unlock all features.'
+              : (isSignIn
+                  ? 'Sign in to access your saved workspace.'
+                  : 'The AI-native operating system.'
+                )
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {!isSignIn && allowAnonymous && !isUpgrading && (
+            <>
+              <Button variant="secondary" className="w-full" onClick={handleAnonymousSignIn}>
+                <User className="mr-2 h-4 w-4" />
+                Start 15-Min Trial
+              </Button>
+              <div className="relative flex items-center justify-center w-full">
                 <Separator className="w-full" />
                 <span className="absolute bg-card px-2 text-xs text-muted-foreground">OR</span>
-            </div>
+              </div>
+            </>
+          )}
 
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <Button className="w-full" onClick={handleGoogleSignIn}>
-                <GoogleIcon />
-                {isUpgrading ? 'Link Google Account' : 'Sign up with Google'}
-              </Button>
-              <Button className="w-full" onClick={handleAppleSignIn}>
-                  <AppleIcon />
-                  {isUpgrading ? 'Link Apple Account' : 'Sign up with Apple'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </>
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <Button className="w-full" onClick={handleGoogleSignIn}>
+              <GoogleIcon />
+              {actionText} Google
+            </Button>
+            <Button className="w-full" onClick={handleAppleSignIn}>
+              <AppleIcon />
+              {actionText} Apple
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {!isUpgrading && allowAnonymous && (
+         <div className="mt-4 text-center">
+            <Button variant="link" className="text-sm text-background/80 hover:text-background" onClick={() => setIsSignIn(!isSignIn)}>
+                {isSignIn ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            </Button>
+        </div>
+      )}
+
+    </div>
   );
 }

@@ -111,7 +111,7 @@ export default function Window({
     }
   }, [isMinimized, position, size, api, id, app.id, size.width, size.height]);
 
-  const bind = useDrag(
+  const bindPosition = useDrag(
     ({ down, movement: [mx, my], last, memo }) => {
       if (isMaximized) return; // Don't drag if maximized
       if (!memo) {
@@ -152,6 +152,31 @@ export default function Window({
     }
   );
   
+  const bindResize = useDrag(
+    ({ down, movement: [mx, my], last, memo }) => {
+      if (isMaximized) return;
+      if (!memo) {
+        memo = [width.get(), height.get()];
+      }
+      const newWidth = Math.max(app.defaultSize.width, memo[0] + mx);
+      const newHeight = Math.max(app.defaultSize.height, memo[1] + my);
+      
+      api.start({ width: newWidth, height: newHeight, immediate: down });
+      
+      if (last) {
+        updateSize(id, { width: newWidth, height: newHeight });
+      }
+      return memo;
+    },
+    {
+       from: () => [width.get(), height.get()],
+       eventOptions: { passive: false },
+       // This specifies that the drag should only activate for the resize handle
+       filterTaps: true,
+       target: (e) => (e as HTMLElement)?.dataset?.resize === 'true'
+    }
+  );
+  
   const handleFinishAppTutorial = (dontShowAgain: boolean) => {
     setShowAppTutorial(false);
     if (dontShowAgain) {
@@ -189,6 +214,7 @@ export default function Window({
       )}
       onMouseDownCapture={onFocus}
       onPointerDownCapture={onFocus}
+      {...bindResize()}
     >
       <Card
         className={cn(
@@ -205,6 +231,7 @@ export default function Window({
             isMaximized ? "cursor-default" : "cursor-grab active:cursor-grabbing"
           )}
           onDoubleClick={onMaximize}
+          {...bindPosition()}
         >
           <div className="flex items-center gap-2">
             <app.Icon className="h-4 w-4 ml-1" />

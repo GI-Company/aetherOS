@@ -2,7 +2,7 @@
 'use client';
 
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, serverTimestamp, setDoc, collection, query, getDocs, addDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -10,8 +10,9 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
 import { User } from 'lucide-react';
-import { setDocumentNonBlocking } from '@/firebase';
+import { addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import React from 'react';
+import { TIERS } from '@/lib/tiers';
 
 function GoogleIcon() {
   return (
@@ -50,16 +51,20 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   
   const handleAuthSuccess = async (user: FirebaseUser, isNewUser: boolean) => {
     if (isNewUser) {
-        // This is a new sign-up. Create a customer record in Firestore
-        // which the Stripe extension will use to create a Stripe Customer.
+        // For new users, create the customer record for Stripe
         const customerRef = doc(firestore, 'customers', user.uid);
-        const customerDoc = await getDoc(customerRef);
+        await setDoc(customerRef, { email: user.email, name: user.displayName });
 
-        if (!customerDoc.exists()) {
-          await setDoc(customerRef, {
-              email: user.email,
-              name: user.displayName,
-          });
+        // And create their initial "free" subscription tier in Firestore
+        const freeTier = TIERS.find(t => t.id === 'free');
+        if (freeTier) {
+            const subscriptionsRef = collection(firestore, `users/${user.uid}/subscriptions`);
+            await addDoc(subscriptionsRef, {
+                role: 'free',
+                status: 'active', // Set initial status
+                created: serverTimestamp(),
+                // Add other relevant free tier details if needed
+            });
         }
     }
     
@@ -73,21 +78,18 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     const provider = new GoogleAuthProvider();
     try {
       if (auth.currentUser?.isAnonymous) {
-        // This is an account upgrade
         const credential = await linkWithPopup(auth.currentUser, provider);
-        // After linking, the user is no longer anonymous. The original anonymous
-        // user is deleted, and the new credential is used. We treat this as a "new user"
-        // in our system for the purpose of creating a Stripe customer.
         if (onLinkSuccess) onLinkSuccess();
-        await handleAuthSuccess(credential.user, true); // Treat linked account as a new user for Stripe purposes
+        await handleAuthSuccess(credential.user, true); // Treat linked account as a new user
         if (onUpgradeSuccess) onUpgradeSuccess();
       } else {
-        // This is a fresh sign-up or sign-in
         const result = await signInWithPopup(auth, provider);
-        // Check if the user is new by trying to get their customer document
-        const customerDocRef = doc(firestore, 'customers', result.user.uid);
-        const customerDoc = await getDoc(customerDocRef);
-        const isNewUser = !customerDoc.exists();
+        
+        // A new user is one who doesn't have a subscription record yet.
+        const subscriptionsQuery = query(collection(firestore, `users/${result.user.uid}/subscriptions`));
+        const subscriptionsSnap = await getDocs(subscriptionsQuery);
+        const isNewUser = subscriptionsSnap.empty;
+
         await handleAuthSuccess(result.user, isNewUser);
       }
     } catch (error: any) {

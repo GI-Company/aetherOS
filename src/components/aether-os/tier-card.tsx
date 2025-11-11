@@ -13,7 +13,7 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
   const showSelect = isSelectable && !isCurrent && tier.id !== 'enterprise' && tier.id !== 'free-trial';
 
   const handleClick = () => {
-    // Also allow selecting the 'free' tier now
+    // Allow selecting the 'free' tier as part of the onboarding.
     if (showSelect || (isSelectable && tier.id === 'free' && !isCurrent)) {
       onSelect(tier);
     }

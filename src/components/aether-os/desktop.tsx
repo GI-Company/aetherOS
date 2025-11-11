@@ -527,7 +527,7 @@ export default function Desktop() {
           priority
         />
       )}
-      <div className="relative z-10 flex-grow w-full flex flex-col" ref={desktopRef}>
+      <div className="relative z-10 flex-grow w-full flex flex-col">
         <TopBar onUpgrade={() => setUpgradeDialogOpen(true)} />
 
         {showWelcomeTutorial && TUTORIALS.welcome && (

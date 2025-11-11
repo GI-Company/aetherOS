@@ -1,214 +1,175 @@
 
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { aiCodeGeneration } from "@/ai/flows/ai-code-generation";
-import { useState, useEffect, useRef, lazy, Suspense, useCallback } from "react";
-import { Wand2, Loader2, Save } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Separator } from "@/components/ui/separator";
-import { useFirebase, useStorage, errorEmitter } from "@/firebase";
+import { useFirebase, useStorage } from "@/firebase";
 import { osEvent } from "@/lib/events";
-import type Editor from "@monaco-editor/react";
-import { ref, uploadString } from 'firebase/storage';
-import { FirestorePermissionError } from '@/firebase/errors';
-
-
-const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
+import { getDownloadURL, ref } from 'firebase/storage';
+import { Loader2, FolderOpen } from "lucide-react";
+import WelcomeScreen from "@/components/aether-os/code-editor/welcome-screen";
+import FileTree from "@/components/aether-os/code-editor/file-tree";
+import EditorTabs, { type EditorFile } from "@/components/aether-os/code-editor/editor-tabs";
+import AiPanel from "@/components/aether-os/code-editor/ai-panel";
+import { Button } from "@/components/ui/button";
 
 interface CodeEditorAppProps {
-  filePath?: string;
+  filePath?: string; // Can be used to open a project folder
   initialContent?: string;
-  isDirty: boolean;
-  setIsDirty: (isDirty: boolean) => void;
 }
 
-export default function CodeEditorApp({ filePath: initialFilePath, initialContent = '', isDirty, setIsDirty }: CodeEditorAppProps) {
-  const [filePath, setFilePath] = useState(initialFilePath || '/untitled.tsx');
-  const [code, setCode] = useState(initialContent);
-  const [prompt, setPrompt] = useState("");
-  const [isLoading, setIsLoading] = useState<"generate" | "refactor" | "save" | null>(null);
+export default function CodeEditorApp({ filePath: initialProjectPath }: CodeEditorAppProps) {
+  const [projectPath, setProjectPath] = useState<string | null>(initialProjectPath || null);
+  const [openFiles, setOpenFiles] = useState<EditorFile[]>([]);
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  
   const { toast } = useToast();
   const { user } = useFirebase();
   const storage = useStorage();
-  const editorRef = useRef<any | null>(null);
 
-  useEffect(() => {
-    if (initialFilePath) {
-      setFilePath(initialFilePath);
-    }
-  }, [initialFilePath]);
-
-  useEffect(() => {
-    setCode(initialContent);
-    setIsDirty(false);
-     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialContent, initialFilePath]);
-
-  const handleEditorDidMount = (editor: any) => {
-    editorRef.current = editor;
+  const handleSetProject = (path: string) => {
+    setProjectPath(path);
+    setOpenFiles([]);
+    setActiveFileId(null);
   };
   
-  const handleEditorChange = (value: string | undefined) => {
-    setIsDirty(true);
-  }
-
-  const cleanCode = (rawCode: string) => {
-    return rawCode.replace(/^```(?:\w+\n)?/, '').replace(/```$/, '').trim();
-  }
-
-  const handleGenerateCode = async () => {
-    if (!prompt) {
-      toast({ title: "Prompt is empty", description: "Please enter a prompt to generate code.", variant: "destructive" });
+  const handleOpenFile = useCallback(async (filePath: string, fileContent?: string) => {
+    // Check if file is already open
+    const existingFile = openFiles.find(f => f.path === filePath);
+    if (existingFile) {
+      setActiveFileId(existingFile.id);
       return;
     }
-    setIsLoading("generate");
-    try {
-      const fullPrompt = `File Path: ${filePath}\n\nTask: ${prompt}\n\n---\n\nGenerate the complete code for the file based on the task. Ensure the output is a single, complete file content without any extra explanations.`;
-      const result = await aiCodeGeneration({ description: fullPrompt });
-      const newCode = cleanCode(result.code);
-      setCode(newCode);
-      setIsDirty(true);
-      toast({ title: "Code Generated", description: `The code in ${filePath} has been updated.` });
-    } finally {
-      setIsLoading(null);
+
+    const fileId = `file_${Date.now()}`;
+    let content = fileContent;
+
+    // If content is not provided, fetch it
+    if (typeof content === 'undefined') {
+      try {
+        toast({ title: "Opening File...", description: `Loading content for ${filePath}` });
+        if (!storage) throw new Error("Storage not available");
+        const fileRef = ref(storage, filePath);
+        const url = await getDownloadURL(fileRef);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to fetch file content.");
+        content = await response.text();
+      } catch (error: any) {
+        console.error("Error opening file:", error);
+        toast({ title: "Error", description: `Could not load file: ${error.message}`, variant: "destructive" });
+        return;
+      }
     }
+    
+    const newFile: EditorFile = {
+      id: fileId,
+      name: filePath.split('/').pop() || 'untitled',
+      path: filePath,
+      content: content || '',
+      isDirty: false,
+    };
+    
+    setOpenFiles(prev => [...prev, newFile]);
+    setActiveFileId(fileId);
+
+  }, [openFiles, storage, toast]);
+
+  const handleCloseFile = (fileId: string) => {
+    setOpenFiles(prev => {
+      const fileToCloseIndex = prev.findIndex(f => f.id === fileId);
+      if (fileToCloseIndex === -1) return prev;
+      
+      const fileToClose = prev[fileToCloseIndex];
+
+      if (fileToClose.isDirty && !window.confirm("You have unsaved changes. Are you sure you want to close this file?")) {
+        return prev;
+      }
+
+      const updatedFiles = prev.filter(f => f.id !== fileId);
+
+      // If the closed file was the active one, select a new active file
+      if (activeFileId === fileId) {
+        if (updatedFiles.length === 0) {
+          setActiveFileId(null);
+        } else if (fileToCloseIndex > 0) {
+          // Select previous tab
+          setActiveFileId(updatedFiles[fileToCloseIndex - 1].id);
+        } else {
+          // Select next tab
+          setActiveFileId(updatedFiles[0].id);
+        }
+      }
+      return updatedFiles;
+    });
   };
 
-  const handleRefactorCode = async () => {
-    const currentCode = editorRef.current?.getValue();
-    if (!currentCode) {
-      toast({ title: "No code to refactor", description: "The editor is empty.", variant: "destructive" });
-      return;
-    }
-    setIsLoading("refactor");
-    try {
-      const response = await fetch('/docs/ROADMAP.md');
-      const styleGuide = await response.text();
-
-      const refactorPrompt = `
-        File Path: ${filePath}
-        
-        Architectural Style Guide & Roadmap:
-        ---
-        ${styleGuide}
-        ---
-
-        Task:
-        Please act as an expert software architect. Refactor the following code to align with the principles and goals outlined in the Architectural Style Guide & Roadmap provided above.
-        Focus on improving structure, readability, performance, and security.
-        Return only the raw, complete code for the file.
-
-        Code to Refactor:
-        ---
-        ${currentCode}
-      `;
-      const result = await aiCodeGeneration({ description: refactorPrompt });
-      const newCode = cleanCode(result.code);
-      setCode(newCode);
-      setIsDirty(true);
-      toast({ title: "Refactoring Complete", description: `The code in ${filePath} has been updated based on the project's architectural goals.` });
-    } finally {
-      setIsLoading(null);
+  const updateFileContent = (fileId: string, newContent: string) => {
+    setOpenFiles(prev => prev.map(f =>
+      f.id === fileId ? { ...f, content: newContent, isDirty: true } : f
+    ));
+  };
+  
+  const updateActiveFileContent = (newContent: string) => {
+    if (activeFileId) {
+      updateFileContent(activeFileId, newContent);
     }
   }
 
-  const handleSave = useCallback(() => {
-     const currentCode = editorRef.current?.getValue();
-     if (!user || !filePath || filePath === '/untitled.tsx' || !storage || typeof currentCode === 'undefined') {
-      toast({
-        title: "Cannot Save",
-        description: "Please open a valid file from the explorer before saving.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // UI feedback for saving
-    toast({
-        title: "Saving...",
-        description: `${filePath} is being saved to your cloud storage.`,
-    });
-    
-    setIsLoading("save");
-    const fileRef = ref(storage, filePath);
-    
-    uploadString(fileRef, currentCode)
-      .then(() => {
-        toast({
-          title: "File Saved!",
-          description: `${filePath} has been saved successfully.`,
-        });
-        setIsDirty(false);
-        osEvent.emit('file-system-change');
-      })
-      .catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: fileRef.fullPath,
-          operation: 'write', // Using 'write' for storage operations
-          requestResourceData: `(file content of ${currentCode.length} bytes)`,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      })
-      .finally(() => {
-        setIsLoading(null);
-      });
-  }, [user, filePath, storage, toast, setIsDirty]);
+  const markFileAsSaved = (fileId: string) => {
+    setOpenFiles(prev => prev.map(f =>
+      f.id === fileId ? { ...f, isDirty: false } : f
+    ));
+  };
+
+  const activeFile = openFiles.find(f => f.id === activeFileId) || null;
+
+  if (!user) {
+    return <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
+  }
+  
+  if (!projectPath) {
+    return <WelcomeScreen onSelectProject={handleSetProject} />;
+  }
 
   return (
-    <div className="flex h-full bg-background flex-col md:flex-row">
-      <div className="flex-grow flex flex-col md:w-2/3">
-        <div className="flex-shrink-0 p-2 border-b text-sm text-muted-foreground flex justify-between items-center">
-          <span>File: {filePath}{isDirty ? '*' : ''}</span>
-          <Button variant="ghost" size="sm" onClick={handleSave} disabled={!!isLoading || !isDirty}>
-            {isLoading === 'save' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Save
-          </Button>
+    <div className="flex h-full bg-background flex-row">
+      {/* File Tree Panel */}
+      <div className="w-[250px] bg-card/50 border-r flex flex-col">
+        <div className="p-2 border-b">
+           <Button variant="ghost" size="sm" className="w-full justify-start text-left" onClick={() => setProjectPath(null)}>
+              <FolderOpen className="h-4 w-4 mr-2"/>
+              <span className="truncate">{projectPath.split('/').pop() || 'Project'}</span>
+           </Button>
         </div>
-        <div className="flex-grow w-full h-full bg-card">
-           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="animate-spin h-8 w-8" /></div>}>
-            <MonacoEditor
-              value={code}
-              onMount={handleEditorDidMount}
-              onChange={handleEditorChange}
-              language="typescript"
-            />
-          </Suspense>
-        </div>
+        <FileTree
+          basePath={projectPath}
+          onFileSelect={handleOpenFile}
+        />
       </div>
-      <div className="md:w-1/3 border-t md:border-t-0 md:border-l p-4 flex flex-col gap-4">
-        <h3 className="text-lg font-headline flex items-center gap-2"><Wand2 className="text-accent" /> Aether-Architect</h3>
-        
-        <div className="space-y-2">
-          <Label htmlFor="code-prompt">Code Generation</Label>
-          <Textarea 
-            id="code-prompt" 
-            placeholder="Describe the code to generate..."
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="min-h-[100px] md:min-h-0"
-            disabled={!!isLoading}
-          />
-          <Button onClick={handleGenerateCode} disabled={!!isLoading} className="w-full">
-            {isLoading === 'generate' ? <Loader2 className="animate-spin" /> : <Wand2 />}
-            Generate & Replace
-          </Button>
-        </div>
 
-        <Separator />
-        
-        <div className="space-y-2">
-          <h4 className="font-medium">Intelligent Refactoring</h4>
-          <p className="text-sm text-muted-foreground">Let the AI analyze and improve the code currently in the editor based on the project's roadmap and style guides.</p>
-          <Button onClick={handleRefactorCode} variant="secondary" disabled={!!isLoading} className="w-full">
-            {isLoading === 'refactor' ? <Loader2 className="animate-spin" /> : <Wand2 />}
-            Refactor Current Code
-          </Button>
+      {/* Editor and AI Panel */}
+      <div className="flex-grow flex flex-col md:w-2/3">
+        <div className="flex-grow w-full h-full flex">
+          <div className="flex-grow w-2/3 h-full">
+            <EditorTabs
+              files={openFiles}
+              activeFileId={activeFileId}
+              onTabClick={setActiveFileId}
+              onCloseTab={handleCloseFile}
+              onContentChange={updateFileContent}
+              onSave={markFileAsSaved}
+            />
+          </div>
+          <div className="w-1/3 border-l h-full">
+             <AiPanel
+              activeFile={activeFile}
+              onCodeUpdate={updateActiveFileContent}
+            />
+          </div>
         </div>
-        
       </div>
     </div>
   );
 }
+
+    

@@ -127,6 +127,7 @@ export default function BillingApp() {
             price: priceId,
             success_url: window.location.origin,
             cancel_url: window.location.href,
+            mode: 'subscription', // This is the required parameter for subscription-based checkouts.
             // Automatically associate with the logged-in user in Stripe
             // by creating the checkout session under their customer document.
         };

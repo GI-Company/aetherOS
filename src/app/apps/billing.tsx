@@ -100,12 +100,12 @@ export default function BillingApp() {
             return;
         }
 
-        // Fetch the price for the selected product
+        // Fetch the price for the selected product from its subcollection
         const pricesQuery = query(collection(firestore, `products/${product.id}/prices`), where('active', '==', true));
         const priceSnap = await getDocs(pricesQuery);
         
         if (priceSnap.empty) {
-             toast({ title: 'Error: Price Not Found', description: `Pricing for the "${tier.name}" plan is not configured in Stripe.`, variant: 'destructive'});
+             toast({ title: 'Error: Price Not Found', description: `Pricing for the "${tier.name}" plan is not configured in Stripe or not synced to Firestore.`, variant: 'destructive'});
              setIsRedirecting(false);
             return;
         }

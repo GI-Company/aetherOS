@@ -323,7 +323,9 @@
   "auth": {
     "providers": [
       "google.com",
-      "anonymous"
+      "anonymous",
+      "password",
+      "apple.com"
     ]
   },
   "firestore": {
@@ -387,5 +389,3 @@
     }
   }
 }
-
-    

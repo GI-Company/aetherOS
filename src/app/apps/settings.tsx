@@ -28,9 +28,6 @@ import {App, APPS} from '@/lib/apps';
 import {Input} from '@/components/ui/input';
 import {
   getAuth,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  ConfirmationResult,
 } from 'firebase/auth';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -46,20 +43,13 @@ interface SettingsAppProps {
 export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
   const [themePrompt, setThemePrompt] = useState('');
   const [accentPrompt, setAccentPrompt] = useState('');
-  const [isLoading, setIsLoading] = useState<'theme' | 'accent' | 'otp' | null>(
+  const [isLoading, setIsLoading] = useState<'theme' | 'accent' | null>(
     null
   );
   const {toast} = useToast();
   const {applyTheme, setScheme} = useTheme();
   const {user, firestore} = useFirebase();
   const auth = getAuth();
-
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [otp, setOtp] = useState('');
-  const [confirmationResult, setConfirmationResult] =
-    useState<ConfirmationResult | null>(null);
-  const [recaptchaVerifier, setRecaptchaVerifier] =
-    useState<RecaptchaVerifier | null>(null);
 
   const userPreferencesRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid || user.isAnonymous) return null;
@@ -69,17 +59,6 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
   const { data: userPreferences, isLoading: isPreferencesLoading } = useDoc(userPreferencesRef);
   
   const autoSignOutMinutes = (userPreferences as any)?.security?.autoSignOutMinutes ?? 0;
-
-  useEffect(() => {
-    // We are temporarily disabling phone auth. This will be re-enabled later.
-    // if (user && !user.isAnonymous && !recaptchaVerifier) {
-    //   const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-    //     size: 'invisible',
-    //     callback: (response: any) => {},
-    //   });
-    //   setRecaptchaVerifier(verifier);
-    // }
-  }, [user, auth, recaptchaVerifier]);
 
   const handleGenerateTheme = async () => {
     if (!themePrompt) {
@@ -167,75 +146,6 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
     }
   };
 
-  const handleSendVerification = async () => {
-    if (!recaptchaVerifier || !phoneNumber) {
-      toast({
-        title: 'Error',
-        description:
-          'Please enter a valid phone number. The reCAPTCHA verifier must also be ready.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    setIsLoading('otp');
-    try {
-      const result = await signInWithPhoneNumber(
-        auth,
-        phoneNumber,
-        recaptchaVerifier
-      );
-      setConfirmationResult(result);
-      toast({
-        title: 'Verification Code Sent',
-        description: 'Please check your phone for an SMS message.',
-      });
-    } catch (error: any) {
-      console.error('Error sending OTP:', error);
-      toast({
-        title: 'Failed to Send Code',
-        description: error.message,
-        variant: 'destructive',
-      });
-      recaptchaVerifier.render().then(widgetId => {
-        // @ts-ignore
-        window.grecaptcha.reset(widgetId);
-      });
-    } finally {
-      setIsLoading(null);
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    if (!confirmationResult || !otp) {
-      toast({
-        title: 'Error',
-        description: 'Please enter the verification code.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    setIsLoading('otp');
-    try {
-      await confirmationResult.confirm(otp);
-      toast({
-        title: 'Phone Number Linked!',
-        description: 'Your phone number has been successfully linked for 2FA.',
-      });
-      setConfirmationResult(null);
-      setOtp('');
-      setPhoneNumber('');
-    } catch (error: any) {
-      console.error('Error verifying OTP:', error);
-      toast({
-        title: 'Verification Failed',
-        description: 'The code you entered is invalid. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(null);
-    }
-  };
-
   const handleAutoSignOutChange = (enabled: boolean) => {
     if (!userPreferencesRef) return;
     const minutes = enabled ? 15 : 0; // Default to 15 mins if enabled, 0 if disabled
@@ -277,65 +187,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
           <p className="text-sm text-muted-foreground">
             Manage your account information.
           </p>
-          {/* Placeholder for account details */}
         </div>
-        {/* <Separator />
-        <div>
-          <h3 className="text-lg font-medium flex items-center gap-2">
-            <ShieldCheck className="text-accent" /> Two-Factor Authentication
-          </h3>
-          <p className="text-sm text-muted-foreground mt-2 mb-4">
-            Add an extra layer of security to your account by enabling 2FA with
-            your phone number. (This feature is temporarily disabled).
-          </p>
-          {!confirmationResult ? (
-            <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-              <div className="space-y-2 flex-grow w-full sm:w-auto">
-                <Label htmlFor="phone-number">Phone Number</Label>
-                <Input
-                  id="phone-number"
-                  placeholder="+1 (555) 123-4567"
-                  value={phoneNumber}
-                  onChange={e => setPhoneNumber(e.target.value)}
-                  disabled={true || !!isLoading}
-                />
-              </div>
-              <Button onClick={handleSendVerification} disabled={true || isLoading === 'otp'}>
-                {isLoading === 'otp' ? (
-                  <Loader2 className="animate-spin" />
-                ) : null}
-                Send Verification Code
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-              <div className="space-y-2 flex-grow w-full sm:w-auto">
-                <Label htmlFor="otp-code">Verification Code</Label>
-                <Input
-                  id="otp-code"
-                  placeholder="123456"
-                  value={otp}
-                  onChange={e => setOtp(e.target.value)}
-                  disabled={!!isLoading}
-                />
-              </div>
-              <Button onClick={handleVerifyCode} disabled={isLoading === 'otp'}>
-                {isLoading === 'otp' ? (
-                  <Loader2 className="animate-spin" />
-                ) : null}
-                Verify & Link Phone
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setConfirmationResult(null)}
-                disabled={!!isLoading}
-              >
-                Cancel
-              </Button>
-            </div>
-          )}
-          <div id="recaptcha-container" className="mt-4"></div>
-        </div> */}
       </div>
     );
   };
@@ -497,3 +349,5 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
     </div>
   );
 }
+
+    

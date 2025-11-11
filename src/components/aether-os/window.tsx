@@ -109,10 +109,11 @@ export default function Window({
         to: { x: position.x, y: position.y, width: size.width, height: size.height, scale: 1, opacity: 1 },
       });
     }
-  }, [isMinimized, position, size, api, id]);
+  }, [isMinimized, position, size, api, id, app.id, size.width, size.height]);
 
   const bind = useDrag(
     ({ down, movement: [mx, my], last, memo }) => {
+      if (isMaximized) return; // Don't drag if maximized
       if (!memo) {
         memo = [x.get(), y.get()];
       }
@@ -125,7 +126,7 @@ export default function Window({
     },
     {
       target: headerRef,
-      enabled: hasMounted && !isMinimized && !isMaximized,
+      enabled: hasMounted,
       from: () => [x.get(), y.get()],
       bounds: (state) => {
         if (!bounds.current) return {};

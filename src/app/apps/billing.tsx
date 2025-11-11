@@ -111,22 +111,24 @@ export default function BillingApp() {
         // Fetch the price for the selected product
         const pricesQuery = query(collection(firestore, `products/${product.id}/prices`));
         const priceSnap = await getDocs(pricesQuery);
-        const price = priceSnap.docs[0]?.data() as Price | undefined;
-
-        if (!price) {
+        const priceDoc = priceSnap.docs[0];
+        
+        if (!priceDoc) {
              toast({ title: 'Error', description: 'Pricing for this plan is not available.', variant: 'destructive'});
              setIsRedirecting(false);
             return;
         }
+        
+        const priceId = priceDoc.id;
 
         // Create a checkout session document in Firestore
         const checkoutSessionRef = collection(firestore, `customers/${user.uid}/checkout_sessions`);
         const sessionPayload = {
-            client_reference_id: user.uid,
-            customer_email: user.email,
-            price: price.id,
+            price: priceId,
             success_url: window.location.origin,
             cancel_url: window.location.href,
+            // Automatically associate with the logged-in user in Stripe
+            // by creating the checkout session under their customer document.
         };
         
         try {

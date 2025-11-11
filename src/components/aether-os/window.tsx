@@ -44,8 +44,11 @@ export default function Window({
 }: WindowProps) {
   const { id, app, position, size, zIndex, isMinimized, isMaximized, isDirty } = instance;
   const headerRef = useRef<HTMLDivElement>(null);
-  const MIN_WIDTH = 300;
-  const MIN_HEIGHT = 200;
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const appTutorial = TUTORIALS[app.id];
   const isAppTutorialHidden = userPreferences?.tutorials?.hiddenAppTutorials?.includes(app.id);
@@ -122,7 +125,7 @@ export default function Window({
     },
     {
       target: headerRef,
-      enabled: !isMinimized && !isMaximized,
+      enabled: hasMounted && !isMinimized && !isMaximized,
       from: () => [x.get(), y.get()],
       bounds: (state) => {
         if (!bounds.current) return {};
@@ -137,7 +140,6 @@ export default function Window({
           bottom: bounds.current.clientHeight - currentHeight - dockHeight,
         }
       },
-      // Prevent drag gesture from capturing events that start on interactive elements inside the header
       filterTaps: true,
       eventOptions: { passive: false }
     }
@@ -207,7 +209,7 @@ export default function Window({
             <button onClick={handleClose} className="p-1.5 rounded-full hover:bg-red-500/50"><X className="h-3 w-3" /></button>
           </div>
         </CardHeader>
-        <CardContent className="p-0 flex-grow relative">
+        <CardContent className="p-0 flex-grow relative overflow-y-auto">
             {showAppTutorial && appTutorial && (
                  <div className="absolute inset-0 z-50">
                     <TutorialDialog

@@ -65,10 +65,13 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
         // Create customer record for Stripe
         const customerRef = doc(firestore, 'customers', user.uid);
         await setDoc(customerRef, { email: user.email, name: user.displayName });
+
+        const freeSubRef = doc(firestore, `users/${user.uid}/subscriptions`, 'initial');
+        await setDoc(freeSubRef, { role: 'free', status: 'active' });
         
         toast({
             title: 'Welcome to AetherOS!',
-            description: 'Your account has been created. Please select a plan to continue.',
+            description: 'Your account has been created with the Free plan.',
         });
     } else {
         toast({

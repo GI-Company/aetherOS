@@ -72,9 +72,7 @@ export default function FileTreeItem({ item, onFileSelect, onCreate, onDelete, l
     
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (window.confirm(`Are you sure you want to delete ${item.type} "${item.name}"?`)) {
-            onDelete(item);
-        }
+        onDelete(item);
     }
 
     return (
@@ -149,5 +147,3 @@ export default function FileTreeItem({ item, onFileSelect, onCreate, onDelete, l
         </div>
     );
 }
-
-    

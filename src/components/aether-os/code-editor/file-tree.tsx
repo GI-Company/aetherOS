@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useFirebase } from "@/firebase";
+import React, { useState, useEffect, useCallback } from "react";
+import { useFirebase, useStorage } from "@/firebase";
 import { getStorage, ref, listAll, uploadString, deleteObject } from 'firebase/storage';
 import { Loader2, RefreshCw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { osEvent } from "@/lib/events";
 import FileTreeItem, { FileSystemItem } from "./file-tree-item";
+import { cn } from "@/lib/utils";
 
 interface FileTreeProps {
     basePath: string;
@@ -80,7 +81,6 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
                 ...allItems.prefixes.map(prefix => prefix.fullPath + '/')
             ];
 
-            // A more robust way to get all nested files
             const nestedPrefixes = [...allItems.prefixes];
             while (nestedPrefixes.length > 0) {
                 const prefix = nestedPrefixes.pop();
@@ -128,7 +128,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
             await uploadString(itemRef, '', 'raw');
             toast({ title: `Successfully created ${type}`, description: `Created ${name} in ${path}` });
             osEvent.emit('file-system-change');
-        } catch (error: any) => {
+        } catch (error: any) {
             console.error(error);
             toast({ title: `Failed to create ${type}`, description: error.message, variant: "destructive" });
         }
@@ -141,9 +141,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
             const listRef = ref(storage, folderPath);
             const res = await listAll(listRef);
 
-            // Delete all files in the folder
             await Promise.all(res.items.map(itemRef => deleteObject(itemRef)));
-            // Recursively delete all subfolders
             await Promise.all(res.prefixes.map(prefixRef => deleteFolderContents(prefixRef.fullPath)));
         };
 

@@ -82,6 +82,8 @@ export default function BillingApp() {
         // Create a checkout session document in Firestore
         const checkoutSessionRef = collection(firestore, `customers/${user.uid}/checkout_sessions`);
         const sessionPayload = {
+            client_reference_id: user.uid, // Add the Firebase user's ID
+            customer_email: user.email, // Pre-fill the customer's email
             price: price.id,
             success_url: window.location.origin,
             cancel_url: window.location.href,

@@ -13,13 +13,14 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
   const showSelect = isSelectable && !isCurrent && tier.id !== 'enterprise' && tier.id !== 'free-trial';
 
   const handleClick = () => {
-    if (showSelect) {
+    // Also allow selecting the 'free' tier now
+    if (showSelect || (isSelectable && tier.id === 'free' && !isCurrent)) {
       onSelect(tier);
     }
   }
 
   const getButtonVariant = () => {
-    if (isCurrent || !showSelect) return 'outline';
+    if (isCurrent) return 'outline';
     return isSelected ? 'default' : 'secondary';
   }
   
@@ -30,6 +31,9 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
       if(isSelected) return 'Proceeding...';
       return tier.cta;
   }
+  
+  const isClickable = showSelect || (isSelectable && tier.id === 'free' && !isCurrent);
+
 
   return (
     <Card
@@ -37,8 +41,8 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
         "transition-all flex flex-col",
         isCurrent ? "border-accent ring-2 ring-accent" : "hover:border-muted-foreground/50",
         isSelected && !isCurrent && "border-accent ring-2 ring-accent",
-        !showSelect && "opacity-80",
-        showSelect && "cursor-pointer"
+        !isClickable && "opacity-80",
+        isClickable && "cursor-pointer"
       )}
       onClick={handleClick}
     >
@@ -60,7 +64,7 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
         </ul>
       </CardContent>
       <CardFooter className="flex-col items-stretch gap-2 !pt-4">
-        <Button variant={getButtonVariant()} className="w-full" disabled={!showSelect || isSelected}>
+        <Button variant={getButtonVariant()} className="w-full" disabled={!isClickable || isSelected}>
             {isSelected && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {getButtonText()}
         </Button>

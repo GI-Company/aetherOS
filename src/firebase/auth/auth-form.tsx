@@ -51,26 +51,15 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   
   const handleAuthSuccess = async (user: FirebaseUser, isNewUser: boolean) => {
     if (isNewUser) {
-        // For new users, create the customer record for Stripe
+        // For new users, just create the customer record for Stripe.
+        // The user will be directed to the billing page to select a plan, including the free one.
         const customerRef = doc(firestore, 'customers', user.uid);
         await setDoc(customerRef, { email: user.email, name: user.displayName });
-
-        // And create their initial "free" subscription tier in Firestore
-        const freeTier = TIERS.find(t => t.id === 'free');
-        if (freeTier) {
-            const subscriptionsRef = collection(firestore, `users/${user.uid}/subscriptions`);
-            await addDoc(subscriptionsRef, {
-                role: 'free',
-                status: 'active', // Set initial status
-                created: serverTimestamp(),
-                // Add other relevant free tier details if needed
-            });
-        }
     }
     
     toast({
       title: 'Authentication Successful',
-      description: 'Welcome to AetherOS.',
+      description: 'Welcome to AetherOS. Please select a plan to continue.',
     });
   }
   

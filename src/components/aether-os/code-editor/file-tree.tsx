@@ -178,7 +178,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
                             <Loader2 className="animate-spin" />
                         </div>
                     ) : (
-                        tree.map(item => (
+                        Array.isArray(tree) && tree.map(item => (
                             <FileTreeItem 
                                 key={item.path} 
                                 item={item}

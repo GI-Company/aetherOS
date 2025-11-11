@@ -196,5 +196,3 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         </div>
     );
 }
-
-    

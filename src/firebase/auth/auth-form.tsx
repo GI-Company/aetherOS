@@ -59,20 +59,28 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   const [isSignIn, setIsSignIn] = useState(false);
 
   const handleAuthSuccess = async (user: FirebaseUser) => {
-    const isNewUser = !(await getDoc(doc(firestore, `users/${user.uid}/subscriptions`, 'initial'))).exists();
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+    const isNewUser = !userDoc.exists();
 
     if (isNewUser) {
-        // Create customer record for Stripe
+        // Create a user profile document
+        await setDoc(userDocRef, {
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL,
+        });
+
+        // Create a customer record for Stripe (does not charge the user)
         const customerRef = doc(firestore, 'customers', user.uid);
         await setDoc(customerRef, { email: user.email, name: user.displayName });
-
-        const freeSubRef = doc(firestore, `users/${user.uid}/subscriptions`, 'initial');
-        await setDoc(freeSubRef, { role: 'free', status: 'active' });
         
         toast({
             title: 'Welcome to AetherOS!',
-            description: 'Your account has been created with the Free plan.',
+            description: 'Your account has been created. Please select a plan to continue.',
         });
+        // The app will now show the Billing app to select a plan.
+        // This is handled by checking for subscription status on the desktop.
     } else {
         toast({
             title: 'Welcome Back!',
@@ -104,11 +112,18 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
 
   const handleGoogleSignIn = () => {
     const provider = new GoogleAuthProvider();
+    if(isSignIn) {
+      // Set custom parameter for sign-in flow to check for existing account
+      provider.setCustomParameters({ prompt: 'select_account' });
+    }
     handleOAuthSignIn(provider);
   }
 
   const handleAppleSignIn = () => {
     const provider = new OAuthProvider('apple.com');
+     if(isSignIn) {
+      provider.setCustomParameters({ prompt: 'select_account' });
+    }
     handleOAuthSignIn(provider);
   }
   
@@ -201,3 +216,5 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     </div>
   );
 }
+
+    

@@ -5,9 +5,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Terminal } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { cn } from '@/lib/utils';
+import { agenticToolUser } from '@/ai/flows/agenticToolUser';
+import { Loader2 } from 'lucide-react';
 
 type HistoryItem = {
-  type: 'command' | 'response';
+  type: 'command' | 'response' | 'system';
   content: string;
 };
 
@@ -15,14 +17,15 @@ export default function VmTerminalApp() {
   const { user } = useFirebase();
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<HistoryItem[]>(() => [
-    { type: 'response', content: 'AetherOS Virtual Environment [Version 1.0.0]' },
-    { type: 'response', content: '(c) Aether Corporation. All rights reserved.' },
+    { type: 'response', content: 'AetherOS Natural Language Shell [Version 1.0.0]' },
+    { type: 'response', content: 'Use natural language to interact with the OS. Try "open the browser" or "what is AetherOS?"' },
   ]);
+  const [isLoading, setIsLoading] = useState(false);
   const endOfHistoryRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const username = user?.displayName?.split(' ')[0].toLowerCase() || 'guest';
-  const hostname = 'aether';
+  const hostname = 'aether-ai';
   const prompt = `${username}@${hostname}:~$`;
 
   useEffect(() => {
@@ -33,7 +36,7 @@ export default function VmTerminalApp() {
     inputRef.current?.focus();
   }, []);
 
-  const handleCommand = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCommand = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim()) return;
 
@@ -42,22 +45,29 @@ export default function VmTerminalApp() {
       ...history,
       { type: 'command', content: `${prompt} ${command}` },
     ];
-
-    // Simulated command execution
-    if (command === 'clear') {
-      setHistory([]);
-    } else if (command === 'help') {
-        newHistory.push({ type: 'response', content: 'Available commands: help, clear, date, whoami' });
-    } else if (command === 'date') {
-        newHistory.push({ type: 'response', content: new Date().toString() });
-    } else if (command === 'whoami') {
-        newHistory.push({ type: 'response', content: username });
-    } else {
-        newHistory.push({ type: 'response', content: `command not found: ${command}` });
-    }
-    
     setHistory(newHistory);
     setInput('');
+    setIsLoading(true);
+
+    try {
+        const result = await agenticToolUser(command);
+        let responseHistory = [...newHistory];
+
+        if (result.isWorkflow && result.dispatchedEvents) {
+            result.dispatchedEvents.forEach(event => {
+                responseHistory.push({ type: 'system', content: `[Action Dispatched: ${event.dispatchedEvent}] Payload: ${JSON.stringify(event.payload)}` });
+            });
+        } else if (result.conversationalResponse) {
+            responseHistory.push({ type: 'response', content: result.conversationalResponse });
+        } else {
+             responseHistory.push({ type: 'response', content: "I was unable to process that command." });
+        }
+        setHistory(responseHistory);
+    } catch (err: any) {
+        setHistory(prev => [...prev, { type: 'response', content: `Error: ${err.message}` }]);
+    } finally {
+        setIsLoading(false);
+    }
   };
   
   const handleTerminalClick = () => {
@@ -70,8 +80,9 @@ export default function VmTerminalApp() {
         onClick={handleTerminalClick}
     >
       {history.map((item, index) => (
-        <div key={index} className={cn('whitespace-pre-wrap', {
-            'text-green-400': item.type === 'command'
+        <div key={index} className={cn('whitespace-pre-wrap break-words', {
+            'text-green-400': item.type === 'command',
+            'text-cyan-400': item.type === 'system',
         })}>
           {item.content}
         </div>
@@ -88,7 +99,9 @@ export default function VmTerminalApp() {
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"
+          disabled={isLoading}
         />
+        {isLoading && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
       </form>
       <div ref={endOfHistoryRef} />
     </div>

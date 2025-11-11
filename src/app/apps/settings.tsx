@@ -71,13 +71,14 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
   const autoSignOutMinutes = (userPreferences as any)?.security?.autoSignOutMinutes ?? 0;
 
   useEffect(() => {
-    if (user && !user.isAnonymous && !recaptchaVerifier) {
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: (response: any) => {},
-      });
-      setRecaptchaVerifier(verifier);
-    }
+    // We are temporarily disabling phone auth. This will be re-enabled later.
+    // if (user && !user.isAnonymous && !recaptchaVerifier) {
+    //   const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    //     size: 'invisible',
+    //     callback: (response: any) => {},
+    //   });
+    //   setRecaptchaVerifier(verifier);
+    // }
   }, [user, auth, recaptchaVerifier]);
 
   const handleGenerateTheme = async () => {
@@ -278,14 +279,14 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
           </p>
           {/* Placeholder for account details */}
         </div>
-        <Separator />
+        {/* <Separator />
         <div>
           <h3 className="text-lg font-medium flex items-center gap-2">
             <ShieldCheck className="text-accent" /> Two-Factor Authentication
           </h3>
           <p className="text-sm text-muted-foreground mt-2 mb-4">
             Add an extra layer of security to your account by enabling 2FA with
-            your phone number.
+            your phone number. (This feature is temporarily disabled).
           </p>
           {!confirmationResult ? (
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
@@ -296,10 +297,10 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
                   placeholder="+1 (555) 123-4567"
                   value={phoneNumber}
                   onChange={e => setPhoneNumber(e.target.value)}
-                  disabled={!!isLoading}
+                  disabled={true || !!isLoading}
                 />
               </div>
-              <Button onClick={handleSendVerification} disabled={isLoading === 'otp'}>
+              <Button onClick={handleSendVerification} disabled={true || isLoading === 'otp'}>
                 {isLoading === 'otp' ? (
                   <Loader2 className="animate-spin" />
                 ) : null}
@@ -334,7 +335,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
             </div>
           )}
           <div id="recaptcha-container" className="mt-4"></div>
-        </div>
+        </div> */}
       </div>
     );
   };

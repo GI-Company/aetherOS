@@ -323,8 +323,7 @@
   "auth": {
     "providers": [
       "google.com",
-      "anonymous",
-      "phone"
+      "anonymous"
     ]
   },
   "firestore": {

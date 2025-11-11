@@ -21,14 +21,15 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
 
   const getButtonVariant = () => {
     if (isCurrent) return 'outline';
-    return isSelected ? 'default' : 'secondary';
+    if(tier.id === 'free') return 'secondary';
+    return isSelected ? 'default' : 'default';
   }
   
   const getButtonText = () => {
       if(isCurrent) return "Your Current Plan";
       if(tier.id === 'enterprise') return 'Contact Sales';
       if(tier.id === 'free-trial') return 'Guest Session';
-      if(isSelected) return 'Proceeding...';
+      if(isSelected) return 'Processing...';
       return tier.cta;
   }
   

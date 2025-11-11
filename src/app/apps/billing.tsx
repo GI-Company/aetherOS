@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useFirebase, useMemoFirebase, useCollection, addDocumentNonBlocking, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useFirebase, useMemoFirebase, useCollection, addDocumentNonBlocking, errorEmitter, FirestorePermissionError, setDocumentNonBlocking } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, CreditCard, AlertTriangle } from 'lucide-react';
-import { doc, collection, query, where, getDocs, onSnapshot, addDoc } from 'firebase/firestore';
+import { doc, collection, query, where, getDocs, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { TIERS, Tier } from '@/lib/tiers';
 import { TierCard } from '@/components/aether-os/tier-card';
 import React, { useState } from 'react';
@@ -44,7 +44,7 @@ export default function BillingApp() {
 
     const { data: subscriptions, isLoading: isSubscriptionLoading } = useCollection(subscriptionsQuery);
     const subscription = subscriptions?.[0];
-    const currentTierId = (subscription as any)?.role || (user?.isAnonymous ? 'free-trial' : 'free');
+    const currentTierId = (subscription as any)?.role || (user?.isAnonymous ? 'free-trial' : undefined);
 
     // Fetch available products from Firestore (which are synced from Stripe by the extension)
     const productsQuery = useMemoFirebase(() => {
@@ -53,10 +53,50 @@ export default function BillingApp() {
     }, [firestore]);
 
     const { data: products, isLoading: isProductsLoading } = useCollection<Product>(productsQuery);
+    
+    const handleFreeTierSelection = async () => {
+        if (!user || !firestore || !products) return;
+
+        setIsRedirecting(true);
+        setSelectedTierId('free');
+        toast({ title: 'Setting up Free Plan...', description: 'Please wait while we configure your account.' });
+        
+        const product = products.find(p => p.role === 'free');
+        if (!product) {
+            toast({ title: 'Error', description: 'Free plan is not available.', variant: 'destructive'});
+            setIsRedirecting(false);
+            return;
+        }
+
+        const subscriptionRef = doc(firestore, `users/${user.uid}/subscriptions`, `free-plan-${Date.now()}`);
+        const subscriptionPayload = {
+            role: 'free',
+            status: 'active',
+            created: serverTimestamp(),
+            product: doc(firestore, 'products', product.id),
+            // Add other necessary fields for a free subscription
+        };
+
+        try {
+            await setDocumentNonBlocking(subscriptionRef, subscriptionPayload);
+            toast({ title: 'Success!', description: 'You are now on the Free plan.' });
+        } catch (clientError) {
+             console.error("Failed to set free plan:", clientError);
+             toast({ title: 'Client Error', description: 'Could not set up the free plan.', variant: 'destructive' });
+        } finally {
+            setIsRedirecting(false);
+            setSelectedTierId(null);
+        }
+    };
 
     const redirectToCheckout = async (tier: Tier) => {
         if (!user || !firestore || !products || !stripePromise) return;
         
+        if (tier.id === 'free') {
+            await handleFreeTierSelection();
+            return;
+        }
+
         setIsRedirecting(true);
         setSelectedTierId(tier.id);
         toast({ title: 'Preparing Checkout...', description: 'Please wait while we connect to Stripe.' });
@@ -82,35 +122,40 @@ export default function BillingApp() {
         // Create a checkout session document in Firestore
         const checkoutSessionRef = collection(firestore, `customers/${user.uid}/checkout_sessions`);
         const sessionPayload = {
-            client_reference_id: user.uid, // Add the Firebase user's ID
-            customer_email: user.email, // Pre-fill the customer's email
+            client_reference_id: user.uid,
+            customer_email: user.email,
             price: price.id,
             success_url: window.location.origin,
             cancel_url: window.location.href,
         };
-
-        addDocumentNonBlocking(checkoutSessionRef, sessionPayload)
-            .then(docRef => {
-                if (!docRef) return; // Error was already handled by the non-blocking function
-                 // Listen for the checkout URL to be populated by the Stripe extension
-                onSnapshot(docRef, (snap) => {
-                    const { error, url } = snap.data() || {};
-                    if (error) {
-                        toast({ title: 'Checkout Error', description: error.message, variant: 'destructive' });
-                        setIsRedirecting(false);
-                    }
-                    if (url) {
-                        window.location.assign(url);
-                    }
-                });
-            })
-            .catch(clientError => {
-                // This will catch client-side errors before the promise is even made.
-                // Firestore permission errors are handled inside addDocumentNonBlocking.
-                console.error("Failed to initiate checkout session creation:", clientError);
-                toast({ title: 'Client Error', description: 'Could not start checkout process.', variant: 'destructive' });
+        
+        try {
+            const docRef = await addDocumentNonBlocking(checkoutSessionRef, sessionPayload);
+            if (!docRef) { // Error was already handled by the non-blocking function
                 setIsRedirecting(false);
+                return; 
+            }
+            
+            // Listen for the checkout URL to be populated by the Stripe extension
+            const unsubscribe = onSnapshot(docRef, (snap) => {
+                const { error, url } = snap.data() || {};
+                if (error) {
+                    toast({ title: 'Checkout Error', description: error.message, variant: 'destructive' });
+                    setIsRedirecting(false);
+                    unsubscribe();
+                }
+                if (url) {
+                    window.location.assign(url);
+                    unsubscribe();
+                }
             });
+        } catch (clientError) {
+             // This will catch client-side errors before the promise is even made.
+             // Firestore permission errors are handled inside addDocumentNonBlocking.
+             console.error("Failed to initiate checkout session creation:", clientError);
+             toast({ title: 'Client Error', description: 'Could not start checkout process.', variant: 'destructive' });
+             setIsRedirecting(false);
+        }
     };
     
     if (!stripePromise) {
@@ -142,7 +187,7 @@ export default function BillingApp() {
             <Card className="p-4 bg-card/80 backdrop-blur-sm">
                 <div className="flex items-center gap-4">
                     <div>
-                        <p className="text-sm text-muted-foreground">Redirecting for:</p>
+                        <p className="text-sm text-muted-foreground">Processing:</p>
                         <p className="text-lg font-semibold">{TIERS.find(t => t.id === selectedTierId)?.name}</p>
                     </div>
                      <Loader2 className="h-6 w-6 animate-spin" />

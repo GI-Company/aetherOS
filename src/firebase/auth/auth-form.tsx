@@ -1,7 +1,7 @@
 
 'use client';
 
-import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser, OAuthProvider } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser, OAuthProvider, signOut } from 'firebase/auth';
 import { getFirestore, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -90,12 +90,13 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
             title: 'Account Created!',
             description: 'Please select a plan to complete your registration.',
         });
+      } else {
+        // If user exists, Firebase automatically signs them in, so we just welcome them back.
+        toast({
+            title: 'Welcome Back!',
+            description: 'You already have an account. Signing you in.',
+        });
       }
-      // If user exists, Firebase automatically signs them in, so we just welcome them back.
-      toast({
-          title: 'Welcome Back!',
-          description: 'You already have an account. Signing you in.',
-      });
     }
   }
 
@@ -225,3 +226,5 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     </div>
   );
 }
+
+    

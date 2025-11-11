@@ -4,7 +4,7 @@
 import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CreditCard, AlertTriangle } from 'lucide-react';
 import { doc, collection, query, where, getDocs, onSnapshot, addDoc } from 'firebase/firestore';
 import { TIERS, Tier } from '@/lib/tiers';
 import { TierCard } from '@/components/aether-os/tier-card';
@@ -12,7 +12,9 @@ import React, { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { loadStripe } from '@stripe/stripe-js';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
+
 
 interface Product {
     id: string;
@@ -53,7 +55,7 @@ export default function BillingApp() {
     const { data: products, isLoading: isProductsLoading } = useCollection<Product>(productsQuery);
 
     const redirectToCheckout = async (tier: Tier) => {
-        if (!user || !firestore || !products) return;
+        if (!user || !firestore || !products || !stripePromise) return;
         
         const product = products.find(p => p.role === tier.id);
         if (!product) {
@@ -94,6 +96,22 @@ export default function BillingApp() {
             }
         });
     };
+    
+    if (!stripePromise) {
+        return (
+            <div className="p-4 md:p-8 h-full bg-background overflow-y-auto flex items-center justify-center">
+                <Card className="max-w-md w-full text-center p-8 bg-card/80 border-destructive/50">
+                    <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4"/>
+                    <h2 className="text-2xl font-headline mb-2">Billing Not Configured</h2>
+                    <p className="text-muted-foreground">
+                        This application requires a Stripe publishable key to function. Please add your key to the 
+                        <code className="bg-muted px-1.5 py-1 rounded-sm text-sm mx-1 font-mono">.env</code> 
+                        file as <code className="bg-muted px-1.5 py-1 rounded-sm text-sm mx-1 font-mono">NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>.
+                    </p>
+                </Card>
+            </div>
+        )
+    }
     
     const isLoading = isSubscriptionLoading || isProductsLoading;
 

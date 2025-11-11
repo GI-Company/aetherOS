@@ -4,7 +4,7 @@
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser, OAuthProvider } from 'firebase/auth';
 import { getFirestore, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -58,34 +58,44 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   
   const [isSignIn, setIsSignIn] = useState(false);
 
-  const handleAuthSuccess = async (user: FirebaseUser) => {
+  const handleAuthSuccess = async (user: FirebaseUser, isSigningIn: boolean) => {
     const userDocRef = doc(firestore, 'users', user.uid);
     const userDoc = await getDoc(userDocRef);
     const isNewUser = !userDoc.exists();
 
-    if (isNewUser) {
-        // Create a user profile document
+    if (isSigningIn) {
+      if (isNewUser) {
+        toast({
+          variant: 'destructive',
+          title: 'Account Not Found',
+          description: "No account exists for this user. Please sign up instead.",
+        });
+        signOut(auth); // Sign out the user as they shouldn't be here
+      } else {
+        toast({
+          title: 'Welcome Back!',
+          description: 'Successfully signed in to AetherOS.',
+        });
+      }
+    } else { // Signing Up
+      if (isNewUser) {
         await setDoc(userDocRef, {
             displayName: user.displayName,
             email: user.email,
             photoURL: user.photoURL,
         });
-
-        // Create a customer record for Stripe (does not charge the user)
         const customerRef = doc(firestore, 'customers', user.uid);
         await setDoc(customerRef, { email: user.email, name: user.displayName });
-        
         toast({
-            title: 'Welcome to AetherOS!',
-            description: 'Your account has been created. Please select a plan to continue.',
+            title: 'Account Created!',
+            description: 'Please select a plan to complete your registration.',
         });
-        // The app will now show the Billing app to select a plan.
-        // This is handled by checking for subscription status on the desktop.
-    } else {
-        toast({
-            title: 'Welcome Back!',
-            description: 'Successfully signed in to AetherOS.',
-        });
+      }
+      // If user exists, Firebase automatically signs them in, so we just welcome them back.
+      toast({
+          title: 'Welcome Back!',
+          description: 'You already have an account. Signing you in.',
+      });
     }
   }
 
@@ -94,26 +104,27 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
       if (auth.currentUser?.isAnonymous) {
         const credential = await linkWithPopup(auth.currentUser, provider);
         if (onLinkSuccess) onLinkSuccess();
-        await handleAuthSuccess(credential.user);
+        await handleAuthSuccess(credential.user, false); // Linking is always part of a "sign up" flow
         if (onUpgradeSuccess) onUpgradeSuccess();
       } else {
         const result = await signInWithPopup(auth, provider);
-        await handleAuthSuccess(result.user);
+        await handleAuthSuccess(result.user, isSignIn);
       }
     } catch (error: any) {
-      console.error(error);
-      toast({
-        variant: 'destructive',
-        title: 'Authentication Failed',
-        description: error.message || 'An unexpected error occurred.',
-      });
+      if (error.code !== 'auth/popup-closed-by-user') {
+        console.error(error);
+        toast({
+          variant: 'destructive',
+          title: 'Authentication Failed',
+          description: error.message || 'An unexpected error occurred.',
+        });
+      }
     }
   };
 
   const handleGoogleSignIn = () => {
     const provider = new GoogleAuthProvider();
     if(isSignIn) {
-      // Set custom parameter for sign-in flow to check for existing account
       provider.setCustomParameters({ prompt: 'select_account' });
     }
     handleOAuthSignIn(provider);
@@ -203,18 +214,14 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
             </Button>
           </div>
         </CardContent>
+         {!isUpgrading && allowAnonymous && (
+          <CardFooter className="justify-center">
+              <Button variant="link" className="text-sm text-muted-foreground hover:text-foreground" onClick={() => setIsSignIn(!isSignIn)}>
+                  {isSignIn ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+              </Button>
+          </CardFooter>
+        )}
       </Card>
-      
-      {!isUpgrading && allowAnonymous && (
-         <div className="mt-4 text-center">
-            <Button variant="link" className="text-sm text-background/80 hover:text-background" onClick={() => setIsSignIn(!isSignIn)}>
-                {isSignIn ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-            </Button>
-        </div>
-      )}
-
     </div>
   );
 }
-
-    

@@ -52,7 +52,7 @@ export default function BillingApp() {
         
         const product = products.find(p => (p as any).role === 'free');
         if (!product) {
-            toast({ title: 'Error', description: 'Free plan is not available.', variant: 'destructive'});
+            toast({ title: 'Error', description: 'Free plan product is not available in Stripe.', variant: 'destructive'});
             setIsRedirecting(false);
             return;
         }
@@ -63,7 +63,10 @@ export default function BillingApp() {
             status: 'active',
             created: serverTimestamp(),
             product: doc(firestore, 'products', product.id),
-            // Add other necessary fields for a free subscription
+            price: null,
+            items: [],
+            cancel_at_period_end: false,
+            stripeId: `free_${user.uid}`
         };
 
         try {
@@ -92,22 +95,22 @@ export default function BillingApp() {
 
         const product = products.find(p => (p as any).role === tier.id);
         if (!product) {
-            toast({ title: 'Error', description: 'Selected plan is not available.', variant: 'destructive'});
+            toast({ title: 'Error: Product Not Found', description: `The product for the "${tier.name}" plan is not configured in Stripe.`, variant: 'destructive'});
             setIsRedirecting(false);
             return;
         }
 
         // Fetch the price for the selected product
-        const pricesQuery = query(collection(firestore, `products/${product.id}/prices`));
+        const pricesQuery = query(collection(firestore, `products/${product.id}/prices`), where('active', '==', true));
         const priceSnap = await getDocs(pricesQuery);
-        const priceDoc = priceSnap.docs[0];
         
-        if (!priceDoc) {
-             toast({ title: 'Error', description: 'Pricing for this plan is not available.', variant: 'destructive'});
+        if (priceSnap.empty) {
+             toast({ title: 'Error: Price Not Found', description: `Pricing for the "${tier.name}" plan is not configured in Stripe.`, variant: 'destructive'});
              setIsRedirecting(false);
             return;
         }
-        
+
+        const priceDoc = priceSnap.docs[0];
         const priceId = priceDoc.id;
 
         // Create a checkout session document in Firestore
@@ -116,14 +119,13 @@ export default function BillingApp() {
             price: priceId,
             success_url: window.location.origin,
             cancel_url: window.location.href,
-            mode: 'subscription', // This is the required parameter for subscription-based checkouts.
-            // Automatically associate with the logged-in user in Stripe
-            // by creating the checkout session under their customer document.
+            mode: 'subscription',
         };
         
         try {
             const docRef = await addDocumentNonBlocking(checkoutSessionRef, sessionPayload);
             if (!docRef) { // Error was already handled by the non-blocking function
+                toast({ title: 'Error', description: 'Could not create checkout session.', variant: 'destructive' });
                 setIsRedirecting(false);
                 return; 
             }
@@ -142,8 +144,6 @@ export default function BillingApp() {
                 }
             });
         } catch (clientError) {
-             // This will catch client-side errors before the promise is even made.
-             // Firestore permission errors are handled inside addDocumentNonBlocking.
              console.error("Failed to initiate checkout session creation:", clientError);
              toast({ title: 'Client Error', description: 'Could not start checkout process.', variant: 'destructive' });
              setIsRedirecting(false);

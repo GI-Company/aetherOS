@@ -59,11 +59,13 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   const [isSignIn, setIsSignIn] = useState(false);
 
   const handleAuthSuccess = async (user: FirebaseUser) => {
-    const customerRef = doc(firestore, 'customers', user.uid);
-    const customerSnap = await getDoc(customerRef);
+    const isNewUser = !(await getDoc(doc(firestore, `users/${user.uid}/subscriptions`, 'initial'))).exists();
 
-    if (!customerSnap.exists()) {
+    if (isNewUser) {
+        // Create customer record for Stripe
+        const customerRef = doc(firestore, 'customers', user.uid);
         await setDoc(customerRef, { email: user.email, name: user.displayName });
+        
         toast({
             title: 'Welcome to AetherOS!',
             description: 'Your account has been created. Please select a plan to continue.',

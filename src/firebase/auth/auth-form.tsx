@@ -2,7 +2,7 @@
 'use client';
 
 import { getAuth, signInWithPopup, GoogleAuthProvider, signInAnonymously, linkWithPopup, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, doc, getDoc, serverTimestamp, collection, query, where, getDocs, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -53,10 +53,14 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
         // This is a new sign-up. Create a customer record in Firestore
         // which the Stripe extension will use to create a Stripe Customer.
         const customerRef = doc(firestore, 'customers', user.uid);
-        await setDoc(customerRef, {
-            email: user.email,
-            name: user.displayName,
-        });
+        const customerDoc = await getDoc(customerRef);
+
+        if (!customerDoc.exists()) {
+          await setDoc(customerRef, {
+              email: user.email,
+              name: user.displayName,
+          });
+        }
     }
     
     toast({

@@ -48,16 +48,15 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
   const { toast } = useToast();
   const wallpaper = PlaceHolderImages.find((img) => img.id === "aether-os-wallpaper");
   
-  const handleAuthSuccess = async (user: FirebaseUser) => {
-    // This is a simplified check. A robust implementation would use Cloud Functions
-    // to check for existing Stripe customers upon new user creation.
-    const q = query(collection(firestore, `users/${user.uid}/subscriptions`));
-    const subsSnap = await getDocs(q);
-
-    if (subsSnap.empty) {
-      // This is likely a new user with no subscriptions, give them the free plan.
-      // This is a placeholder as the Stripe extension manages subscriptions.
-      console.log('New user detected, but subscription management is handled by the Stripe extension.');
+  const handleAuthSuccess = async (user: FirebaseUser, isNewUser: boolean) => {
+    if (isNewUser) {
+        // This is a new sign-up. Create a customer record in Firestore
+        // which the Stripe extension will use to create a Stripe Customer.
+        const customerRef = doc(firestore, 'customers', user.uid);
+        await setDoc(customerRef, {
+            email: user.email,
+            name: user.displayName,
+        });
     }
     
     toast({
@@ -71,13 +70,21 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     try {
       if (auth.currentUser?.isAnonymous) {
         // This is an account upgrade
-        const result = await linkWithPopup(auth.currentUser, provider);
+        const credential = await linkWithPopup(auth.currentUser, provider);
+        // After linking, the user is no longer anonymous. The original anonymous
+        // user is deleted, and the new credential is used. We treat this as a "new user"
+        // in our system for the purpose of creating a Stripe customer.
         if (onLinkSuccess) onLinkSuccess();
+        await handleAuthSuccess(credential.user, true); // Treat linked account as a new user for Stripe purposes
         if (onUpgradeSuccess) onUpgradeSuccess();
       } else {
         // This is a fresh sign-up or sign-in
         const result = await signInWithPopup(auth, provider);
-        handleAuthSuccess(result.user);
+        // Check if the user is new by trying to get their customer document
+        const customerDocRef = doc(firestore, 'customers', result.user.uid);
+        const customerDoc = await getDoc(customerDocRef);
+        const isNewUser = !customerDoc.exists();
+        await handleAuthSuccess(result.user, isNewUser);
       }
     } catch (error: any) {
       console.error(error);

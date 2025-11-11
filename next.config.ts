@@ -82,7 +82,7 @@ export default sentryWebpackPlugin
 
             // Enables automatic instrumentation of Vercel Cron Monitors.
             // See the following for more information:
-            // https://docs.sentry.io/ अनिमेष/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
+            // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
             automaticVercelMonitors: true,
         }
     )

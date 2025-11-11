@@ -1,6 +1,6 @@
 
 export type Tier = {
-    id: 'free' | 'personal' | 'business' | 'business-plus' | 'enterprise' | 'free-trial';
+    id: 'free' | 'personal' | 'business' | 'enterprise' | 'free-trial';
     name: string;
     price: string;
     priceDescription: string;
@@ -48,26 +48,13 @@ export const TIERS: Tier[] = [
       ],
       cta: 'Upgrade',
     },
-     {
-      id: 'business-plus',
-      name: 'Business Plus',
-      price: '$75',
-      priceDescription: 'per user / month',
-      features: [
-        'All features from Business',
-        'Cutting-edge AI models (Gemini 2.0)',
-        'Increased API rate limits',
-        'Early access to new features',
-      ],
-      cta: 'Upgrade',
-    },
-      {
+    {
       id: 'enterprise',
       name: 'Enterprise',
       price: 'Contact Us',
       priceDescription: 'for custom pricing',
       features: [
-        'All features from Business Plus',
+        'All features from Business',
         'Dedicated infrastructure options',
         'On-premise deployment available',
         '24/7 dedicated support & SLAs',

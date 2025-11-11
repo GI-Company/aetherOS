@@ -107,7 +107,7 @@
         "prices": { "type": "array" },
         "role": { "type": "string", "description": "The role associated with this subscription, e.g., 'personal', 'business'."}
       },
-      "required": ["stripeId", "status", "price", "product"]
+      "required": ["stripeId", "status", "price", "product", "role"]
     },
     "userPreference": {
       "title": "User Preference",

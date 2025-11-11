@@ -16,17 +16,6 @@ const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
 
-interface Product {
-    id: string;
-    role: string;
-    // other product fields
-}
-
-interface Price {
-    id: string;
-    // other price fields
-}
-
 export default function BillingApp() {
     const { user, firestore } = useFirebase();
     const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
@@ -52,7 +41,7 @@ export default function BillingApp() {
         return query(collection(firestore, 'products'), where('active', '==', true));
     }, [firestore]);
 
-    const { data: products, isLoading: isProductsLoading } = useCollection<Product>(productsQuery);
+    const { data: products, isLoading: isProductsLoading } = useCollection(productsQuery);
     
     const handleFreeTierSelection = async () => {
         if (!user || !firestore || !products) return;
@@ -61,7 +50,7 @@ export default function BillingApp() {
         setSelectedTierId('free');
         toast({ title: 'Setting up Free Plan...', description: 'Please wait while we configure your account.' });
         
-        const product = products.find(p => p.role === 'free');
+        const product = products.find(p => (p as any).role === 'free');
         if (!product) {
             toast({ title: 'Error', description: 'Free plan is not available.', variant: 'destructive'});
             setIsRedirecting(false);
@@ -101,7 +90,7 @@ export default function BillingApp() {
         setSelectedTierId(tier.id);
         toast({ title: 'Preparing Checkout...', description: 'Please wait while we connect to Stripe.' });
 
-        const product = products.find(p => p.role === tier.id);
+        const product = products.find(p => (p as any).role === tier.id);
         if (!product) {
             toast({ title: 'Error', description: 'Selected plan is not available.', variant: 'destructive'});
             setIsRedirecting(false);
@@ -212,7 +201,7 @@ export default function BillingApp() {
                         isSelected={selectedTierId === tier.id && isRedirecting}
                         onSelect={() => redirectToCheckout(tier)}
                         currentTierId={currentTierId}
-                        isSelectable={!isRedirecting && !user?.isAnonymous}
+                        isSelectable={!isRedirecting && !user?.isAnonymous && !!products}
                     />
                 ))}
             </div>

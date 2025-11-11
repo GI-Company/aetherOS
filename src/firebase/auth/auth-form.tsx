@@ -10,7 +10,7 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Separator } from '@/components/ui/separator';
 import { User } from 'lucide-react';
-import { setDocumentNonBlocking } from '@/firebase';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import React, { useState } from 'react';
 
 function GoogleIcon() {
@@ -79,13 +79,13 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
       }
     } else { // Signing Up
       if (isNewUser) {
-        await setDoc(userDocRef, {
+        setDocumentNonBlocking(userDocRef, {
             displayName: user.displayName,
             email: user.email,
             photoURL: user.photoURL,
         });
         const customerRef = doc(firestore, 'customers', user.uid);
-        await setDoc(customerRef, { email: user.email, name: user.displayName });
+        setDocumentNonBlocking(customerRef, { email: user.email, name: user.displayName });
         toast({
             title: 'Account Created!',
             description: 'Please select a plan to complete your registration.',
@@ -226,5 +226,3 @@ export default function AuthForm({ allowAnonymous = true, onLinkSuccess, onUpgra
     </div>
   );
 }
-
-    

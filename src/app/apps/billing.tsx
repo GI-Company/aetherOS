@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
+import { useFirebase, useMemoFirebase, useCollection, addDocumentNonBlocking, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, CreditCard, AlertTriangle } from 'lucide-react';
@@ -57,9 +57,14 @@ export default function BillingApp() {
     const redirectToCheckout = async (tier: Tier) => {
         if (!user || !firestore || !products || !stripePromise) return;
         
+        setIsRedirecting(true);
+        setSelectedTierId(tier.id);
+        toast({ title: 'Preparing Checkout...', description: 'Please wait while we connect to Stripe.' });
+
         const product = products.find(p => p.role === tier.id);
         if (!product) {
             toast({ title: 'Error', description: 'Selected plan is not available.', variant: 'destructive'});
+            setIsRedirecting(false);
             return;
         }
 
@@ -70,31 +75,40 @@ export default function BillingApp() {
 
         if (!price) {
              toast({ title: 'Error', description: 'Pricing for this plan is not available.', variant: 'destructive'});
+             setIsRedirecting(false);
             return;
         }
 
-        setIsRedirecting(true);
-        setSelectedTierId(tier.id);
-
         // Create a checkout session document in Firestore
         const checkoutSessionRef = collection(firestore, `customers/${user.uid}/checkout_sessions`);
-        const docRef = await addDoc(checkoutSessionRef, {
+        const sessionPayload = {
             price: price.id,
             success_url: window.location.origin,
             cancel_url: window.location.href,
-        });
+        };
 
-        // Listen for the checkout URL to be populated by the Stripe extension
-        onSnapshot(docRef, (snap) => {
-            const { error, url } = snap.data() || {};
-            if (error) {
-                toast({ title: 'Checkout Error', description: error.message, variant: 'destructive' });
+        addDocumentNonBlocking(checkoutSessionRef, sessionPayload)
+            .then(docRef => {
+                if (!docRef) return; // Error was already handled by the non-blocking function
+                 // Listen for the checkout URL to be populated by the Stripe extension
+                onSnapshot(docRef, (snap) => {
+                    const { error, url } = snap.data() || {};
+                    if (error) {
+                        toast({ title: 'Checkout Error', description: error.message, variant: 'destructive' });
+                        setIsRedirecting(false);
+                    }
+                    if (url) {
+                        window.location.assign(url);
+                    }
+                });
+            })
+            .catch(clientError => {
+                // This will catch client-side errors before the promise is even made.
+                // Firestore permission errors are handled inside addDocumentNonBlocking.
+                console.error("Failed to initiate checkout session creation:", clientError);
+                toast({ title: 'Client Error', description: 'Could not start checkout process.', variant: 'destructive' });
                 setIsRedirecting(false);
-            }
-            if (url) {
-                window.location.assign(url);
-            }
-        });
+            });
     };
     
     if (!stripePromise) {
@@ -145,7 +159,7 @@ export default function BillingApp() {
                     <TierCard
                         key={tier.id}
                         tier={tier}
-                        isSelected={selectedTierId === tier.id}
+                        isSelected={selectedTierId === tier.id && isRedirecting}
                         onSelect={() => redirectToCheckout(tier)}
                         currentTierId={currentTierId}
                         isSelectable={!isRedirecting && !user?.isAnonymous}

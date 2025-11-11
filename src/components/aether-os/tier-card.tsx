@@ -8,13 +8,13 @@ import { cn } from '@/lib/utils';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 
 
-export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectable = true }: { tier: Tier, isSelected: boolean, onSelect: (id: Tier['id']) => void, currentTierId?: Tier['id'], isSelectable?: boolean }) => {
+export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectable = true }: { tier: Tier, isSelected: boolean, onSelect: (tier: Tier) => void, currentTierId?: Tier['id'], isSelectable?: boolean }) => {
   const isCurrent = currentTierId === tier.id;
   const showSelect = isSelectable && !isCurrent && tier.id !== 'enterprise' && tier.id !== 'free-trial';
 
   const handleClick = () => {
     if (showSelect) {
-      onSelect(tier.id);
+      onSelect(tier);
     }
   }
 
@@ -27,7 +27,7 @@ export const TierCard = ({ tier, isSelected, onSelect, currentTierId, isSelectab
       if(isCurrent) return "Your Current Plan";
       if(tier.id === 'enterprise') return 'Contact Sales';
       if(tier.id === 'free-trial') return 'Guest Session';
-      if(isSelected) return 'Proceed to Checkout';
+      if(isSelected) return 'Proceeding...';
       return tier.cta;
   }
 

@@ -1,3 +1,4 @@
+
 'use client';
 import { getAuth, type User } from 'firebase/auth';
 
@@ -25,15 +26,6 @@ interface FirebaseAuthObject {
   token: FirebaseAuthToken;
 }
 
-interface SecurityRuleRequest {
-  auth: FirebaseAuthObject | null;
-  method: string;
-  path: string;
-  resource?: {
-    data: any;
-  };
-}
-
 /**
  * Builds a security-rule-compliant auth object from the Firebase User.
  * @param currentUser The currently authenticated Firebase user.
@@ -52,7 +44,7 @@ function buildAuthObject(currentUser: User | null): FirebaseAuthObject | null {
     sub: currentUser.uid,
     firebase: {
       identities: currentUser.providerData.reduce((acc, p) => {
-        if (p.providerId) {
+        if (p?.providerId) {
           acc[p.providerId] = [p.uid];
         }
         return acc;

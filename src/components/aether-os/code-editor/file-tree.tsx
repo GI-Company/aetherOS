@@ -128,7 +128,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
             await uploadString(itemRef, '', 'raw');
             toast({ title: `Successfully created ${type}`, description: `Created ${name} in ${path}` });
             osEvent.emit('file-system-change');
-        } catch (error: any) {
+        } catch (error: any) => {
             console.error(error);
             toast({ title: `Failed to create ${type}`, description: error.message, variant: "destructive" });
         }

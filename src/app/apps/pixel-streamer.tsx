@@ -11,7 +11,7 @@ import { generateImage } from "@/ai/flows/generate-image";
 import { useToast } from "@/hooks/use-toast";
 import { Layers, Loader2, Wand2, Save } from "lucide-react";
 import { useFirebase, useStorage, errorEmitter, FirestorePermissionError } from "@/firebase";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadString } from "firebase/storage";
 import { osEvent } from "@/lib/events";
 
 export default function PixelStreamerApp() {
@@ -70,14 +70,11 @@ export default function PixelStreamerApp() {
       const safePrompt = prompt.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 50);
       const fileName = `${safePrompt}_${Date.now()}.png`;
       const filePath = `users/${user.uid}/${fileName}`;
-
-      // Convert data URI to Blob
-      const response = await fetch(generatedImage);
-      const blob = await response.blob();
       
       const storageRef = ref(storage, filePath);
       
-      uploadBytes(storageRef, blob)
+      // The generatedImage is a data URI, so we can upload it directly.
+      uploadString(storageRef, generatedImage, 'data_url')
         .then(() => {
            toast({
             title: "Image Saved!",

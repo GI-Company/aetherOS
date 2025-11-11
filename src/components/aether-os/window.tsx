@@ -118,9 +118,13 @@ export default function Window({
         memo = [x.get(), y.get()];
       }
 
-      api.start({ x: memo[0] + mx, y: memo[1] + my, immediate: down });
+      const newX = memo[0] + mx;
+      const newY = memo[1] + my;
+      
+      api.start({ x: newX, y: newY, immediate: down });
+      
       if (last) {
-        updateAppPosition(id, { x: memo[0] + mx, y: memo[1] + my });
+        updateAppPosition(id, { x: newX, y: newY });
       }
       return memo;
     },
@@ -142,7 +146,9 @@ export default function Window({
         }
       },
       filterTaps: true,
-      eventOptions: { passive: false }
+      eventOptions: { passive: false },
+      // This prevents the drag gesture from firing when interacting with child buttons
+      pointer: { buttons: 1 } 
     }
   );
   
@@ -193,7 +199,6 @@ export default function Window({
         )}
       >
         <CardHeader
-          {...bind()}
           ref={headerRef}
           className={cn(
             "p-2 flex-shrink-0 flex flex-row items-center justify-between border-b relative touch-none",

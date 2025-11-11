@@ -148,7 +148,7 @@ export default function Window({
       filterTaps: true,
       eventOptions: { passive: false },
       // This prevents the drag gesture from firing when interacting with child buttons
-      pointer: { buttons: 1 } 
+      pointer: { buttons: 1, touch: true } 
     }
   );
   
@@ -233,7 +233,7 @@ export default function Window({
           onDoubleClick={onMaximize}
           {...bindPosition()}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" style={{ pointerEvents: 'none' }}>
             <app.Icon className="h-4 w-4 ml-1" />
             <span className="text-sm font-medium select-none">{app.name}{isDirty ? '*' : ''}</span>
           </div>

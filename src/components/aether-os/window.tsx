@@ -17,7 +17,7 @@ type WindowProps = {
   onFocus: () => void;
   onMinimize: () => void;
   onMaximize: () => void;
-  updatePosition: (id: number, pos: { x: number; y: number }) => void;
+  updateAppPosition: (id: number, pos: { x: number; y: number }) => void;
   updateSize: (id: number, size: { width: number, height: number }) => void;
   isFocused: boolean;
   bounds: React.RefObject<HTMLElement>;
@@ -33,7 +33,7 @@ export default function Window({
   onFocus,
   onMinimize,
   onMaximize,
-  updatePosition,
+  updateAppPosition,
   updateSize,
   isFocused,
   bounds,
@@ -116,7 +116,7 @@ export default function Window({
 
       api.start({ x: memo[0] + mx, y: memo[1] + my, immediate: down });
       if (last) {
-        updatePosition(id, { x: memo[0] + mx, y: memo[1] + my });
+        updateAppPosition(id, { x: memo[0] + mx, y: memo[1] + my });
       }
       return memo;
     },
@@ -137,6 +137,9 @@ export default function Window({
           bottom: bounds.current.clientHeight - currentHeight - dockHeight,
         }
       },
+      // Prevent drag gesture from capturing events that start on interactive elements inside the header
+      filterTaps: true,
+      eventOptions: { passive: false }
     }
   );
   
@@ -187,6 +190,7 @@ export default function Window({
         )}
       >
         <CardHeader
+          {...bind()}
           ref={headerRef}
           className={cn(
             "p-2 flex-shrink-0 flex flex-row items-center justify-between border-b relative touch-none",

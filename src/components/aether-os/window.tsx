@@ -204,6 +204,7 @@ export default function Window({
             "p-2 flex-shrink-0 flex flex-row items-center justify-between border-b relative touch-none",
             isMaximized ? "cursor-default" : "cursor-grab active:cursor-grabbing"
           )}
+          onDoubleClick={onMaximize}
         >
           <div className="flex items-center gap-2">
             <app.Icon className="h-4 w-4 ml-1" />

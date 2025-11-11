@@ -39,7 +39,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(({ onAppClick, openApps
             <TooltipProvider delayDuration={0}>
               {APPS.filter(app => !app.hideFromDock).map((app) => {
                 const runningInstance = openApps.find(openApp => openApp.app.id === app.id);
-                const isFocused = runningInstance?.id === focusedAppId;
+                const isFocused = runningInstance?.id === focusedAppId && !runningInstance?.isMinimized;
 
                 return (
                 <Tooltip key={app.id}>

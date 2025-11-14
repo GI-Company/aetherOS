@@ -25,36 +25,38 @@ func NewAIService(broker *aether.Broker, aiModule *aether.AIModule) *AIService {
 
 // Run starts the AI service's listener.
 func (s *AIService) Run() {
-	topicName := "ai:generate"
-	topic := s.broker.GetTopic(topicName)
-	// This is a simplification. A real service would use a dedicated channel
-	// from the topic to avoid iterating over all clients. For now, we tap
-	// into the broadcast channel for simplicity.
-	log.Printf("AI Service listening on topic: %s", topicName)
+	// List of AI-related topics to listen on
+	aiTopics := []string{
+		"ai:generate",
+		"ai:agent",
+	}
 
-	// This is not an ideal subscription method but will work for this architecture.
-	// A proper implementation would have a dedicated subscription channel for services.
-	broadcastChan := topic.GetBroadcastChan()
+	for _, topicName := range aiTopics {
+		topic := s.broker.GetTopic(topicName)
+		log.Printf("AI Service listening on topic: %s", topicName)
+		broadcastChan := topic.GetBroadcastChan()
 
-	for envelope := range broadcastChan {
-		go s.handleRequest(envelope)
+		go func(tName string, ch chan *aether.Envelope) {
+			for envelope := range ch {
+				go s.handleRequest(envelope)
+			}
+		}(topicName, broadcastChan)
 	}
 }
 
 func (s *AIService) handleRequest(env *aether.Envelope) {
-	if env.Topic != "ai:generate" {
-		return // Should not happen if subscribed correctly
-	}
+	log.Printf("AI Service processing message ID %s on topic %s", env.ID, env.Topic)
 
-	log.Printf("AI Service processing message ID: %s", env.ID)
-
-	prompt, ok := env.Payload.(string)
-	if !ok {
-		// Try to unmarshal from JSON if payload is not a simple string
+	var prompt string
+	// Standardize prompt extraction
+	if p, ok := env.Payload.(string); ok {
+		prompt = p
+	} else {
 		var payloadData map[string]interface{}
 		payloadBytes, err := json.Marshal(env.Payload)
 		if err != nil {
 			log.Printf("error marshaling payload: %v", err)
+			s.publishError(env, "Invalid payload format")
 			return
 		}
 		if err := json.Unmarshal(payloadBytes, &payloadData); err == nil {
@@ -70,15 +72,27 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		return
 	}
 
-	// Generate text using the AI module
-	generatedText, err := s.aiModule.GenerateText(prompt)
+	// Route based on topic
+	var generatedText string
+	var err error
+
+	switch env.Topic {
+	case "ai:generate":
+		generatedText, err = s.aiModule.GenerateText(prompt)
+	// Add other cases for different AI flows here in the future
+	// case "ai:agent":
+	// 	generatedText, err = s.aiModule.ExecuteAgent(prompt)
+	default:
+		// For now, default all AI topics to GenerateText for simplicity
+		generatedText, err = s.aiModule.GenerateText(prompt)
+	}
+
 	if err != nil {
-		log.Printf("error generating text: %v", err)
+		log.Printf("error processing AI request: %v", err)
 		s.publishError(env, err.Error())
 		return
 	}
 
-	// Publish the response
 	s.publishResponse(env, generatedText)
 }
 

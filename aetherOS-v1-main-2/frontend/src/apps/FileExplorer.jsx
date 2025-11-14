@@ -30,22 +30,24 @@ const FileExplorer = () => {
     };
     
     // Subscribe to the result topic
-    aether.subscribe('vfs:list:result', handleFileList);
+    const unsubscribe = aether.subscribe('vfs:list:result', handleFileList);
     
     // Initial fetch
     fetchFiles(currentPath);
 
     return () => {
-      // It's good practice to have a way to unsubscribe, though the current SDK doesn't implement it.
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [aether, currentPath, fetchFiles]);
   
   const handleDoubleClick = (item) => {
     if (item.isDir) {
       // In a real implementation, you'd handle path joining properly.
-      const newPath = `${currentPath}/${item.name}`.replace('//', '/');
+      // This basic join works for the current in-memory VFS.
+      const newPath = item.path;
       setCurrentPath(newPath);
-      fetchFiles(newPath);
     } else {
       // Handle file open
       console.log(`Opening file: ${item.name}`);

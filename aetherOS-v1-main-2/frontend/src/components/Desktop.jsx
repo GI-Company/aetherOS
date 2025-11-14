@@ -16,9 +16,7 @@ const Desktop = () => {
     // Check if the app is already open
     const existingWindow = windows.find(w => w.appId === app.id);
     if (existingWindow) {
-      setActiveWindow(existingWindow.id);
-      // Bring window to front
-      setWindows(windows.map(w => w.id === existingWindow.id ? { ...w, zIndex: nextZIndex.current++ } : w));
+      focusWindow(existingWindow.id);
       return;
     }
 
@@ -32,6 +30,8 @@ const Desktop = () => {
       width: app.defaultSize.width,
       height: app.defaultSize.height,
       zIndex: nextZIndex.current++,
+      isMinimized: false,
+      isMaximized: false,
     };
     setWindows([...windows, newWindow]);
     setActiveWindow(newWindow.id);
@@ -40,16 +40,79 @@ const Desktop = () => {
   const closeWindow = (id) => {
     setWindows(windows.filter(w => w.id !== id));
     if (activeWindow === id) {
-      setActiveWindow(null);
+       const nextApp = windows.filter(a => a.id !== id && !a.isMinimized).sort((a,b) => b.zIndex - a.zIndex)[0];
+       setActiveWindow(nextApp ? nextApp.id : null);
     }
   };
 
   const focusWindow = (id) => {
+     const appInstance = windows.find(app => app.id === id);
+    if (!appInstance) return;
+
+    if (appInstance.isMinimized) {
+        toggleMinimize(id); // Un-minimize if focused
+        return;
+    }
+
     if (activeWindow !== id) {
       setActiveWindow(id);
       setWindows(windows.map(w => w.id === id ? { ...w, zIndex: nextZIndex.current++ } : w));
     }
   };
+
+  const toggleMinimize = (id) => {
+     setWindows(prev => prev.map(app => {
+        if (app.id === id) {
+          const isNowMinimized = !app.isMinimized;
+          if (isNowMinimized && activeWindow === id) {
+            // Find next available window to focus
+            const nextApp = prev.filter(a => a.id !== id && !a.isMinimized).sort((a,b) => b.zIndex - a.zIndex)[0];
+            setActiveWindow(nextApp ? nextApp.id : null);
+          } else if (!isNowMinimized) {
+            // Un-minimizing should focus the window
+            setActiveWindow(id);
+            return { ...app, isMinimized: false, zIndex: nextZIndex.current++ };
+          }
+          return { ...app, isMinimized: isNowMinimized, isMaximized: false };
+        }
+        return app;
+     }));
+  }
+
+  const toggleMaximize = (id) => {
+    setWindows(prev => prev.map(app => {
+      if (app.id === id) {
+        const isNowMaximized = !app.isMaximized;
+        if (isNowMaximized) {
+          const topBarHeight = 32;
+          return {
+            ...app,
+            isMaximized: true,
+            isMinimized: false,
+            previousState: { x: app.x, y: app.y, width: app.width, height: app.height },
+            x: 0,
+            y: topBarHeight,
+            width: window.innerWidth,
+            height: window.innerHeight - topBarHeight,
+          };
+        } else {
+          // Restore
+          return {
+            ...app,
+            isMaximized: false,
+            x: app.previousState?.x ?? app.x,
+            y: app.previousState?.y ?? app.y,
+            width: app.previousState?.width ?? app.width,
+            height: app.previousState?.height ?? app.height,
+            previousState: undefined,
+          };
+        }
+      }
+      return app;
+    }));
+    focusWindow(id);
+  };
+
 
   return (
     <AetherProvider>
@@ -65,13 +128,17 @@ const Desktop = () => {
               id={win.id}
               title={win.title}
               Icon={win.Icon}
-              initialX={win.x}
-              initialY={win.y}
-              initialWidth={win.width}
-              initialHeight={win.height}
+              x={win.x}
+              y={win.y}
+              width={win.width}
+              height={win.height}
+              isMinimized={win.isMinimized}
+              isMaximized={win.isMaximized}
               zIndex={win.zIndex}
               onClose={() => closeWindow(win.id)}
               onFocus={() => focusWindow(win.id)}
+              onMinimize={() => toggleMinimize(win.id)}
+              onMaximize={() => toggleMaximize(win.id)}
               isActive={activeWindow === win.id}
               bounds={desktopRef}
             >

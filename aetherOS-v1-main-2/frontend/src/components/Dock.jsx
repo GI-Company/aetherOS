@@ -17,8 +17,9 @@ const Dock = ({ onAppClick, openApps, onAppFocus, activeApp }) => {
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
             <div className="flex items-end h-20 p-2 space-x-2 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-lg">
                 {APPS.map(app => {
-                    const isRunning = openApps.some(w => w.appId === app.id);
-                    const isActive = isRunning && openApps.find(w => w.appId === app.id).id === activeApp;
+                    const runningInstance = openApps.find(w => w.appId === app.id);
+                    const isRunning = !!runningInstance;
+                    const isActive = isRunning && runningInstance.id === activeApp && !runningInstance.isMinimized;
 
                     return (
                         <div key={app.id} className="flex flex-col items-center" >

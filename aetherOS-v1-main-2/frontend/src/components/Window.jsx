@@ -11,27 +11,36 @@ const Window = ({
   children,
   title,
   Icon,
-  initialX,
-  initialY,
-  initialWidth,
-  initialHeight,
+  x,
+  y,
+  width,
+  height,
+  isMinimized,
+  isMaximized,
   zIndex,
   onClose,
   onFocus,
+  onMinimize,
+  onMaximize,
   isActive,
   bounds,
 }) => {
-  const [size, setSize] = React.useState({ width: initialWidth, height: initialHeight });
+  const [size, setSize] = React.useState({ width: width, height: height });
   
   const onResize = (event, { element, size, handle }) => {
     setSize({ width: size.width, height: size.height });
   };
   
+  if (isMinimized) {
+    return null;
+  }
+
   return (
     <Draggable
       handle=".window-header"
       onStart={() => onFocus(id)}
-      defaultPosition={{ x: initialX, y: initialY }}
+      position={{ x, y }}
+      disabled={isMaximized}
       bounds={{
         left: 0, 
         top: 0, 
@@ -45,16 +54,29 @@ const Window = ({
         onResize={onResize}
         minConstraints={[300, 200]}
         maxConstraints={[1200, 800]}
+        handle={isMaximized ? <div /> : undefined}
       >
         <div
-          style={{ zIndex, width: `${size.width}px`, height: `${size.height}px` }}
+          style={{ 
+            zIndex, 
+            width: isMaximized ? '100%' : `${size.width}px`, 
+            height: isMaximized ? '100%' : `${size.height}px`,
+            // When maximized, position is handled by parent, not Draggable
+            transform: isMaximized ? 'translate(0, 0)' : '',
+            top: isMaximized ? y : undefined,
+            left: isMaximized ? x : undefined,
+          }}
           className={cn(
             'absolute flex flex-col rounded-lg shadow-2xl bg-gray-800/80 backdrop-blur-xl border',
-            isActive ? 'border-blue-500' : 'border-gray-600'
+            isActive ? 'border-blue-500' : 'border-gray-600',
+            isMaximized && 'rounded-none'
           )}
           onClick={() => onFocus(id)}
         >
-          <div className="window-header h-8 flex items-center justify-between px-2 bg-gray-900/50 rounded-t-lg cursor-move border-b border-gray-700" onDoubleClick={onMaximize}>
+          <div 
+            className={cn("window-header h-8 flex items-center justify-between px-2 bg-gray-900/50 rounded-t-lg border-b border-gray-700", !isMaximized && "cursor-move")} 
+            onDoubleClick={onMaximize}
+          >
             <div className="flex items-center gap-2">
                 {Icon && <Icon className="h-4 w-4 text-gray-300" />}
                 <span className="text-sm text-white select-none">{title}</span>

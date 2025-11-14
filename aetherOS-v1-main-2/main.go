@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -26,10 +25,6 @@ func main() {
 	// Initialize and run the AI service
 	aiService := services.NewAIService(broker, aiModule)
 	go aiService.Run()
-
-	// Initialize and run the VFS service (as a proxy)
-	vfsService := services.NewVfsService(broker)
-	go vfsService.Run()
 
 	// Setup router and register API routes
 	r := mux.NewRouter()

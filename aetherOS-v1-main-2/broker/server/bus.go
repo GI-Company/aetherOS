@@ -61,12 +61,6 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	// via a special message after connecting.
 	s.Broker.GetTopic("ai:generate:resp").Subscribe(client)
 	s.Broker.GetTopic("ai:generate:error").Subscribe(client)
-	s.Broker.GetTopic("vfs:list:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:create:file:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:create:folder:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:delete:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:write:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:read:result").Subscribe(client)
 
 
 	// The client is also subscribed to its primary hubTopic

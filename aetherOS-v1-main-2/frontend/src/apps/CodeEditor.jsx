@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useAether } from '../lib/aether_sdk';
 import { Loader2, Save } from 'lucide-react';
 import { Button } from '../components/Button';
+import { getStorage, ref, getDownloadURL, uploadString } from 'firebase/storage';
 
 const Editor = lazy(() => import('@monaco-editor/react'));
 
@@ -11,53 +11,53 @@ const CodeEditor = ({ filePath }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-  const aether = useAether();
+  const aether = useAether(); // Keep for potential future use with AI, etc.
 
   useEffect(() => {
-    if (!aether || !filePath) {
+    if (!filePath) {
       setIsLoading(false);
       setError('No file path provided.');
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-    setContent('');
+    const fetchContent = async () => {
+        setIsLoading(true);
+        setError(null);
+        setContent('');
 
-    console.log(`Requesting content for: ${filePath}`);
-    aether.publish('vfs:read', { path: filePath });
-
-    const handleReadResult = (env) => {
-      // Basic correlation check
-      if (env.payload.path === filePath) {
-          setContent(env.payload.content);
-          setIsLoading(false);
-      }
-    };
-
-    const handleReadError = (env) => {
-      console.error('VFS Read Error:', env.payload.error);
-      setError(env.payload.error);
-      setIsLoading(false);
-    };
-
-    const readSub = aether.subscribe('vfs:read:result', handleReadResult);
-    const errorSub = aether.subscribe('vfs:read:error', handleReadError);
-
-    return () => {
-      if (readSub) readSub();
-      if (errorSub) errorSub();
-    };
-  }, [aether, filePath]);
+        try {
+            const storage = getStorage();
+            const fileRef = ref(storage, filePath);
+            const url = await getDownloadURL(fileRef);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
+            const textContent = await response.text();
+            setContent(textContent);
+        } catch (err) {
+            console.error("Error loading file content:", err);
+            setError(err.message || "Could not load file.");
+        } finally {
+            setIsLoading(false);
+        }
+    }
+    
+    fetchContent();
+    
+  }, [filePath]);
   
   const handleSave = async () => {
-    if (!aether || !filePath || isSaving) return;
+    if (!filePath || isSaving) return;
     setIsSaving(true);
     setError(null);
 
     try {
-        await aether.publish('vfs:write', { path: filePath, content: content });
-        setTimeout(() => setIsSaving(false), 1000); 
+        const storage = getStorage();
+        const fileRef = ref(storage, filePath);
+        await uploadString(fileRef, content);
+        setTimeout(() => {
+            setIsSaving(false)
+            // Ideally, we'd also mark the file as "not dirty"
+        }, 1000); 
     } catch(err) {
         console.error("Save failed:", err);
         setError("Failed to save the file.");
@@ -90,11 +90,12 @@ const CodeEditor = ({ filePath }) => {
           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>}>
             <Editor
               height="100%"
-              language="javascript"
+              language="javascript" // Should be dynamic based on file type
               theme="vs-dark"
               value={content}
               onChange={handleEditorChange}
               options={{ minimap: { enabled: false } }}
+              path={filePath} // Pass path for better language detection
             />
           </Suspense>
         )}

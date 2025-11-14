@@ -1,12 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 /**
- * Aether SDK for frontend clients to communicate with the Aether Kernel.
+ * Aether SDK for frontend clients.
+ * Manages WebSocket connection to the Go kernel and Firebase initialization.
  */
 
-// This is a placeholder for a real JWT. In a production system, this would
-// be obtained from an authentication service.
 const FAKE_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcm9udGVuZC11c2VyIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE3NjcyMzkwMjJ9.C6F5_5Jrg9A3p6h4Yl-4I0n-bYd28Y9bJmJgYzRzZDA";
+
+const firebaseConfig = {
+  apiKey: "REPLACE_WITH_YOUR_API_KEY",
+  authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
+  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
+  storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET",
+  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
+  appId: "REPLACE_WITH_YOUR_APP_ID"
+};
+
 
 class AetherClient {
   constructor(baseUrl) {
@@ -16,6 +27,16 @@ class AetherClient {
     this.messageQueue = [];
     this.isConnected = false;
     this.connectionPromise = null;
+    
+    // Firebase setup
+    try {
+        this.firebaseApp = initializeApp(firebaseConfig);
+        this.auth = getAuth(this.firebaseApp);
+    } catch(e) {
+        console.error("Firebase initialization failed. Please check your firebaseConfig in aether_sdk.js", e);
+        this.firebaseApp = null;
+        this.auth = null;
+    }
   }
 
   connect() {
@@ -41,7 +62,6 @@ class AetherClient {
         this.ws.onmessage = (event) => {
             try {
                 const envelope = JSON.parse(event.data);
-                // console.log("Received envelope:", envelope.topic, envelope.payload);
                 if (this.subscriptions.has(envelope.topic)) {
                     this.subscriptions.get(envelope.topic).forEach(callback => {
                         callback(envelope);
@@ -90,7 +110,6 @@ class AetherClient {
     }
     this.subscriptions.get(topic).push(callback);
     
-    // We could add an unsubscribe method to remove callbacks
     return () => {
         const callbacks = this.subscriptions.get(topic);
         if (callbacks) {
@@ -111,24 +130,40 @@ const AetherContext = createContext(null);
 
 export const AetherProvider = ({ children }) => {
     const [client, setClient] = useState(null);
+    const [user, setUser] = useState(null);
+    const [isLoadingUser, setIsLoadingUser] = useState(true);
 
     useEffect(() => {
         const aetherClient = new AetherClient('ws://localhost:8080/v1/bus/ws');
         aetherClient.connect()
             .then(() => {
                 setClient(aetherClient);
+                
+                if (aetherClient.auth) {
+                    const unsubscribe = onAuthStateChanged(aetherClient.auth, (firebaseUser) => {
+                        setUser(firebaseUser);
+                        setIsLoadingUser(false);
+                    });
+                    return () => unsubscribe();
+                } else {
+                    setIsLoadingUser(false);
+                }
             })
             .catch(err => {
                 console.error("Failed to connect Aether client in provider", err);
+                 setIsLoadingUser(false);
             });
         
         return () => {
             aetherClient.close();
         };
     }, []);
+    
+    // Combine client and user state into the context value
+    const contextValue = client ? { ...client, user, isLoadingUser } : null;
 
     return (
-        <AetherContext.Provider value={client}>
+        <AetherContext.Provider value={contextValue}>
             {children}
         </AetherContext.Provider>
     );

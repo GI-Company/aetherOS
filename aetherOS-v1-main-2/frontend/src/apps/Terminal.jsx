@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Client } from '../lib/aether_sdk'; // Updated import
+import { Client } from '../lib/aether_sdk';
 import './Terminal.css';
 
 const Terminal = () => {
@@ -12,7 +12,8 @@ const Terminal = () => {
   useEffect(() => {
     const initializeClient = async () => {
       try {
-        const client = new Client('ws://localhost:8080/v1/bus/subscribe');
+        // The WebSocket URL is now simpler.
+        const client = new Client('ws://localhost:8080/v1/bus/ws');
         await client.connect();
         console.log("Aether client connected.");
         setAetherClient(client);

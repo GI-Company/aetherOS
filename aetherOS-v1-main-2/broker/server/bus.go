@@ -21,7 +21,8 @@ func RegisterBusRoutes(r *mux.Router, b *aether.Broker) {
 
 	// wrap bus endpoints with JWT middleware
 	api.Handle("/publish", JWTAuthMiddleware(http.HandlerFunc(s.handlePublish))).Methods("POST")
-	api.Handle("/subscribe", JWTAuthMiddleware(http.HandlerFunc(s.handleWSSubscribe)))
+	// The WebSocket endpoint now acts as a general gateway to the bus
+	api.Handle("/ws", JWTAuthMiddleware(http.HandlerFunc(s.handleWSGateway)))
 }
 
 func (s *BusServer) handlePublish(w http.ResponseWriter, r *http.Request) {
@@ -41,21 +42,31 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func (s *BusServer) handleWSSubscribe(w http.ResponseWriter, r *http.Request) {
-	topicName := r.URL.Query().Get("topic")
-	if topicName == "" {
-		http.Error(w, "missing topic", http.StatusBadRequest)
-		return
-	}
-
+// handleWSGateway upgrades the connection and connects the client to the bus.
+// The client can then publish to any topic and will receive messages from any topic it subscribes to client-side.
+func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		return
+		return // upgrader logs errors
 	}
 
-	topic := s.Broker.GetTopic(topicName)
-	client := aether.NewClient(conn, topic)
-	topic.Subscribe(client)
+	// All clients connect to a central hub, but can publish to any topic.
+	// We will create response topics for them to receive messages on.
+	// For simplicity, we'll subscribe them to a "system:events" topic to receive broadcasts.
+	// A more advanced implementation might have clients declare subscriptions.
+	hubTopic := s.Broker.GetTopic("system:events") // A general topic for receiving messages
+	client := aether.NewClient(conn, hubTopic)
+
+	// Subscribing the client to multiple response topics.
+	// The client-side SDK will filter messages by topic.
+	aiRespTopic := s.Broker.GetTopic("ai:generate:resp")
+	aiErrorTopic := s.Broker.GetTopic("ai:generate:error")
+
+	aiRespTopic.Subscribe(client)
+	aiErrorTopic.Subscribe(client)
+
+	// The client is also subscribed to its primary hubTopic
+	hubTopic.Subscribe(client)
 
 	go client.WritePump()
 	go client.ReadPump()

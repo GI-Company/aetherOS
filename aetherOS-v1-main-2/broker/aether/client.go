@@ -17,25 +17,27 @@ const (
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
-	hub   *Topic
+	hub   *Topic // This is the main "bus" topic the client is subscribed to for receiving messages.
 	conn  *websocket.Conn
 	send  chan []byte
-	Topic *Topic
+	Topic *Topic // This remains for API consistency, but hub is the primary.
 }
 
 // NewClient creates a new client.
-func NewClient(conn *websocket.Conn, topic *Topic) *Client {
+func NewClient(conn *websocket.Conn, hubTopic *Topic) *Client {
 	return &Client{
+		hub:   hubTopic,
 		conn:  conn,
-		Topic: topic,
+		Topic: hubTopic, // The primary topic for this connection
 		send:  make(chan []byte, 256),
 	}
 }
 
 // ReadPump pumps messages from the websocket connection to the hub.
+// It now dynamically publishes to the topic specified in the envelope.
 func (c *Client) ReadPump() {
 	defer func() {
-		c.Topic.Unsubscribe(c)
+		c.hub.Unsubscribe(c)
 		c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
@@ -55,7 +57,14 @@ func (c *Client) ReadPump() {
 			log.Printf("invalid envelope: %v", err)
 			continue
 		}
-		c.Topic.Publish(&env)
+
+		// Dynamic Topic Publishing: Get the topic from the envelope and publish.
+		targetTopic := c.hub.broker.GetTopic(env.Topic)
+		if targetTopic != nil {
+			targetTopic.Publish(&env)
+		} else {
+			log.Printf("topic not found: %s", env.Topic)
+		}
 	}
 }
 
@@ -69,7 +78,9 @@ func (c *Client) WritePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
+				// The hub closed the channel.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -80,9 +91,10 @@ func (c *Client) WritePump() {
 			}
 			w.Write(message)
 
+			// Add queued chat messages to the current websocket message.
 			n := len(c.send)
 			for i := 0; i < n; i++ {
-				w.Write([]byte{byte('\n')})
+				w.Write([]byte{'\n'})
 				w.Write(<-c.send)
 			}
 

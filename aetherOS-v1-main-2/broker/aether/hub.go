@@ -27,12 +27,19 @@ func (b *Broker) Run() {
 
 // GetTopic returns a topic, creating it if it doesn't exist.
 func (b *Broker) GetTopic(name string) *Topic {
+	b.mu.RLock()
+	topic, ok := b.topics[name]
+	b.mu.RUnlock()
+	if ok {
+		return topic
+	}
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
+	// Double check in case it was created between RUnlock and Lock
 	if b.topics[name] == nil {
 		log.Printf("creating topic: %s", name)
-		b.topics[name] = NewTopic(name)
+		b.topics[name] = NewTopic(name, b) // Pass broker to topic
 		go b.topics[name].Run()
 	}
 	return b.topics[name]

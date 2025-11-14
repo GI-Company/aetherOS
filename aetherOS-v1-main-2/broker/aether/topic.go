@@ -5,6 +5,7 @@ import "log"
 // Topic manages a single topic, including subscriptions and message broadcasting.
 type Topic struct {
 	name          string
+	broker        *Broker // reference back to the broker
 	clients       map[*Client]bool
 	broadcast     chan *Envelope
 	subscribe     chan *Client
@@ -14,9 +15,10 @@ type Topic struct {
 }
 
 // NewTopic creates a new topic.
-func NewTopic(name string) *Topic {
+func NewTopic(name string, broker *Broker) *Topic {
 	return &Topic{
 		name:          name,
+		broker:        broker, // store the broker reference
 		clients:       make(map[*Client]bool),
 		broadcast:     make(chan *Envelope),
 		subscribe:     make(chan *Client),
@@ -41,7 +43,13 @@ func (t *Topic) Run() {
 			log.Printf("client subscribed to topic %s", t.name)
 			// send history
 			for _, env := range t.history {
-				client.send <- env.Bytes()
+				select {
+				case client.send <- env.Bytes():
+				default:
+					log.Printf("failed to send history to client, closing channel")
+					close(client.send)
+					delete(t.clients, client)
+				}
 			}
 		case client := <-t.unsubscribe:
 			if _, ok := t.clients[client]; ok {

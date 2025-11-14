@@ -9,7 +9,7 @@ const FAKE_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcm9udGVuZC11c
 
 export class Client {
   constructor(baseUrl) {
-    // The base URL should be ws://localhost:8080/v1/bus/subscribe
+    // The base URL should be ws://localhost:8080/v1/bus/ws
     this.baseUrl = baseUrl;
     this.ws = null;
     this.subscriptions = new Map();
@@ -19,9 +19,8 @@ export class Client {
 
   async connect() {
     return new Promise((resolve, reject) => {
-        // We'll subscribe to a general topic to open the connection.
-        // The server will then let us publish to any topic.
-        const url = `${this.baseUrl}?topic=system:events&token=${FAKE_JWT}`;
+        // The URL no longer needs a topic, as routing is handled by the backend.
+        const url = `${this.baseUrl}?token=${FAKE_JWT}`;
         this.ws = new WebSocket(url);
 
         this.ws.onopen = () => {
@@ -78,6 +77,7 @@ export class Client {
     } else {
       // Queue the message if the connection is not yet open
       this.messageQueue.push(message);
+      console.log("Connection not open. Queuing message for topic:", topic);
     }
   }
 
@@ -92,7 +92,8 @@ export class Client {
     }
     this.subscriptions.get(topic).push(callback);
     
-    // Note: The actual subscription happens on connection. This just registers the callback.
+    // This just registers the callback client-side. The server now sends all
+    // relevant topic messages over the single WebSocket connection.
   }
   
   close() {

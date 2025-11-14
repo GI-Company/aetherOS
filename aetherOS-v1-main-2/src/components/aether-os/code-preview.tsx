@@ -27,28 +27,22 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 
     let isMounted = true;
     
-    const handleSummaryResponse = (env: any) => {
-        if (env.payload.filePath === filePath && isMounted) {
-            try {
-                const result = JSON.parse(env.payload.summary);
-                if (result.summary) {
-                    setSummary(result.summary);
-                    summaryCache.set(filePath, result.summary);
-                } else {
-                    setError("Invalid summary format received.");
-                }
-            } catch (e) {
-                setError("Failed to parse summary.");
+    const handleSummaryResponse = (payload: any) => {
+        if (payload.filePath === filePath && isMounted) {
+            if (payload.summary) {
+                setSummary(payload.summary);
+                summaryCache.set(filePath, payload.summary);
+            } else {
+                setError("Invalid summary format received.");
             }
             setIsLoading(false);
             unsubscribe();
         }
     };
 
-    const handleErrorResponse = (env: any) => {
-        // This is a rough check. Correlation ID would be better.
+    const handleErrorResponse = (payload: any) => {
         if (isMounted) {
-            setError(env.payload.error || 'Summarization failed');
+            setError(payload.error || 'Summarization failed');
             setIsLoading(false);
             unsubscribe();
         }

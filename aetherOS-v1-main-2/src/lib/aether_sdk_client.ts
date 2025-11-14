@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 /**
  * Aether SDK for frontend clients.
@@ -17,6 +17,7 @@ interface Envelope {
     id: string;
     topic: string;
     payload: any;
+    contentType: string;
     createdAt: string;
     meta?: Record<string, string>;
 }
@@ -24,10 +25,11 @@ interface Envelope {
 class AetherClient {
   private baseUrl: string;
   private ws: WebSocket | null;
-  private subscriptions: Map<string, Array<(envelope: Envelope) => void>>;
+  private subscriptions: Map<string, Array<(payload: any) => void>>;
   private messageQueue: string[];
   private isConnected: boolean;
   private connectionPromise: Promise<void> | null;
+  private reconnectAttempts: number;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
@@ -36,10 +38,11 @@ class AetherClient {
     this.messageQueue = [];
     this.isConnected = false;
     this.connectionPromise = null;
+    this.reconnectAttempts = 0;
   }
 
   connect(): Promise<void> {
-    if (this.isConnected && this.ws) {
+    if (this.isConnected && this.ws?.readyState === WebSocket.OPEN) {
         return Promise.resolve();
     }
     if (this.connectionPromise) {
@@ -48,11 +51,13 @@ class AetherClient {
 
     this.connectionPromise = new Promise((resolve, reject) => {
         const url = `${this.baseUrl}?token=${FAKE_JWT}`;
+        console.log(`AetherClient: Connecting to ${url}`);
         this.ws = new WebSocket(url);
 
         this.ws.onopen = () => {
             console.log("Aether-Kernel connection established.");
             this.isConnected = true;
+            this.reconnectAttempts = 0;
             this.messageQueue.forEach(msg => this.ws!.send(msg));
             this.messageQueue = [];
             resolve();
@@ -61,53 +66,72 @@ class AetherClient {
         this.ws.onmessage = (event) => {
             try {
                 const envelope: Envelope = JSON.parse(event.data);
+                const payload = envelope.payload;
+                // The Go service now sends the payload directly, already parsed.
+                // The full envelope is passed to subscribers if they need metadata.
+                
                 if (this.subscriptions.has(envelope.topic)) {
                     this.subscriptions.get(envelope.topic)?.forEach(callback => {
-                        callback(envelope);
+                        // The callback now receives the payload directly, which is what most apps expect.
+                        // The original implementation was passing the full envelope, which was inconsistent.
+                        callback(payload);
                     });
                 }
             } catch (error) {
-                console.error("Error parsing message:", error);
+                console.error("Error parsing message:", error, "Data:", event.data);
             }
         };
 
         this.ws.onerror = (error) => {
             console.error("WebSocket error:", error);
-            this.connectionPromise = null; // Allow retrying
-            reject(error);
         };
 
         this.ws.onclose = () => {
             console.log("WebSocket connection closed.");
             this.isConnected = false;
-            this.connectionPromise = null; // Allow retrying
+            this.connectionPromise = null;
+            this.handleReconnect();
         };
     });
     return this.connectionPromise;
   }
 
+  handleReconnect() {
+    if (this.reconnectAttempts >= 5) {
+        console.error("AetherClient: Max reconnect attempts reached. Please refresh the page.");
+        return;
+    }
+    const delay = Math.pow(2, this.reconnectAttempts) * 1000;
+    this.reconnectAttempts++;
+    console.log(`AetherClient: Attempting to reconnect in ${delay / 1000}s...`);
+    setTimeout(() => {
+        this.connect();
+    }, delay);
+  }
+
   async publish(topic: string, payload: any): Promise<void> {
-    const envelope: Partial<Envelope> = {
-      id: crypto.randomUUID(),
-      topic,
-      payload,
-      createdAt: new Date().toISOString(),
+    // This is the structure the Go kernel now expects
+    const fullEnvelope = {
+        id: crypto.randomUUID(),
+        topic: topic,
+        contentType: 'application/json',
+        payload: payload, // The payload is an object
+        createdAt: new Date().toISOString(),
     };
 
-    const message = JSON.stringify(envelope);
+    const message = JSON.stringify(fullEnvelope);
 
-    if (this.isConnected && this.ws) {
+    if (this.isConnected && this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(message);
     } else {
       this.messageQueue.push(message);
-      // Attempt to connect if not already doing so
       if (!this.connectionPromise) {
           this.connect();
       }
     }
   }
 
-  subscribe(topic: string, callback: (envelope: Envelope) => void): () => void {
+  subscribe(topic: string, callback: (payload: any) => void): () => void {
     if (!this.subscriptions.has(topic)) {
       this.subscriptions.set(topic, []);
     }
@@ -136,7 +160,13 @@ export const AetherProvider = ({ children }: { children: React.ReactNode }) => {
     const [client, setClient] = useState<AetherClient | null>(null);
 
     useEffect(() => {
-        const aetherClient = new AetherClient('ws://localhost:8080/v1/bus/ws');
+        // Use environment variables for configuration if available, otherwise default.
+        const wsHost = process.env.NEXT_PUBLIC_WS_HOST || 'localhost';
+        const wsPort = process.env.NEXT_PUBLIC_WS_PORT || '8080';
+        const wsPath = process.env.NEXT_PUBLIC_WS_PATH || '/v1/bus/ws';
+        const wsProtocol = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss' : 'ws';
+
+        const aetherClient = new AetherClient(`${wsProtocol}://${wsHost}:${wsPort}${wsPath}`);
         aetherClient.connect()
             .then(() => {
                 setClient(aetherClient);
@@ -152,9 +182,7 @@ export const AetherProvider = ({ children }: { children: React.ReactNode }) => {
     
 
     return (
-        <AetherContext.Provider value={client}>
-            {children}
-        </AetherContext.Provider>
+        React.createElement(AetherContext.Provider, { value: client }, children)
     );
 };
 

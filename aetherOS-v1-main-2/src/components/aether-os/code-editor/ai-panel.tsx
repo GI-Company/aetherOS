@@ -39,19 +39,19 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
 
     aether.publish('ai:generate', { prompt: `Given the existing code:\n\n${activeFile.content}\n\nGenerate new code based on this request: ${prompt}` });
 
-    const handleResponse = (env: any) => {
+    const handleResponse = (payload: any) => {
       // The payload is now the raw code string
-      const cleanedCode = env.payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
+      const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
       onCodeUpdate(cleanedCode);
       setIsLoading(null);
       aether.subscribe('ai:generate:resp', handleResponse)(); // Unsubscribe
     };
 
-    const handleError = (env: any) => {
-      console.error("Error generating code:", env.payload.error);
+    const handleError = (payload: any) => {
+      console.error("Error generating code:", payload.error);
       toast({
         title: "Generation Failed",
-        description: env.payload.error || "An error occurred while generating code.",
+        description: payload.error || "An error occurred while generating code.",
         variant: "destructive"
       });
       setIsLoading(null);
@@ -73,18 +73,18 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
     
     aether.publish('ai:generate', { prompt: refactorPrompt });
 
-    const handleResponse = (env: any) => {
-      const cleanedCode = env.payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
+    const handleResponse = (payload: any) => {
+      const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
       onCodeUpdate(cleanedCode);
       setIsLoading(null);
       aether.subscribe('ai:generate:resp', handleResponse)();
     };
 
-    const handleError = (env: any) => {
-      console.error("Error refactoring code:", env.payload.error);
+    const handleError = (payload: any) => {
+      console.error("Error refactoring code:", payload.error);
       toast({
         title: "Refactor Failed",
-        description: env.payload.error || "An error occurred during refactoring.",
+        description: payload.error || "An error occurred during refactoring.",
         variant: "destructive"
       });
       setIsLoading(null);

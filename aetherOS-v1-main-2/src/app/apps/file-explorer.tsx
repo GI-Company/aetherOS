@@ -137,8 +137,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   useEffect(() => {
     if (!aether) return;
 
-    const handleFileList = (env: any) => {
-        const { path, files: receivedFiles } = env.payload;
+    const handleFileList = (payload: any) => {
+        const { path, files: receivedFiles } = payload;
         if (path === currentPath) {
             setAllFiles(receivedFiles || []);
             setIsLoading(false);
@@ -178,13 +178,12 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     try {
         aether.publish('ai:search:files', { query, availableFiles: allFiles.map(f => f.path) });
         
-        const handleResponse = async (env: any) => {
-            const searchResultsJson = JSON.parse(env.payload);
-            const results = searchResultsJson.results || [];
+        const handleResponse = async (payload: any) => {
+            const results = payload.results || [];
             
             const searchResultItems = results.map((result: any) => {
               const foundFile = allFiles.find(f => f.path === result.path);
-              return foundFile || { name: result.path.split('/').pop()!, type: result.type, path: result.path, size: 0, modified: new Date() };
+              return foundFile || { name: result.path.split('/').pop()!, type: result.type, path: result.path, size: 0, modTime: new Date() };
             }) as FileItem[];
 
             setDisplayedFiles(searchResultItems);
@@ -197,8 +196,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             aether.subscribe('ai:search:files:resp', handleResponse)(); // Unsubscribe
         };
 
-        const handleError = (env: any) => {
-            toast({ title: "Search Failed", description: env.payload.error, variant: "destructive" });
+        const handleError = (payload: any) => {
+            toast({ title: "Search Failed", description: payload.error, variant: "destructive" });
             setIsSearching(false);
             aether.subscribe('ai:search:files:error', handleError)(); // Unsubscribe
         };

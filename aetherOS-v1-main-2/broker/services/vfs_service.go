@@ -3,6 +3,7 @@ package services
 
 import (
 	"aether/broker/aether"
+	"encoding/base64"
 	"encoding/json"
 	"log"
 	"time"
@@ -51,13 +52,19 @@ func (s *VfsService) Run() {
 func (s *VfsService) handleRequest(env *aether.Envelope) {
 	log.Printf("VFS Service processing message ID %s on topic %s", env.ID, env.Topic)
 
-	var payloadData map[string]interface{}
-	payloadBytes, err := json.Marshal(env.Payload)
-	if err != nil {
-		s.publishError(env, "Invalid payload format")
+	// Extract the raw payload from the envelope
+	var rawPayload json.RawMessage
+	var tempEnv struct {
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(env.Payload, &tempEnv); err != nil {
+		s.publishError(env, "Invalid envelope structure")
 		return
 	}
-	if err := json.Unmarshal(payloadBytes, &payloadData); err != nil {
+	rawPayload = tempEnv.Payload
+
+	var payloadData map[string]interface{}
+	if err := json.Unmarshal(rawPayload, &payloadData); err != nil {
 		s.publishError(env, "Cannot unmarshal payload")
 		return
 	}
@@ -110,8 +117,23 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 			"content": content,
 		})
 	case "vfs:write":
-		content, _ := payloadData["content"].(string)
-		err := s.vfs.Write(path, content)
+		contentStr, _ := payloadData["content"].(string)
+		encoding, _ := payloadData["encoding"].(string)
+
+		var contentBytes []byte
+		var err error
+
+		if encoding == "base64" {
+			contentBytes, err = base64.StdEncoding.DecodeString(contentStr)
+			if err != nil {
+				s.publishError(env, "Invalid base64 content")
+				return
+			}
+		} else {
+			contentBytes = []byte(contentStr)
+		}
+
+		err = s.vfs.Write(path, contentBytes)
 		if err != nil {
 			s.publishError(env, err.Error())
 			return
@@ -124,12 +146,21 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 
 func (s *VfsService) publishResponse(originalEnv *aether.Envelope, topicName string, payload interface{}) {
 	responseTopic := s.broker.GetTopic(topicName)
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("VFS Service: Failed to marshal response payload: %v", err)
+		s.publishError(originalEnv, "Internal server error: could not create response")
+		return
+	}
+
 	responseEnv := &aether.Envelope{
-		ID:        uuid.New().String(),
-		Topic:     topicName,
-		Type:      "vfs_response",
-		Payload:   payload,
-		CreatedAt: time.Now(),
+		ID:          uuid.New().String(),
+		Topic:       topicName,
+		Type:        "vfs_response",
+		ContentType: "application/json",
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now(),
 		Meta: map[string]string{
 			"correlationId": originalEnv.ID,
 		},
@@ -143,13 +174,15 @@ func (s *VfsService) publishError(originalEnv *aether.Envelope, errorMsg string)
 	errorTopic := s.broker.GetTopic(errorTopicName)
 
 	errorPayload := map[string]string{"error": errorMsg}
+	payloadBytes, _ := json.Marshal(errorPayload)
 
 	errorEnv := &aether.Envelope{
-		ID:        uuid.New().String(),
-		Topic:     errorTopicName,
-		Type:      "error",
-		Payload:   errorPayload,
-		CreatedAt: time.Now(),
+		ID:          uuid.New().String(),
+		Topic:       errorTopicName,
+		Type:        "error",
+		ContentType: "application/json",
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now(),
 		Meta: map[string]string{
 			"correlationId": originalEnv.ID,
 		},

@@ -13,14 +13,13 @@ type Envelope struct {
 	Topic       string            `json:"topic,omitempty"`
 	Type        string            `json:"type,omitempty"`
 	ContentType string            `json:"contentType,omitempty"`
-	Payload     interface{}       `json:"payload,omitempty"`
+	Payload     json.RawMessage   `json:"payload,omitempty"` // Use RawMessage to delay parsing
 	Meta        map[string]string `json:"meta,omitempty"`
 	CreatedAt   time.Time         `json:"createdAt,omitempty"`
 }
 
 // Bytes returns the envelope as a JSON byte slice.
-func (e *Envelope) Bytes() []byte {
-	// In a real implementation, you would handle the error.
-	b, _ := json.Marshal(e)
-	return b
+func (e *Envelope) Bytes() ([]byte, error) {
+	// Re-marshal the struct to send, which now correctly includes the raw payload
+	return json.Marshal(e)
 }

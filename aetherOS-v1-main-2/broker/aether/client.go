@@ -12,7 +12,7 @@ const (
 	writeWait      = 10 * time.Second
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 512
+	maxMessageSize = 2 * 1024 * 1024 // Increased to 2MB for images
 )
 
 // Client is a middleman between the websocket connection and the hub.
@@ -51,12 +51,14 @@ func (c *Client) ReadPump() {
 			}
 			break
 		}
-		// assume all messages are envelopes for now
+		
 		var env Envelope
 		if err := json.Unmarshal(message, &env); err != nil {
 			log.Printf("invalid envelope: %v", err)
 			continue
 		}
+		// The payload is now raw bytes, as it can be a string or a complex JSON object
+		env.Payload = message
 
 		// Dynamic Topic Publishing: Get the topic from the envelope and publish.
 		targetTopic := c.hub.broker.GetTopic(env.Topic)

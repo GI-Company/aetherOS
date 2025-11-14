@@ -3,11 +3,13 @@ package services
 
 import (
 	"aether/broker/aether"
+	"encoding/base64"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"github.comcom/google/uuid"
 )
 
 // AIService handles AI-related requests from the message bus.
@@ -37,6 +39,7 @@ func (s *AIService) Run() {
 		"ai:generate:palette",
 		"ai:generate:accent",
 		"ai:summarize:code",
+		"ai:generate:image",
 	}
 
 	for _, topicName := range aiTopics {
@@ -55,127 +58,162 @@ func (s *AIService) Run() {
 func (s *AIService) handleRequest(env *aether.Envelope) {
 	log.Printf("AI Service processing message ID %s on topic %s", env.ID, env.Topic)
 
-	var generatedText string
+	var responsePayload interface{}
 	var err error
 
-	// Special handling for file search payload
-	if env.Topic == "ai:search:files" {
+	// Extract the raw payload from the envelope
+	var rawPayload json.RawMessage
+	var tempEnv struct {
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(env.Payload, &tempEnv); err != nil {
+		s.publishError(env, "Invalid envelope structure")
+		return
+	}
+	rawPayload = tempEnv.Payload
+
+	// Route based on topic
+	switch env.Topic {
+	case "ai:generate:image":
+		var payloadData struct {
+			Prompt string `json:"prompt"`
+		}
+		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
+			s.publishError(env, "Invalid payload for image generation")
+			return
+		}
+		generatedImageURI, genErr := s.aiModule.GenerateImage(payloadData.Prompt)
+		if genErr != nil {
+			s.publishError(env, genErr.Error())
+			return
+		}
+		responsePayload = map[string]string{"imageUrl": generatedImageURI}
+
+	case "ai:search:files":
 		var payloadData struct {
 			Query          string   `json:"query"`
 			AvailableFiles []string `json:"availableFiles"`
 		}
-		payloadBytes, _ := json.Marshal(env.Payload)
-		if err := json.Unmarshal(payloadBytes, &payloadData); err != nil {
-			log.Printf("error unmarshaling search payload: %v", err)
-			s.publishError(env, "Invalid search payload format")
+		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
+			s.publishError(env, "Invalid payload for file search")
 			return
 		}
-		generatedText, err = s.aiModule.SemanticFileSearch(payloadData.Query, payloadData.AvailableFiles)
+		// The Go module now returns a JSON string, which is what we want to send back
+		jsonString, searchErr := s.aiModule.SemanticFileSearch(payloadData.Query, payloadData.AvailableFiles)
+		if searchErr != nil {
+			err = searchErr
+		} else {
+			// Unmarshal and then re-marshal to ensure it's a valid JSON object payload
+			var temp interface{}
+			if unmarshalErr := json.Unmarshal([]byte(jsonString), &temp); unmarshalErr != nil {
+				err = unmarshalErr
+			} else {
+				responsePayload = temp
+			}
+		}
 
-	} else if env.Topic == "ai:summarize:code" {
+	case "ai:summarize:code":
 		var payloadData struct {
 			FilePath string `json:"filePath"`
 		}
-		payloadBytes, _ := json.Marshal(env.Payload)
-		if err := json.Unmarshal(payloadBytes, &payloadData); err != nil {
-			log.Printf("error unmarshaling summarize code payload: %v", err)
-			s.publishError(env, "Invalid payload format")
+		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
+			s.publishError(env, "Invalid payload for code summarization")
 			return
 		}
-		// Read file content using VFS module
 		fileContent, readErr := s.vfs.Read(payloadData.FilePath)
 		if readErr != nil {
-			log.Printf("error reading file for summarization: %v", readErr)
-			s.publishError(env, "Could not read file to summarize")
+			s.publishError(env, "Could not read file for summarization")
 			return
 		}
-		generatedText, err = s.aiModule.SummarizeCode(fileContent)
-
-	} else {
-		// Standard prompt extraction for other topics
-		var prompt string
-		if p, ok := env.Payload.(string); ok {
-			prompt = p
+		summaryJSON, sumErr := s.aiModule.SummarizeCode(fileContent)
+		if sumErr != nil {
+			err = sumErr
 		} else {
-			var payloadData map[string]interface{}
-			payloadBytes, err := json.Marshal(env.Payload)
-			if err != nil {
-				log.Printf("error marshaling payload: %v", err)
-				s.publishError(env, "Invalid payload format")
-				return
-			}
-			if err := json.Unmarshal(payloadBytes, &payloadData); err == nil {
-				if p, ok := payloadData["prompt"].(string); ok {
-					prompt = p
-				} else if p, ok := payloadData["topic"].(string); ok {
-					prompt = p
-				} else if p, ok := payloadData["description"].(string); ok {
-					prompt = p
-				} else if p, ok := payloadData["contentDescription"].(string); ok {
-					prompt = p
+			var summaryData map[string]string
+			if jsonErr := json.Unmarshal([]byte(summaryJSON), &summaryData); jsonErr != nil {
+				err = jsonErr
+			} else {
+				responsePayload = map[string]interface{}{
+					"summary":  summaryData["summary"],
+					"filePath": payloadData.FilePath,
 				}
 			}
 		}
 
+	default: // Handle all other text-based generation topics
+		var payloadData map[string]string
+		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
+			// Fallback for simple string payload which is how the terminal sends it
+			var promptStr string
+			if errStr := json.Unmarshal(rawPayload, &promptStr); errStr == nil {
+				payloadData = map[string]string{"prompt": promptStr}
+			} else {
+				s.publishError(env, "Invalid payload format for AI generation")
+				return
+			}
+		}
+
+		// Extract prompt from various possible keys
+		prompt, ok := payloadData["prompt"]
+		if !ok {
+			if p, ok := payloadData["topic"]; ok {
+				prompt = p
+			} else if p, ok := payloadData["description"]; ok {
+				prompt = p
+			} else if p, ok := payloadData["contentDescription"]; ok {
+				prompt = p
+			}
+		}
+
 		if prompt == "" {
-			log.Println("AI Service: received empty prompt")
 			s.publishError(env, "Empty prompt received")
 			return
 		}
 
-		// Route based on topic for non-search requests
 		switch env.Topic {
 		case "ai:generate":
-			generatedText, err = s.aiModule.GenerateText(prompt)
+			responsePayload, err = s.aiModule.GenerateText(prompt)
 		case "ai:generate:page":
-			generatedText, err = s.aiModule.GenerateWebPage(prompt)
+			responsePayload, err = s.aiModule.GenerateWebPage(prompt)
 		case "ai:design:component":
-			generatedText, err = s.aiModule.DesignComponent(prompt)
+			responsePayload, err = s.aiModule.DesignComponent(prompt)
 		case "ai:generate:palette":
-			generatedText, err = s.aiModule.GenerateAdaptivePalette(prompt)
+			responsePayload, err = s.aiModule.GenerateAdaptivePalette(prompt)
 		case "ai:generate:accent":
-			generatedText, err = s.aiModule.GenerateAccentColor(prompt)
+			responsePayload, err = s.aiModule.GenerateAccentColor(prompt)
 		default:
-			generatedText, err = s.aiModule.GenerateText(prompt)
+			responsePayload, err = s.aiModule.GenerateText(prompt)
 		}
 	}
 
-
 	if err != nil {
-		log.Printf("error processing AI request: %v", err)
+		log.Printf("error processing AI request on topic %s: %v", env.Topic, err)
 		s.publishError(env, err.Error())
 		return
 	}
 
-	s.publishResponse(env, generatedText)
+	s.publishResponse(env, responsePayload)
 }
 
-func (s *AIService) publishResponse(originalEnv *aether.Envelope, responseText string) {
+func (s *AIService) publishResponse(originalEnv *aether.Envelope, payload interface{}) {
 	responseTopicName := originalEnv.Topic + ":resp"
 	responseTopic := s.broker.GetTopic(responseTopicName)
 
-	// For summarization, the payload needs to include the original path for client-side matching
-	var payload interface{}
-	if originalEnv.Topic == "ai:summarize:code" {
-		var originalPayload struct {
-			FilePath string `json:"filePath"`
-		}
-		payloadBytes, _ := json.Marshal(originalEnv.Payload)
-		json.Unmarshal(payloadBytes, &originalPayload)
-		payload = map[string]interface{}{
-			"summary":  responseText,
-			"filePath": originalPayload.FilePath,
-		}
-	} else {
-		payload = responseText
+	// The payload is already a Go struct/map, json.Marshal will handle it.
+	responsePayloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal response payload: %v", err)
+		s.publishError(originalEnv, "Internal server error: could not create response")
+		return
 	}
 
 	responseEnv := &aether.Envelope{
-		ID:        uuid.New().String(),
-		Topic:     responseTopicName,
-		Type:      "ai_response",
-		Payload:   payload,
-		CreatedAt: time.Now(),
+		ID:          uuid.New().String(),
+		Topic:       responseTopicName,
+		Type:        "ai_response",
+		ContentType: "application/json",
+		Payload:     responsePayloadBytes, // Already marshaled
+		CreatedAt:   time.Now(),
 		Meta: map[string]string{
 			"correlationId": originalEnv.ID,
 		},
@@ -190,13 +228,15 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	errorTopic := s.broker.GetTopic(errorTopicName)
 
 	errorPayload := map[string]string{"error": errorMsg}
+	payloadBytes, _ := json.Marshal(errorPayload)
 
 	errorEnv := &aether.Envelope{
-		ID:        uuid.New().String(),
-		Topic:     errorTopicName,
-		Type:      "error",
-		Payload:   errorPayload,
-		CreatedAt: time.Now(),
+		ID:          uuid.New().String(),
+		Topic:       errorTopicName,
+		Type:        "error",
+		ContentType: "application/json",
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now(),
 		Meta: map[string]string{
 			"correlationId": originalEnv.ID,
 		},
@@ -205,4 +245,8 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	errorTopic.Publish(errorEnv)
 }
 
-    
+// Helper to check if a string is likely base64
+func isBase64(s string) bool {
+	_, err := base64.StdEncoding.DecodeString(s)
+	return err == nil
+}

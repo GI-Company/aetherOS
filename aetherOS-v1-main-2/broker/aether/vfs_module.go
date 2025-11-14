@@ -4,6 +4,7 @@ package aether
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -141,30 +142,42 @@ func (vfs *VFSModule) Delete(path string) error {
 	ctx := context.Background()
 	bucket := vfs.client.Bucket(vfs.bucketName)
 
-	// Check if it's a directory by listing with a delimiter
-	it := bucket.Objects(ctx, &storage.Query{Prefix: path + "/", Delimiter: "/"})
-	_, err := it.Next()
-	isDir := err == nil // If we get any result, it's a directory
-
-	if isDir {
-		// It's a directory, so delete all objects with this prefix
-		deleteIt := bucket.Objects(ctx, &storage.Query{Prefix: path + "/"})
-		for {
-			attrs, err := deleteIt.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				return fmt.Errorf("failed to iterate objects for deletion: %w", err)
-			}
-			if err := bucket.Object(attrs.Name).Delete(ctx); err != nil {
-				return fmt.Errorf("failed to delete object %s: %w", attrs.Name, err)
-			}
+	// To delete a "folder", we must delete all objects with that prefix.
+	// We list all objects with the prefix to see if it's a folder or a single file.
+	it := bucket.Objects(ctx, &storage.Query{Prefix: path})
+	isFolder := false
+	objCount := 0
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
 		}
-	} else {
-		// It's a single file
-		if err := bucket.Object(path).Delete(ctx); err != nil {
-			return fmt.Errorf("failed to delete object %s: %w", path, err)
+		if err != nil {
+			return fmt.Errorf("failed to iterate objects for deletion check: %w", err)
+		}
+		objCount++
+		// If the object name is not the same as the path, it must be a folder.
+		if attrs.Name != path || strings.HasSuffix(path, "/") {
+			isFolder = true
+		}
+	}
+
+	// Re-start iterator for deletion
+	deleteIt := bucket.Objects(ctx, &storage.Query{Prefix: path})
+	for {
+		attrs, err := deleteIt.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to iterate objects for deletion: %w", err)
+		}
+		// If it's a folder, delete everything. If it's a file, only delete the exact match.
+		if isFolder || attrs.Name == path {
+			if err := bucket.Object(attrs.Name).Delete(ctx); err != nil {
+				// Don't fail the whole operation if one file fails. Log it.
+				log.Printf("failed to delete object %s: %v", attrs.Name, err)
+			}
 		}
 	}
 
@@ -191,14 +204,14 @@ func (vfs *VFSModule) Read(path string) (string, error) {
 	return string(data), nil
 }
 
-// AetherReadAll reads all data from an io.Reader, necessary because io.ReadAll is not available in Go 1.15
-func AetherReadAll(r *storage.Reader) ([]byte, error) {
+// AetherReadAll reads all data from an io.Reader, necessary because io.ReadAll is not available in older Go versions
+func AetherReadAll(r io.Reader) ([]byte, error) {
     b := make([]byte, 0, 512)
     for {
         n, err := r.Read(b[len(b):cap(b)])
         b = b[:len(b)+n]
         if err != nil {
-            if err.Error() == "EOF" { // Simple string comparison for EOF
+            if err == io.EOF {
                 return b, nil
             }
             return b, err
@@ -213,14 +226,14 @@ func AetherReadAll(r *storage.Reader) ([]byte, error) {
 
 
 // Write sets the content of a file, creating it if it doesn't exist.
-func (vfs *VFSModule) Write(path string, content string) error {
+func (vfs *VFSModule) Write(path string, content []byte) error {
 	vfs.mu.Lock()
 	defer vfs.mu.Unlock()
 	ctx := context.Background()
 	obj := vfs.client.Bucket(vfs.bucketName).Object(path)
 	
 	wc := obj.NewWriter(ctx)
-	if _, err := wc.Write([]byte(content)); err != nil {
+	if _, err := wc.Write(content); err != nil {
 		return fmt.Errorf("failed to write content to %s: %w", path, err)
 	}
 	
@@ -239,7 +252,7 @@ func (vfs *VFSModule) CreateDir(path string, name string) error {
     // Path should be the parent directory
     fullPath := filepath.Join(path, name, ".placeholder")
 
-    return vfs.Write(fullPath, "")
+    return vfs.Write(fullPath, []byte(""))
 }
 
 // CreateFile creates a new empty file.
@@ -258,7 +271,7 @@ func (vfs *VFSModule) CreateFile(path string, name string) error {
         return fmt.Errorf("error checking file existence: %w", err)
     }
 
-    return vfs.Write(fullPath, "")
+    return vfs.Write(fullPath, []byte(""))
 }
 
 // Close releases resources used by the VFS module.

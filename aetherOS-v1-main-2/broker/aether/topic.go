@@ -43,8 +43,13 @@ func (t *Topic) Run() {
 			log.Printf("client subscribed to topic %s", t.name)
 			// send history
 			for _, env := range t.history {
+				bytes, err := env.Bytes()
+				if err != nil {
+					log.Printf("failed to serialize history envelope: %v", err)
+					continue
+				}
 				select {
-				case client.send <- env.Bytes():
+				case client.send <- bytes:
 				default:
 					log.Printf("failed to send history to client, closing channel")
 					close(client.send)
@@ -65,9 +70,15 @@ func (t *Topic) Run() {
 			}
 			t.history = append(t.history, envelope)
 
+			bytes, err := envelope.Bytes()
+			if err != nil {
+				log.Printf("failed to serialize broadcast envelope: %v", err)
+				continue
+			}
+
 			for client := range t.clients {
 				select {
-				case client.send <- envelope.Bytes():
+				case client.send <- bytes:
 				default:
 					close(client.send)
 					delete(t.clients, client)

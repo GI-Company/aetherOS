@@ -59,8 +59,8 @@ export default function EditorTabs({
 
         aether.publish('vfs:write', { path: activeFile.path, content: activeFile.content });
 
-        const sub = aether.subscribe('vfs:write:result', (env) => {
-            if (env.payload.path === activeFile.path) { // Match response to the file being saved
+        const sub = aether.subscribe('vfs:write:result', (payload) => {
+            if (payload.path === activeFile.path) { // Match response to the file being saved
                 toast({ title: "File Saved!", description: `${activeFile.name} has been saved.` });
                 onSave(activeFile.id);
                 setIsSaving(false);
@@ -68,12 +68,10 @@ export default function EditorTabs({
                 sub(); // unsubscribe
             }
         });
-        const errSub = aether.subscribe('vfs:write:error', (env) => {
-            if (env.meta?.correlationId) { // This assumes backend sends correlationId
-                toast({ title: "Save failed", description: env.payload.error, variant: 'destructive'});
-                setIsSaving(false);
-                errSub();
-            }
+        const errSub = aether.subscribe('vfs:write:error', (payload) => {
+            toast({ title: "Save failed", description: payload.error, variant: 'destructive'});
+            setIsSaving(false);
+            errSub();
         });
     };
 

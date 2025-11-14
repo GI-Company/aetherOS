@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useAether } from '../lib/aether_sdk';
 import { Loader2, Save } from 'lucide-react';
 import { Button } from '../components/Button';
-import { Textarea } from '../components/Textarea';
+
+const Editor = lazy(() => import('@monaco-editor/react'));
 
 const CodeEditor = ({ filePath }) => {
   const [content, setContent] = useState('');
@@ -27,25 +28,17 @@ const CodeEditor = ({ filePath }) => {
     aether.publish('vfs:read', { path: filePath });
 
     const handleReadResult = (env) => {
-      // Check if the response correlates with our request.
-      // This is a simplified correlation check.
-      const correlationId = env.meta?.correlationId;
-      if (correlationId) {
-        // A more robust system would match this ID to a sent message ID.
-        // For now, we assume the latest response for our path is what we want.
-        if (env.payload.path === filePath) {
-            setContent(env.payload.content);
-            setIsLoading(false);
-        }
+      // Basic correlation check
+      if (env.payload.path === filePath) {
+          setContent(env.payload.content);
+          setIsLoading(false);
       }
     };
 
     const handleReadError = (env) => {
-      if (env.meta?.correlationId) {
-        console.error('VFS Read Error:', env.payload.error);
-        setError(env.payload.error);
-        setIsLoading(false);
-      }
+      console.error('VFS Read Error:', env.payload.error);
+      setError(env.payload.error);
+      setIsLoading(false);
     };
 
     const readSub = aether.subscribe('vfs:read:result', handleReadResult);
@@ -64,8 +57,6 @@ const CodeEditor = ({ filePath }) => {
 
     try {
         await aether.publish('vfs:write', { path: filePath, content: content });
-        // Optimistically assume save will work and listen for confirmation if needed
-        // For now, just mark saving as complete after a short delay
         setTimeout(() => setIsSaving(false), 1000); 
     } catch(err) {
         console.error("Save failed:", err);
@@ -73,6 +64,10 @@ const CodeEditor = ({ filePath }) => {
         setIsSaving(false);
     }
   };
+  
+  const handleEditorChange = (value) => {
+      setContent(value || '');
+  }
 
   return (
     <div className="h-full w-full bg-gray-900 text-white flex flex-col">
@@ -92,12 +87,16 @@ const CodeEditor = ({ filePath }) => {
             Error loading file: {error}
           </div>
         ) : (
-          <Textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            className="h-full w-full bg-transparent border-0 rounded-none resize-none font-mono text-sm focus:ring-0"
-            placeholder="File content goes here..."
-          />
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>}>
+            <Editor
+              height="100%"
+              language="javascript"
+              theme="vs-dark"
+              value={content}
+              onChange={handleEditorChange}
+              options={{ minimap: { enabled: false } }}
+            />
+          </Suspense>
         )}
       </div>
     </div>

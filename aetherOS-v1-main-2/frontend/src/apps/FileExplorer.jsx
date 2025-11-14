@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAether } from '../lib/aether_sdk';
 import { Folder, File, Loader2, MoreVertical, Trash2, ChevronDown, FilePlus, FolderPlus } from 'lucide-react';
@@ -7,7 +8,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/AlertDialog';
 import { Input } from '../components/Input';
 import { APPS } from '../lib/apps';
-import { getStorage, ref, listAll, getMetadata, deleteObject, uploadString, uploadBytesResumable } from 'firebase/storage';
 import { Progress } from '../components/Progress';
 
 const Dropzone = ({ visible }) => (
@@ -32,8 +32,9 @@ const FileExplorer = ({ onAppOpen }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const { user } = useAether(); // Using user from SDK context for path
-  
+  const aether = useAether(); // Using user from SDK context for path
+  const { user } = useAether();
+
   useEffect(() => {
     // In a real app, you'd get the user's UID after they log in
     if(user?.uid) {
@@ -42,59 +43,56 @@ const FileExplorer = ({ onAppOpen }) => {
   }, [user]);
 
   const fetchFiles = useCallback(async (path) => {
+    if (!aether) return;
     setIsLoading(true);
-    try {
-        const storage = getStorage();
-        const listRef = ref(storage, path);
-        const res = await listAll(listRef);
-
-        const fetchedFiles = [];
-
-        // Add folders
-        for (const prefix of res.prefixes) {
-            fetchedFiles.push({
-                name: prefix.name,
-                type: 'folder',
-                path: prefix.fullPath,
-                size: 0,
-                modTime: new Date(), // Firebase Storage doesn't expose folder metadata
-            });
-        }
-
-        // Add files
-        for (const itemRef of res.items) {
-             if (itemRef.name === '.placeholder') continue;
-            const metadata = await getMetadata(itemRef);
-            fetchedFiles.push({
-                name: metadata.name,
-                type: 'file',
-                path: metadata.fullPath,
-                size: metadata.size,
-                modTime: new Date(metadata.updated),
-            });
-        }
-        
-        // Sort folders first, then by name
-        fetchedFiles.sort((a, b) => {
-            if (a.type === 'folder' && b.type !== 'folder') return -1;
-            if (a.type !== 'folder' && b.type === 'folder') return 1;
-            return a.name.localeCompare(b.name);
-        });
-        
-        setFiles(fetchedFiles);
-    } catch (err) {
-        console.error("Error listing files:", err);
-    } finally {
-        setIsLoading(false);
-    }
-  }, []);
+    console.log(`Requesting file list for path: ${path}`);
+    await aether.publish('vfs:list', { path });
+  }, [aether]);
 
   useEffect(() => {
+    if (!aether) return;
+
+    const handleFileList = (env) => {
+      console.log('Received file list:', env.payload);
+      const { path, files: receivedFiles } = env.payload;
+      if (path === currentPath) {
+        setFiles(receivedFiles || []);
+        setIsLoading(false);
+      }
+    };
+    
+    const handleMutationResult = (env) => {
+      console.log('Received mutation result:', env.payload);
+      setIsDeleting(false);
+      setItemToDelete(null);
+      setCreatingItemType(null);
+      fetchFiles(currentPath); 
+    };
+
+    const handleUploadResult = (env) => {
+      console.log('Received upload result:', env.payload);
+      setIsUploading(false);
+      setUploadProgress(0);
+      fetchFiles(currentPath);
+    };
+    
+    const subs = [
+      aether.subscribe('vfs:list:result', handleFileList),
+      aether.subscribe('vfs:delete:result', handleMutationResult),
+      aether.subscribe('vfs:create:file:result', handleMutationResult),
+      aether.subscribe('vfs:create:folder:result', handleMutationResult),
+      aether.subscribe('vfs:write:result', handleUploadResult)
+    ];
+    
     fetchFiles(currentPath);
-  }, [currentPath, fetchFiles]);
+
+    return () => {
+      subs.forEach(sub => sub && sub());
+    };
+  }, [aether, currentPath, fetchFiles]);
   
   const handleDoubleClick = (item) => {
-    if (item.type === 'folder') {
+    if (item.isDir) {
       setCurrentPath(item.path);
     } else {
       const codeEditorApp = APPS.find(app => app.id === 'code-editor');
@@ -107,77 +105,41 @@ const FileExplorer = ({ onAppOpen }) => {
   const confirmDelete = async () => {
     if (!itemToDelete) return;
     setIsDeleting(true);
-    
-    const deleteFolderContents = async (folderPath) => {
-      const storage = getStorage();
-      const listRef = ref(storage, folderPath);
-      const res = await listAll(listRef);
-      
-      // Delete all files in the folder
-      await Promise.all(res.items.map(itemRef => deleteObject(itemRef)));
-      // Recursively delete all subfolders
-      await Promise.all(res.prefixes.map(folderRef => deleteFolderContents(folderRef.fullPath)));
-    }
-
-    try {
-      const storage = getStorage();
-      if (itemToDelete.type === 'folder') {
-        await deleteFolderContents(itemToDelete.path);
-      } else {
-        const itemRef = ref(storage, itemToDelete.path);
-        await deleteObject(itemRef);
-      }
-      setItemToDelete(null);
-      fetchFiles(currentPath);
-    } catch (err) {
-      console.error("Failed to delete item:", err);
-    } finally {
-      setIsDeleting(false);
-    }
+    aether.publish('vfs:delete', { path: itemToDelete.path });
   };
   
   const handleCreate = async (name) => {
       if (!name || !creatingItemType) return;
       
-      const path = creatingItemType === 'folder' 
-        ? `${currentPath}/${name}/.placeholder` // Create a placeholder file to represent the folder
-        : `${currentPath}/${name}`;
-
-      try {
-          const storage = getStorage();
-          const itemRef = ref(storage, path);
-          await uploadString(itemRef, ""); // Upload an empty string
-          setCreatingItemType(null);
-          fetchFiles(currentPath);
-      } catch (err) {
-          console.error("Error creating item:", err);
-      }
+      const topic = `vfs:create:${creatingItemType}`;
+      const payload = { path: currentPath, name };
+      aether.publish(topic, payload);
   };
 
   const handleUpload = async (filesToUpload) => {
-    if (!filesToUpload || filesToUpload.length === 0) return;
+    if (!filesToUpload || filesToUpload.length === 0 || !aether) return;
     setIsUploading(true);
     setUploadProgress(0);
     
     const file = filesToUpload[0];
-    const storage = getStorage();
-    const storageRef = ref(storage, `${currentPath}/${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(progress);
-      },
-      (error) => {
-        console.error(error);
+    
+    // We need to read the file as a base64 string to send over JSON
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+        const base64Content = reader.result.toString().split(',')[1];
+        aether.publish('vfs:write', {
+            path: `${currentPath}/${file.name}`,
+            content: base64Content,
+            encoding: 'base64'
+        });
+        // Note: Progress is harder with this model. We'll just show an indeterminate loader.
+        setUploadProgress(50); // Show some progress
+    };
+    reader.onerror = (error) => {
+        console.error("Error reading file:", error);
         setIsUploading(false);
-      },
-      () => {
-        setIsUploading(false);
-        fetchFiles(currentPath);
-      }
-    );
+    };
   }
   
   // Drag and drop handlers
@@ -275,7 +237,7 @@ const FileExplorer = ({ onAppOpen }) => {
               <AlertDialogHeader>
                   <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                   <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the {itemToDelete?.type} "{itemToDelete?.name}".
+                      This action cannot be undone. This will permanently delete the {itemToDelete?.isDir ? 'folder' : 'file'} "{itemToDelete?.name}".
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -306,12 +268,12 @@ const FileExplorer = ({ onAppOpen }) => {
                 <NewItemRow type={creatingItemType} onCancel={() => setCreatingItemType(null)} onCreate={handleCreate} />
              )}
               {files.map((item) => (
-                <TableRow key={item.name} onDoubleClick={() => handleDoubleClick(item)} className="cursor-pointer group">
+                <TableRow key={item.path} onDoubleClick={() => handleDoubleClick(item)} className="cursor-pointer group">
                   <TableCell className="flex items-center gap-2">
-                    {item.type === 'folder' ? <Folder className="h-5 w-5 text-blue-400" /> : <File className="h-5 w-5 text-gray-400" />}
+                    {item.isDir ? <Folder className="h-5 w-5 text-blue-400" /> : <File className="h-5 w-5 text-gray-400" />}
                     {item.name}
                   </TableCell>
-                  <TableCell>{item.type === 'folder' ? '--' : formatBytes(item.size)}</TableCell>
+                  <TableCell>{item.isDir ? '--' : formatBytes(item.size)}</TableCell>
                   <TableCell>{new Date(item.modTime).toLocaleString()}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

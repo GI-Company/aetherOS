@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useAether } from '../lib/aether_sdk';
 import { Loader2, Save } from 'lucide-react';
 import { Button } from '../components/Button';
-import { getStorage, ref, getDownloadURL, uploadString } from 'firebase/storage';
 
 const Editor = lazy(() => import('@monaco-editor/react'));
 
@@ -11,12 +11,12 @@ const CodeEditor = ({ filePath }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-  const aether = useAether(); // Keep for potential future use with AI, etc.
+  const aether = useAether();
 
   useEffect(() => {
-    if (!filePath) {
+    if (!filePath || !aether) {
       setIsLoading(false);
-      setError('No file path provided.');
+      setError('No file path provided or Aether client not ready.');
       return;
     }
 
@@ -24,45 +24,61 @@ const CodeEditor = ({ filePath }) => {
         setIsLoading(true);
         setError(null);
         setContent('');
-
-        try {
-            const storage = getStorage();
-            const fileRef = ref(storage, filePath);
-            const url = await getDownloadURL(fileRef);
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
-            const textContent = await response.text();
-            setContent(textContent);
-        } catch (err) {
-            console.error("Error loading file content:", err);
-            setError(err.message || "Could not load file.");
-        } finally {
-            setIsLoading(false);
-        }
+        
+        aether.publish('vfs:read', { path: filePath });
     }
     
-    fetchContent();
+    const handleReadResult = (env) => {
+        if (env.payload.path === filePath) {
+            setContent(env.payload.content || '');
+            setIsLoading(false);
+        }
+    };
     
-  }, [filePath]);
+    const handleReadError = (env) => {
+        if(env.meta?.correlationId) { // Check if error corresponds to our request
+            setError(env.payload.error || 'Could not load file');
+            setIsLoading(false);
+        }
+    };
+    
+    const sub = aether.subscribe('vfs:read:result', handleReadResult);
+    const errSub = aether.subscribe('vfs:read:error', handleReadError);
+
+    fetchContent();
+
+    return () => {
+      sub && sub();
+      errSub && errSub();
+    };
+    
+  }, [filePath, aether]);
   
   const handleSave = async () => {
-    if (!filePath || isSaving) return;
+    if (!filePath || isSaving || !aether) return;
     setIsSaving(true);
     setError(null);
 
-    try {
-        const storage = getStorage();
-        const fileRef = ref(storage, filePath);
-        await uploadString(fileRef, content);
-        setTimeout(() => {
-            setIsSaving(false)
-            // Ideally, we'd also mark the file as "not dirty"
-        }, 1000); 
-    } catch(err) {
-        console.error("Save failed:", err);
-        setError("Failed to save the file.");
-        setIsSaving(false);
-    }
+    aether.publish('vfs:write', { path: filePath, content });
+    
+    const sub = aether.subscribe('vfs:write:result', (env) => {
+        if(env.payload.path === filePath) {
+            setTimeout(() => {
+                setIsSaving(false);
+            }, 1000);
+            sub && sub();
+            errSub && errSub();
+        }
+    });
+
+    const errSub = aether.subscribe('vfs:write:error', (env) => {
+        if(env.meta?.correlationId) {
+             setError("Failed to save the file.");
+             setIsSaving(false);
+             sub && sub();
+             errSub && errSub();
+        }
+    });
   };
   
   const handleEditorChange = (value) => {

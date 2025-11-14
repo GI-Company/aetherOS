@@ -2,12 +2,17 @@
 package aether
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"cloud.google.com/go/storage"
+	firebase "firebase.google.com/go/v4"
+	"google.golang.org/api/iterator"
 )
 
 // FileInfo represents a file or directory in the VFS.
@@ -17,121 +22,151 @@ type FileInfo struct {
 	IsDir   bool      `json:"isDir"`
 	ModTime time.Time `json:"modTime"`
 	Path    string    `json:"path"`
-	Content string    `json:"content,omitempty"`
 }
 
-// VFSModule represents the virtual file system.
+// VFSModule represents the virtual file system, now backed by Firebase Storage.
 type VFSModule struct {
-	mu    sync.RWMutex
-	files map[string]*FileInfo
+	mu         sync.RWMutex
+	app        *firebase.App
+	bucketName string
+	client     *storage.Client
 }
 
-// NewVFSModule creates a new in-memory virtual file system with some default files.
-func NewVFSModule() *VFSModule {
-	vfs := &VFSModule{
-		files: make(map[string]*FileInfo),
+// NewVFSModule creates a new VFS module connected to Firebase Storage.
+func NewVFSModule(app *firebase.App) (*VFSModule, error) {
+	ctx := context.Background()
+	client, err := app.Storage(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting storage client: %w", err)
 	}
-	vfs.initDefaultFiles()
-	return vfs
-}
 
-func (vfs *VFSModule) initDefaultFiles() {
-	now := time.Now()
-	// Adding some default files and folders for demonstration.
-	// The key is the full path.
-	vfs.files = map[string]*FileInfo{
-		"/home":                           {Name: "home", IsDir: true, ModTime: now, Path: "/home"},
-		"/home/user":                      {Name: "user", IsDir: true, ModTime: now, Path: "/home/user"},
-		"/home/user/documents":            {Name: "documents", IsDir: true, ModTime: now, Path: "/home/user/documents"},
-		"/home/user/documents/resume.txt": {Name: "resume.txt", Size: 1024, IsDir: false, ModTime: now, Path: "/home/user/documents/resume.txt", Content: "This is a sample resume."},
-		"/home/user/photos":               {Name: "photos", IsDir: true, ModTime: now, Path: "/home/user/photos"},
-		"/home/user/photos/vacation.jpg":  {Name: "vacation.jpg", Size: 204800, IsDir: false, ModTime: now, Path: "/home/user/photos/vacation.jpg", Content: "Image data placeholder"},
-		"/home/user/welcome.txt":          {Name: "welcome.txt", Size: 256, IsDir: false, ModTime: now, Path: "/home/user/welcome.txt", Content: "Welcome to AetherOS!"},
-		"/README.md":                      {Name: "README.md", Size: 512, IsDir: false, ModTime: now, Path: "/README.md", Content: "# AetherOS\n A browser-native OS with an AI core."},
+	bucketName, err := client.DefaultBucket().Attrs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting default bucket name: %w", err)
 	}
+
+	storageClient, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error creating cloud storage client: %w", err)
+	}
+
+	return &VFSModule{
+		app:        app,
+		bucketName: bucketName.Name,
+		client:     storageClient,
+	}, nil
 }
 
-// List returns the contents of a directory.
+// List returns the contents of a directory from Firebase Storage.
 func (vfs *VFSModule) List(path string) ([]*FileInfo, error) {
 	vfs.mu.RLock()
 	defer vfs.mu.RUnlock()
+	ctx := context.Background()
 
 	var results []*FileInfo
-
-	// Clean the path to ensure consistency
-	cleanPath := filepath.Clean(path)
-	if cleanPath == "." {
-		cleanPath = "/"
+	cleanPath := strings.Trim(path, "/")
+	if cleanPath != "" {
+		cleanPath += "/"
 	}
 
-	for p, info := range vfs.files {
-		dir := filepath.Dir(p)
-		if dir == "." {
-			dir = "/"
-		}
-		// We want to list items that are directly inside the given path.
-		if dir == cleanPath {
-			// create a copy without the content for list operations
-			infoCopy := *info
-			infoCopy.Content = ""
-			results = append(results, &infoCopy)
-		}
-	}
+	it := vfs.client.Bucket(vfs.bucketName).Objects(ctx, &storage.Query{
+		Prefix:    cleanPath,
+		Delimiter: "/",
+	})
 
-	// Add root directories if listing "/"
-	if cleanPath == "/" {
-		for p, info := range vfs.files {
-			if !strings.Contains(strings.TrimPrefix(p, "/"), "/") && info.IsDir {
-				alreadyAdded := false
-				for _, r := range results {
-					if r.Path == p {
-						alreadyAdded = true
-						break
-					}
-				}
-				if !alreadyAdded {
-					infoCopy := *info
-					infoCopy.Content = ""
-					results = append(results, &infoCopy)
-				}
+	// Handle subdirectories
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error iterating prefixes: %w", err)
+		}
+		// This gives us the subdirectories
+		if attrs.Prefix != "" {
+			dirName := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, cleanPath), "/")
+			if dirName != "" {
+				results = append(results, &FileInfo{
+					Name:    dirName,
+					IsDir:   true,
+					Path:    strings.TrimSuffix(attrs.Prefix, "/"),
+					ModTime: time.Now(), // Storage doesn't have folder mod times
+				})
 			}
 		}
 	}
+	
+	// Re-create iterator without delimiter to get files in the current directory
+	fileIt := vfs.client.Bucket(vfs.bucketName).Objects(ctx, &storage.Query{
+		Prefix: cleanPath,
+	})
 
-	// Sort results: folders first, then by name
+	for {
+		attrs, err := fileIt.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error iterating objects: %w", err)
+		}
+
+		// Ensure it's a file directly in this directory, not a sub-directory's file, and not a placeholder
+        if !strings.Contains(strings.TrimPrefix(attrs.Name, cleanPath), "/") && !strings.HasSuffix(attrs.Name, "/.placeholder") {
+			results = append(results, &FileInfo{
+				Name:    filepath.Base(attrs.Name),
+				Size:    attrs.Size,
+				IsDir:   false,
+				ModTime: attrs.Updated,
+				Path:    attrs.Name,
+			})
+		}
+	}
+
+
 	sort.Slice(results, func(i, j int) bool {
 		if results[i].IsDir != results[j].IsDir {
 			return results[i].IsDir
 		}
-		return results[i].Name < results[i].Name
+		return results[i].Name < results[j].Name
 	})
 
 	return results, nil
 }
 
-// Delete removes a file or folder from the VFS.
+// Delete removes a file or folder from Firebase Storage.
 func (vfs *VFSModule) Delete(path string) error {
 	vfs.mu.Lock()
 	defer vfs.mu.Unlock()
+	ctx := context.Background()
+	bucket := vfs.client.Bucket(vfs.bucketName)
 
-	cleanPath := filepath.Clean(path)
+	// Check if it's a directory by listing with a delimiter
+	it := bucket.Objects(ctx, &storage.Query{Prefix: path + "/", Delimiter: "/"})
+	_, err := it.Next()
+	isDir := err == nil // If we get any result, it's a directory
 
-	_, ok := vfs.files[cleanPath]
-	if !ok {
-		return fmt.Errorf("path not found: %s", cleanPath)
-	}
-
-	// If it's a directory, delete all children
-	if vfs.files[cleanPath].IsDir {
-		for p := range vfs.files {
-			if strings.HasPrefix(p, cleanPath+"/") {
-				delete(vfs.files, p)
+	if isDir {
+		// It's a directory, so delete all objects with this prefix
+		deleteIt := bucket.Objects(ctx, &storage.Query{Prefix: path + "/"})
+		for {
+			attrs, err := deleteIt.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("failed to iterate objects for deletion: %w", err)
+			}
+			if err := bucket.Object(attrs.Name).Delete(ctx); err != nil {
+				return fmt.Errorf("failed to delete object %s: %w", attrs.Name, err)
 			}
 		}
+	} else {
+		// It's a single file
+		if err := bucket.Object(path).Delete(ctx); err != nil {
+			return fmt.Errorf("failed to delete object %s: %w", path, err)
+		}
 	}
-
-	// Delete the file/folder itself
-	delete(vfs.files, cleanPath)
 
 	return nil
 }
@@ -140,85 +175,95 @@ func (vfs *VFSModule) Delete(path string) error {
 func (vfs *VFSModule) Read(path string) (string, error) {
 	vfs.mu.RLock()
 	defer vfs.mu.RUnlock()
+	ctx := context.Background()
 
-	cleanPath := filepath.Clean(path)
-	fileInfo, ok := vfs.files[cleanPath]
-	if !ok {
-		return "", fmt.Errorf("file not found: %s", cleanPath)
+	rc, err := vfs.client.Bucket(vfs.bucketName).Object(path).NewReader(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to create reader for %s: %w", path, err)
 	}
-	if fileInfo.IsDir {
-		return "", fmt.Errorf("path is a directory, not a file: %s", cleanPath)
+	defer rc.Close()
+
+	data, err := AetherReadAll(rc)
+	if err != nil {
+		return "", fmt.Errorf("failed to read content for %s: %w", path, err)
 	}
 
-	return fileInfo.Content, nil
+	return string(data), nil
 }
+
+// AetherReadAll reads all data from an io.Reader, necessary because io.ReadAll is not available in Go 1.15
+func AetherReadAll(r *storage.Reader) ([]byte, error) {
+    b := make([]byte, 0, 512)
+    for {
+        n, err := r.Read(b[len(b):cap(b)])
+        b = b[:len(b)+n]
+        if err != nil {
+            if err.Error() == "EOF" { // Simple string comparison for EOF
+                return b, nil
+            }
+            return b, err
+        }
+
+        if len(b) == cap(b) {
+            // Add more capacity (let's double it)
+            b = append(b, 0)[:len(b)]
+        }
+    }
+}
+
 
 // Write sets the content of a file, creating it if it doesn't exist.
 func (vfs *VFSModule) Write(path string, content string) error {
 	vfs.mu.Lock()
 	defer vfs.mu.Unlock()
-
-	cleanPath := filepath.Clean(path)
-
-	// Disallow writing to root
-	if cleanPath == "/" {
-		return fmt.Errorf("cannot write to root directory")
+	ctx := context.Background()
+	obj := vfs.client.Bucket(vfs.bucketName).Object(path)
+	
+	wc := obj.NewWriter(ctx)
+	if _, err := wc.Write([]byte(content)); err != nil {
+		return fmt.Errorf("failed to write content to %s: %w", path, err)
 	}
-
-	// Ensure parent directory exists
-	parentDir := filepath.Dir(cleanPath)
-	if parentDir != "/" {
-		if _, ok := vfs.files[parentDir]; !ok || !vfs.files[parentDir].IsDir {
-			return fmt.Errorf("parent directory does not exist: %s", parentDir)
-		}
-	}
-
-	now := time.Now()
-	if fileInfo, ok := vfs.files[cleanPath]; ok {
-		// Update existing file
-		if fileInfo.IsDir {
-			return fmt.Errorf("cannot write content to a directory: %s", cleanPath)
-		}
-		fileInfo.Content = content
-		fileInfo.Size = int64(len(content))
-		fileInfo.ModTime = now
-	} else {
-		// Create new file
-		vfs.files[cleanPath] = &FileInfo{
-			Name:    filepath.Base(cleanPath),
-			Size:    int64(len(content)),
-			IsDir:   false,
-			ModTime: now,
-			Path:    cleanPath,
-			Content: content,
-		}
+	
+	if err := wc.Close(); err != nil {
+		return fmt.Errorf("failed to close writer for %s: %w", path, err)
 	}
 
 	return nil
 }
 
-// CreateDir creates a new directory.
-func (vfs *VFSModule) CreateDir(path string) error {
-	vfs.mu.Lock()
+// CreateDir creates a new directory by creating a .placeholder file.
+func (vfs *VFSModule) CreateDir(path string, name string) error {
+    vfs.mu.Lock()
 	defer vfs.mu.Unlock()
+    
+    // Path should be the parent directory
+    fullPath := filepath.Join(path, name, ".placeholder")
 
-	cleanPath := filepath.Clean(path)
-	if _, ok := vfs.files[cleanPath]; ok {
-		return fmt.Errorf("path already exists: %s", cleanPath)
-	}
+    return vfs.Write(fullPath, "")
+}
 
-	parentDir := filepath.Dir(cleanPath)
-	if parentDir != "/" && parentDir != "." {
-		if _, ok := vfs.files[parentDir]; !ok || !vfs.files[parentDir].IsDir {
-			return fmt.Errorf("parent directory does not exist: %s", parentDir)
-		}
-	}
+// CreateFile creates a new empty file.
+func (vfs *VFSModule) CreateFile(path string, name string) error {
+    vfs.mu.Lock()
+    defer vfs.mu.Unlock()
+    
+    fullPath := filepath.Join(path, name)
 
-	vfs.files[cleanPath] = &FileInfo{
-		Name:    filepath.Base(cleanPath),
-		IsDir:   true,
-		ModTime: time.Now(),
-		Path:    cleanPath,
+    // Check if file already exists to avoid overwriting.
+    _, err := vfs.client.Bucket(vfs.bucketName).Object(fullPath).Attrs(context.Background())
+    if err == nil {
+        return fmt.Errorf("file already exists: %s", fullPath)
+    }
+    if err != storage.ErrObjectNotExist {
+        return fmt.Errorf("error checking file existence: %w", err)
+    }
+
+    return vfs.Write(fullPath, "")
+}
+
+// Close releases resources used by the VFS module.
+func (vfs *VFSModule) Close() {
+	if vfs.client != nil {
+		vfs.client.Close()
 	}
-	return nil
 }

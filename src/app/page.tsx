@@ -1,6 +1,6 @@
 'use client';
 
-import Desktop from "@/components/aether-os/desktop";
+import Desktop from "@/app/apps/desktop";
 
 export default function Home() {
   return (

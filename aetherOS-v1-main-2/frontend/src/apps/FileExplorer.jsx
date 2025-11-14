@@ -1,11 +1,13 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAether } from '../lib/aether_sdk';
-import { Folder, File, Loader2, MoreVertical, Trash2 } from 'lucide-react';
+import { Folder, File, Loader2, MoreVertical, Trash2, ChevronDown, FilePlus, FolderPlus } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '../components/Table';
 import { Button } from '../components/Button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/DropdownMenu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/AlertDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/AlertDialog';
+import { Input } from '../components/Input';
+
 
 const FileExplorer = () => {
   const [files, setFiles] = useState([]);
@@ -13,6 +15,7 @@ const FileExplorer = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [creatingItemType, setCreatingItemType] = useState(null);
   const aether = useAether();
 
   const fetchFiles = useCallback(async (path) => {
@@ -34,22 +37,26 @@ const FileExplorer = () => {
       }
     };
     
-    const handleDeleteResult = (env) => {
-      console.log('Received delete result:', env.payload);
+    const handleMutationResult = (env) => {
+      console.log('Received mutation result:', env.payload);
       setIsDeleting(false);
       setItemToDelete(null);
-      // Re-fetch files for the current path to show the updated list
+      setCreatingItemType(null);
       fetchFiles(currentPath); 
     };
     
     const sub = aether.subscribe('vfs:list:result', handleFileList);
-    const deleteSub = aether.subscribe('vfs:delete:result', handleDeleteResult);
+    const deleteSub = aether.subscribe('vfs:delete:result', handleMutationResult);
+    const createFileSub = aether.subscribe('vfs:create:file:result', handleMutationResult);
+    const createFolderSub = aether.subscribe('vfs:create:folder:result', handleMutationResult);
     
     fetchFiles(currentPath);
 
     return () => {
       if (sub) sub();
       if (deleteSub) deleteSub();
+      if (createFileSub) createFileSub();
+      if (createFolderSub) createFolderSub();
     };
   }, [aether, currentPath, fetchFiles]);
   
@@ -67,6 +74,12 @@ const FileExplorer = () => {
     aether.publish('vfs:delete', { path: itemToDelete.path });
   };
   
+  const handleCreate = (name) => {
+      if (!name || !aether || !creatingItemType) return;
+      const topic = `vfs:create:${creatingItemType}`;
+      aether.publish(topic, { path: currentPath, name });
+  };
+  
   const formatBytes = (bytes, decimals = 2) => {
       if (bytes === 0) return '0 Bytes';
       const k = 1024;
@@ -75,12 +88,64 @@ const FileExplorer = () => {
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
+  
+  const NewItemRow = ({ type, onCancel, onCreate }) => {
+    const [name, setName] = useState('');
+    const inputRef = useRef(null);
+
+    useEffect(() => {
+        inputRef.current?.focus();
+    }, []);
+
+    const handleCreate = (e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        onCreate(name.trim());
+    };
+
+    return (
+        <TableRow className="bg-gray-700/50">
+            <TableCell colSpan={4} className="p-2">
+                <form onSubmit={handleCreate} className="flex items-center gap-2">
+                    {type === 'folder' ? <Folder className="h-5 w-5 text-blue-400"/> : <File className="h-5 w-5 text-gray-400"/>}
+                    <Input
+                        ref={inputRef}
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        onBlur={onCancel}
+                        onKeyDown={(e) => e.key === 'Escape' && onCancel()}
+                        placeholder={`Enter ${type} name...`}
+                        className="h-8 bg-gray-800 border-gray-600"
+                    />
+                    <Button type="submit" size="sm" className="h-8" disabled={!name.trim()}>Create</Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-8" onClick={onCancel}>Cancel</Button>
+                </form>
+            </TableCell>
+        </TableRow>
+    );
+  };
 
 
   return (
     <div className="h-full w-full bg-gray-800 text-white flex flex-col">
-      <div className="p-2 border-b border-gray-700 text-sm">
-        Path: {currentPath}
+      <div className="p-2 border-b border-gray-700 flex justify-between items-center text-sm">
+        <div>Path: {currentPath}</div>
+         <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={!!creatingItemType}>
+                    New
+                    <ChevronDown className="h-4 w-4 ml-2"/>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                <DropdownMenuItem onSelect={() => setCreatingItemType('file')}>
+                    <FilePlus className="mr-2 h-4 w-4" /> New File
+                </DropdownMenuItem>
+                 <DropdownMenuItem onSelect={() => setCreatingItemType('folder')}>
+                    <FolderPlus className="mr-2 h-4 w-4" /> New Folder
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <div className="flex-grow overflow-y-auto">
         <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
@@ -115,6 +180,9 @@ const FileExplorer = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
+             {creatingItemType && (
+                <NewItemRow type={creatingItemType} onCancel={() => setCreatingItemType(null)} onCreate={handleCreate} />
+             )}
               {files.map((item) => (
                 <TableRow key={item.name} onDoubleClick={() => handleDoubleClick(item)} className="cursor-pointer group">
                   <TableCell className="flex items-center gap-2">
@@ -140,7 +208,7 @@ const FileExplorer = () => {
                   </TableCell>
                 </TableRow>
               ))}
-              {files.length === 0 && (
+              {files.length === 0 && !creatingItemType && (
                  <TableRow>
                    <TableCell colSpan={4} className="text-center h-24 text-gray-500">
                      This folder is empty.

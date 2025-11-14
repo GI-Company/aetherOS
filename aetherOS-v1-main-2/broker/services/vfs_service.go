@@ -29,7 +29,8 @@ func (s *VfsService) Run() {
 	vfsTopics := []string{
 		"vfs:list",
 		"vfs:delete",
-		// Add other topics like vfs:create etc. here
+		"vfs:create:file",
+		"vfs:create:folder",
 	}
 
 	for _, topicName := range vfsTopics {
@@ -51,10 +52,39 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 		s.handleList(env)
 	case "vfs:delete":
 		s.handleDelete(env)
-	// Add other cases here for vfs:create, vfs:delete etc.
+	case "vfs:create:file":
+		s.handleCreate(env)
+	case "vfs:create:folder":
+		s.handleCreate(env)
 	default:
 		log.Printf("VFS Service received unhandled topic: %s", env.Topic)
 	}
+}
+
+// handleCreate proxies creation requests. In a real scenario, this would
+// interact with a persistent storage system. For now, it just acknowledges.
+func (s *VfsService) handleCreate(env *aether.Envelope) {
+	log.Printf("VFS Service processing %s message ID: %s", env.Topic, env.ID)
+
+	var payload struct {
+		Path string `json:"path"`
+		Name string `json:"name"`
+	}
+
+	payloadBytes, err := json.Marshal(env.Payload)
+	if err != nil {
+		s.publishError(env, "Invalid create payload format")
+		return
+	}
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		s.publishError(env, "Invalid create payload structure")
+		return
+	}
+
+	// This is where you would interact with vfsModule to create the file/folder
+	// For now, we just publish a success response to trigger frontend updates.
+
+	s.publishSuccessResponse(env)
 }
 
 // handleList handles requests for listing directory contents.

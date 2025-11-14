@@ -23,12 +23,15 @@ func main() {
 	}
 	defer aiModule.Close()
 
+	// Initialize the VFS module
+	vfsModule := aether.NewVFSModule()
+
 	// Initialize and run the AI service
 	aiService := services.NewAIService(broker, aiModule)
 	go aiService.Run()
 
 	// Initialize and run the VFS service
-	vfsService := services.NewVfsService(broker)
+	vfsService := services.NewVfsService(broker, vfsModule)
 	go vfsService.Run()
 
 	// Setup router and register API routes

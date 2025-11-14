@@ -19,10 +19,10 @@ func RegisterBusRoutes(r *mux.Router, b *aether.Broker) {
 	s := &BusServer{Broker: b}
 	api := r.PathPrefix("/v1/bus").Subrouter()
 
-	// wrap bus endpoints with JWT middleware
-	api.Handle("/publish", JWTAuthMiddleware(http.HandlerFunc(s.handlePublish))).Methods("POST")
 	// The WebSocket endpoint now acts as a general gateway to the bus
-	api.Handle("/ws", JWTAuthMiddleware(http.HandlerFunc(s.handleWSGateway)))
+	api.Handle("/ws", http.HandlerFunc(s.handleWSGateway))
+	// Example of a fire-and-forget HTTP endpoint
+	api.Handle("/publish", http.HandlerFunc(s.handlePublish)).Methods("POST")
 }
 
 func (s *BusServer) handlePublish(w http.ResponseWriter, r *http.Request) {

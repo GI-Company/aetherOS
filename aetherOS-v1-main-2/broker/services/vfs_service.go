@@ -1,39 +1,33 @@
-
 package services
 
 import (
 	"aether/broker/aether"
+	"encoding/json"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-// VfsService handles file system-related requests from the message bus
-// by proxying them back to all clients.
+// VfsService handles file system-related requests from the message bus.
 type VfsService struct {
-	broker *aether.Broker
+	broker   *aether.Broker
+	vfsModule *aether.VFSModule
 }
 
 // NewVfsService creates a new VFS service.
-func NewVfsService(broker *aether.Broker) *VfsService {
+func NewVfsService(broker *aether.Broker, vfsModule *aether.VFSModule) *VfsService {
 	return &VfsService{
-		broker: broker,
+		broker:   broker,
+		vfsModule: vfsModule,
 	}
 }
 
 // Run starts the VFS service's listeners for multiple topics.
 func (s *VfsService) Run() {
-	// List of VFS topics to subscribe to.
-	// In a more dynamic system, this could come from configuration.
 	vfsTopics := []string{
 		"vfs:list",
-		"vfs:create:file",
-		"vfs:create:folder",
-		"vfs:delete",
-		"vfs:write",
-		"vfs:read",
+		// Add other topics like vfs:create, vfs:delete etc. here
 	}
 
 	for _, topicName := range vfsTopics {
@@ -41,43 +35,102 @@ func (s *VfsService) Run() {
 		log.Printf("VFS Service listening on topic: %s", topicName)
 		broadcastChan := topic.GetBroadcastChan()
 
-		// Start a goroutine for each topic
 		go func(tName string, ch chan *aether.Envelope) {
 			for envelope := range ch {
-				// The service's job is to simply broadcast the event
-				// on a ":result" topic so all clients are notified.
-				s.proxyEvent(envelope)
+				go s.handleRequest(envelope)
 			}
 		}(topicName, broadcastChan)
 	}
 }
 
-// proxyEvent takes an incoming envelope and broadcasts it on a corresponding
-// ":result" topic to notify all clients of the event.
-func (s *VfsService) proxyEvent(originalEnv *aether.Envelope) {
-	if !strings.HasPrefix(originalEnv.Topic, "vfs:") {
+func (s *VfsService) handleRequest(env *aether.Envelope) {
+	switch env.Topic {
+	case "vfs:list":
+		s.handleList(env)
+	// Add other cases here for vfs:create, vfs:delete etc.
+	default:
+		log.Printf("VFS Service received unhandled topic: %s", env.Topic)
+	}
+}
+
+// handleList handles requests for listing directory contents.
+func (s *VfsService) handleList(env *aether.Envelope) {
+	log.Printf("VFS Service processing vfs:list message ID: %s", env.ID)
+
+	var payload struct {
+		Path string `json:"path"`
+	}
+
+	// Unmarshal payload from interface{}
+	payloadBytes, err := json.Marshal(env.Payload)
+	if err != nil {
+		log.Printf("error marshaling payload: %v", err)
+		s.publishError(env, "Invalid payload format")
+		return
+	}
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		log.Printf("error unmarshaling payload: %v", err)
+		s.publishError(env, "Invalid payload structure")
 		return
 	}
 
-	log.Printf("VFS Service proxying event from topic: %s", originalEnv.Topic)
+	if payload.Path == "" {
+		payload.Path = "/" // Default to root if path is empty
+	}
 
-	// The response topic is the original topic plus ":result"
+	// Get file list from the VFS module
+	files, err := s.vfsModule.List(payload.Path)
+	if err != nil {
+		log.Printf("error listing files for path %s: %v", payload.Path, err)
+		s.publishError(env, err.Error())
+		return
+	}
+
+	// Publish the response
+	s.publishListResponse(env, payload.Path, files)
+}
+
+
+func (s *VfsService) publishListResponse(originalEnv *aether.Envelope, path string, files []*aether.FileInfo) {
 	responseTopicName := originalEnv.Topic + ":result"
 	responseTopic := s.broker.GetTopic(responseTopicName)
 
-	// The payload is the same as the original payload.
+	responsePayload := map[string]interface{}{
+		"path":  path,
+		"files": files,
+	}
+
 	responseEnv := &aether.Envelope{
-		ID:          uuid.New().String(),
-		Topic:       responseTopicName,
-		Type:        "vfs_event",
-		Payload:     originalEnv.Payload,
-		CreatedAt:   time.Now(),
-		ContentType: originalEnv.ContentType,
+		ID:        uuid.New().String(),
+		Topic:     responseTopicName,
+		Type:      "vfs_list_response",
+		Payload:   responsePayload,
+		CreatedAt: time.Now(),
 		Meta: map[string]string{
 			"correlationId": originalEnv.ID,
 		},
 	}
 
-	log.Printf("VFS Service broadcasting to topic: %s", responseTopicName)
+	log.Printf("VFS Service publishing response to topic: %s", responseTopicName)
 	responseTopic.Publish(responseEnv)
+}
+
+func (s *VfsService) publishError(originalEnv *aether.Envelope, errorMsg string) {
+	errorTopicName := originalEnv.Topic + ":error"
+	errorTopic := s.broker.GetTopic(errorTopicName)
+
+	errorPayload := map[string]string{"error": errorMsg}
+
+	errorEnv := &aether.Envelope{
+		ID:        uuid.New().String(),
+		Topic:     errorTopicName,
+		Type:      "vfs_error",
+		Payload:   errorPayload,
+		CreatedAt: time.Now(),
+		Meta: map[string]string{
+			"correlationId": originalEnv.ID,
+		},
+	}
+	log.Printf("VFS Service publishing error to topic: %s", errorTopicName)
+	errorTopic.Publish(errorEnv)
 }

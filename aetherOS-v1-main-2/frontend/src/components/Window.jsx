@@ -54,14 +54,14 @@ const Window = ({
           )}
           onClick={() => onFocus(id)}
         >
-          <div className="window-header h-8 flex items-center justify-between px-2 bg-gray-900/50 rounded-t-lg cursor-move border-b border-gray-700">
+          <div className="window-header h-8 flex items-center justify-between px-2 bg-gray-900/50 rounded-t-lg cursor-move border-b border-gray-700" onDoubleClick={onMaximize}>
             <div className="flex items-center gap-2">
                 {Icon && <Icon className="h-4 w-4 text-gray-300" />}
                 <span className="text-sm text-white select-none">{title}</span>
             </div>
             <div className="flex items-center gap-1">
-              <button className="p-1.5 rounded-full hover:bg-gray-700"><Minus className="h-3 w-3 text-white" /></button>
-              <button className="p-1.5 rounded-full hover:bg-gray-700"><Square className="h-3 w-3 text-white" /></button>
+              <button className="p-1.5 rounded-full hover:bg-gray-700" onClick={(e) => { e.stopPropagation(); onMinimize(id); }}><Minus className="h-3 w-3 text-white" /></button>
+              <button className="p-1.5 rounded-full hover:bg-gray-700" onClick={(e) => { e.stopPropagation(); onMaximize(id); }}><Square className="h-3 w-3 text-white" /></button>
               <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-1.5 rounded-full hover:bg-red-500"><X className="h-3 w-3 text-white" /></button>
             </div>
           </div>

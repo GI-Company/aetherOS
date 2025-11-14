@@ -1,3 +1,4 @@
+
 package aether
 
 import (
@@ -5,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"google.golang.org/api/option"
 	"google.golang.org/genai"
@@ -105,11 +107,7 @@ func (m *AIModule) DesignComponent(prompt string) (string, error) {
 	model := m.client.GenerativeModel("gemini-1.5-flash")
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{
-			genai.Text(`You are a UI element code generator. Generate a React component using TypeScript, Next.js, and Tailwind CSS for the UI element described in the prompt.
-  - Use functional components and hooks.
-  - Use shadcn/ui components where appropriate (e.g., Button, Card, Input).
-  - Do not include any imports that are not used in the component.
-  Return only the raw TypeScript code for the component. Do not include any explanatory text or markdown formatting like '` + "```" + `tsx'.`),
+			genai.Text("You are a UI element code generator. Generate a React component using TypeScript, Next.js, and Tailwind CSS for the UI element described in the prompt.\n  - Use functional components and hooks.\n  - Use shadcn/ui components where appropriate (e.g., Button, Card, Input).\n  - Do not include any imports that are not used in the component.\n  Return only the raw TypeScript code for the component. Do not include any explanatory text or markdown formatting like '` + "```" + `tsx'."),
 		},
 	}
 
@@ -179,15 +177,71 @@ Example Output: {"results": [{"path": "/home/user/documents/report.docx", "type"
 	cleanedJSON = strings.TrimSpace(cleanedJSON)
 
 	// Validate JSON
-	var temp aný
+	var temp interface{}
 	if err := json.Unmarshal([]byte(cleanedJSON), &temp); err != nil {
 		return "", fmt.Errorf("model returned invalid JSON: %w. Response: %s", err, cleanedJSON)
 	}
 
-
 	return cleanedJSON, nil
 }
 
+// GenerateAdaptivePalette generates a color palette from a description.
+func (m *AIModule) GenerateAdaptivePalette(description string) (string, error) {
+	ctx := context.Background()
+	model := m.client.GenerativeModel("gemini-1.5-flash")
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{
+			genai.Text(`You are a color theme generator. Your task is to generate a JSON object representing a color palette based on a user's description.
+The JSON object must contain the following keys, each with a hex color code as its value: "primaryColor", "secondaryColor", "backgroundColor", "textColor", "accentColor".
+- backgroundColor: The main background color, should be dark.
+- textColor: The main text color, should have good contrast with the background.
+- primaryColor: A primary color for main UI elements.
+- secondaryColor: A secondary color for less prominent elements.
+- accentColor: An accent color for highlights and important actions.
+Return only the raw JSON object. Do not include any explanatory text or markdown formatting like '` + "```" + `json'.`),
+		},
+	}
+	resp, err := model.GenerateContent(ctx, genai.Text(description))
+	if err != nil {
+		return "", fmt.Errorf("error generating palette: %w", err)
+	}
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no content found in palette response")
+	}
+	var resultText string
+	for _, part := range resp.Candidates[0].Content.Parts {
+		if txt, ok := part.(genai.Text); ok {
+			resultText += string(txt)
+		}
+	}
+	return resultText, nil
+}
+
+// GenerateAccentColor generates an accent color from a description.
+func (m *AIModule) GenerateAccentColor(description string) (string, error) {
+	ctx := context.Background()
+	model := m.client.GenerativeModel("gemini-1.5-flash")
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{
+			genai.Text(`You are a color generator. Your task is to generate a JSON object with a single key "accentColor" based on a user's description. The value should be a hex color code. Return only the raw JSON object.`),
+		},
+	}
+
+	resp, err := model.GenerateContent(ctx, genai.Text(description))
+	if err != nil {
+		return "", fmt.Errorf("error generating accent color: %w", err)
+	}
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no content found in accent color response")
+	}
+	var resultText string
+	for _, part := range resp.Candidates[0].Content.Parts {
+		if txt, ok := part.(genai.Text); ok {
+			resultText += string(txt)
+		}
+	}
+	return resultText, nil
+}
 
 // Close releases resources used by the AI module.
 func (m *AIModule) Close() {

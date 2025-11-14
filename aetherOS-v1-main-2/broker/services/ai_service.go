@@ -1,3 +1,4 @@
+
 package services
 
 import (
@@ -31,6 +32,8 @@ func (s *AIService) Run() {
 		"ai:design:component",
 		"ai:agent",
 		"ai:search:files",
+		"ai:generate:palette",
+		"ai:generate:accent",
 	}
 
 	for _, topicName := range aiTopics {
@@ -86,6 +89,8 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 					prompt = p
 				} else if p, ok := payloadData["description"].(string); ok {
 					prompt = p
+				} else if p, ok := payloadData["contentDescription"].(string); ok {
+					prompt = p
 				}
 			}
 		}
@@ -104,6 +109,10 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			generatedText, err = s.aiModule.GenerateWebPage(prompt)
 		case "ai:design:component":
 			generatedText, err = s.aiModule.DesignComponent(prompt)
+		case "ai:generate:palette":
+			generatedText, err = s.aiModule.GenerateAdaptivePalette(prompt)
+		case "ai:generate:accent":
+			generatedText, err = s.aiModule.GenerateAccentColor(prompt)
 		default:
 			generatedText, err = s.aiModule.GenerateText(prompt)
 		}

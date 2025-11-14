@@ -1,3 +1,4 @@
+
 package server
 
 import (
@@ -62,6 +63,10 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("ai:design:component:error").Subscribe(client)
 	s.Broker.GetTopic("ai:search:files:resp").Subscribe(client)
 	s.Broker.GetTopic("ai:search:files:error").Subscribe(client)
+	s.Broker.GetTopic("ai:generate:palette:resp").Subscribe(client)
+	s.Broker.GetTopic("ai:generate:palette:error").Subscribe(client)
+	s.Broker.GetTopic("ai:generate:accent:resp").Subscribe(client)
+	s.Broker.GetTopic("ai:generate:accent:error").Subscribe(client)
 	s.Broker.GetTopic("vfs:list:result").Subscribe(client)
 	s.Broker.GetTopic("vfs:delete:result").Subscribe(client)
 	s.Broker.GetTopic("vfs:create:file:result").Subscribe(client)
@@ -75,5 +80,7 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	go client.WritePump()
 	go client.ReadPump()
 }
+
+    
 
     

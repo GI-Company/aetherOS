@@ -5,8 +5,6 @@ import {Button} from '@/components/ui/button';
 import {Label}from '@/components/ui/label';
 import {Textarea}from '@/components/ui/textarea';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
-import {generateAdaptivePalette} from '@/ai/flows/adaptive-color-palettes';
-import {generateAccentColor} from '@/ai/flows/generate-accent-color';
 import {useState, useEffect} from 'react';
 import {useToast} from '@/hooks/use-toast';
 import {
@@ -33,6 +31,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase';
+import { useAether } from '@/lib/aether_sdk_client';
 
 
 interface SettingsAppProps {
@@ -49,6 +48,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
   const {toast} = useToast();
   const {applyTheme, setScheme} = useTheme();
   const {user, firestore} = useFirebase();
+  const aether = useAether();
   const auth = getAuth();
 
   const userPreferencesRef = useMemoFirebase(() => {
@@ -69,26 +69,43 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
       });
       return;
     }
-    setIsLoading('theme');
-    try {
-      const result = await generateAdaptivePalette({
-        contentDescription: themePrompt,
-      });
-      applyTheme({palette: result.palette});
-      toast({
-        title: 'Base Theme Applied!',
-        description: 'The new adaptive base theme has been set.',
-      });
-    } catch (e) {
-      console.error(e);
-      toast({
-        title: 'Error',
-        description: 'Failed to generate theme.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(null);
+     if (!aether) {
+      toast({ title: "Aether client not available", variant: "destructive" });
+      return;
     }
+    setIsLoading('theme');
+
+    aether.publish('ai:generate:palette', { contentDescription: themePrompt });
+
+    const handleResponse = (env: any) => {
+      try {
+        const result = JSON.parse(env.payload);
+        applyTheme({palette: result});
+        toast({
+          title: 'Base Theme Applied!',
+          description: 'The new adaptive base theme has been set.',
+        });
+      } catch (e) {
+        console.error("Failed to parse theme response:", e);
+        toast({
+          title: 'Error',
+          description: 'Failed to apply generated theme. Invalid format.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(null);
+        aether.subscribe('ai:generate:palette:resp', handleResponse)();
+      }
+    };
+    
+    const handleError = (env: any) => {
+        toast({ title: 'Error', description: 'Failed to generate theme.', variant: 'destructive' });
+        setIsLoading(null);
+        aether.subscribe('ai:generate:palette:error', handleError)();
+    }
+    
+    aether.subscribe('ai:generate:palette:resp', handleResponse);
+    aether.subscribe('ai:generate:palette:error', handleError);
   };
 
   const handleGenerateAccent = async () => {
@@ -100,34 +117,53 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
       });
       return;
     }
-    setIsLoading('accent');
-    try {
-      const result = await generateAccentColor({description: accentPrompt});
-      const {accentColor} = result;
-
-      const rgb = parseInt(accentColor.substring(1), 16);
-      const r = (rgb >> 16) & 0xff;
-      const g = (rgb >> 8) & 0xff;
-      const b = (rgb >> 0) & 0xff;
-      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const accentForegroundColor = luma < 128 ? '#FFFFFF' : '#0B0D1A';
-
-      applyTheme({accent: {accentColor, accentForegroundColor}});
-
-      toast({
-        title: 'Accent Color Applied!',
-        description: 'The new adaptive accent color has been set.',
-      });
-    } catch (e) {
-      console.error(e);
-      toast({
-        title: 'Error',
-        description: 'Failed to generate accent color.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(null);
+    if (!aether) {
+      toast({ title: "Aether client not available", variant: "destructive" });
+      return;
     }
+    setIsLoading('accent');
+
+    aether.publish('ai:generate:accent', { description: accentPrompt });
+
+    const handleResponse = (env: any) => {
+        try {
+            const result = JSON.parse(env.payload);
+            const {accentColor} = result;
+
+            const rgb = parseInt(accentColor.substring(1), 16);
+            const r = (rgb >> 16) & 0xff;
+            const g = (rgb >> 8) & 0xff;
+            const b = (rgb >> 0) & 0xff;
+            const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            const accentForegroundColor = luma < 128 ? '#FFFFFF' : '#0B0D1A';
+
+            applyTheme({accent: {accentColor, accentForegroundColor}});
+
+            toast({
+                title: 'Accent Color Applied!',
+                description: 'The new adaptive accent color has been set.',
+            });
+        } catch (e) {
+            console.error("Failed to parse accent response:", e);
+            toast({
+                title: 'Error',
+                description: 'Failed to apply generated accent color. Invalid format.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsLoading(null);
+            aether.subscribe('ai:generate:accent:resp', handleResponse)();
+        }
+    };
+
+    const handleError = (env: any) => {
+        toast({ title: 'Error', description: 'Failed to generate accent color.', variant: 'destructive' });
+        setIsLoading(null);
+        aether.subscribe('ai:generate:accent:error', handleError)();
+    }
+
+    aether.subscribe('ai:generate:accent:resp', handleResponse);
+    aether.subscribe('ai:generate:accent:error', handleError);
   };
 
   const onAccountLinked = () => {

@@ -26,6 +26,12 @@ func NewTopic(name string) *Topic {
 	}
 }
 
+// GetBroadcastChan returns the broadcast channel for service listening.
+// This is a simplification for this architecture.
+func (t *Topic) GetBroadcastChan() chan *Envelope {
+	return t.broadcast
+}
+
 // Run starts the topic's event loop.
 func (t *Topic) Run() {
 	for {

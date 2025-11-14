@@ -3,6 +3,7 @@ package main
 import (
 	"aether/broker/aether"
 	"aether/broker/server"
+	"aether/broker/services"
 	"log"
 	"net/http"
 
@@ -21,16 +22,9 @@ func main() {
 	}
 	defer aiModule.Close()
 
-	// This is a placeholder for a real AI service that would listen to topics
-	go func() {
-		// Example of how a service would interact with the broker
-		// In a real app, this would be more structured.
-		topic := broker.GetTopic("ai:generate")
-		for msg := range topic.broadcast {
-			// This is a simplification. A real service would have a proper subscription channel.
-			log.Printf("AI Service received message: %v", msg)
-		}
-	}()
+	// Initialize and run the AI service
+	aiService := services.NewAIService(broker, aiModule)
+	go aiService.Run()
 
 	// Setup router and register API routes
 	r := mux.NewRouter()

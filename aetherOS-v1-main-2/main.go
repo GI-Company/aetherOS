@@ -29,6 +29,13 @@ func main() {
 	broker := aether.NewBroker()
 	go broker.Run()
 
+	// Initialize VFS Module (backed by Firebase Storage)
+	vfsModule, err := aether.NewVFSModule(app)
+	if err != nil {
+		log.Fatalf("failed to create VFS module: %v", err)
+	}
+	defer vfsModule.Close()
+
 	// Initialize AI Module
 	aiModule, err := aether.NewAIModule()
 	if err != nil {
@@ -36,16 +43,10 @@ func main() {
 	}
 	defer aiModule.Close()
 
-	// Initialize AI Service
-	aiService := services.NewAIService(broker, aiModule)
+	// Initialize AI Service (now with VFS access)
+	aiService := services.NewAIService(broker, aiModule, vfsModule)
 	go aiService.Run()
 
-	// Initialize VFS Module (backed by Firebase Storage)
-	vfsModule, err := aether.NewVFSModule(app)
-	if err != nil {
-		log.Fatalf("failed to create VFS module: %v", err)
-	}
-	defer vfsModule.Close()
 
 	// Initialize VFS Service
 	vfsService := services.NewVfsService(broker, vfsModule)
@@ -64,3 +65,5 @@ func main() {
 		log.Fatalf("ListenAndServe error: %v", err)
 	}
 }
+
+    

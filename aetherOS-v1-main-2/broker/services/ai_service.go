@@ -14,13 +14,15 @@ import (
 type AIService struct {
 	broker   *aether.Broker
 	aiModule *aether.AIModule
+	vfs      *aether.VFSModule // Add VFS module to read file contents
 }
 
 // NewAIService creates a new AI service.
-func NewAIService(broker *aether.Broker, aiModule *aether.AIModule) *AIService {
+func NewAIService(broker *aether.Broker, aiModule *aether.AIModule, vfs *aether.VFSModule) *AIService {
 	return &AIService{
 		broker:   broker,
 		aiModule: aiModule,
+		vfs:      vfs,
 	}
 }
 
@@ -34,6 +36,7 @@ func (s *AIService) Run() {
 		"ai:search:files",
 		"ai:generate:palette",
 		"ai:generate:accent",
+		"ai:summarize:code",
 	}
 
 	for _, topicName := range aiTopics {
@@ -68,6 +71,25 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			return
 		}
 		generatedText, err = s.aiModule.SemanticFileSearch(payloadData.Query, payloadData.AvailableFiles)
+
+	} else if env.Topic == "ai:summarize:code" {
+		var payloadData struct {
+			FilePath string `json:"filePath"`
+		}
+		payloadBytes, _ := json.Marshal(env.Payload)
+		if err := json.Unmarshal(payloadBytes, &payloadData); err != nil {
+			log.Printf("error unmarshaling summarize code payload: %v", err)
+			s.publishError(env, "Invalid payload format")
+			return
+		}
+		// Read file content using VFS module
+		fileContent, readErr := s.vfs.Read(payloadData.FilePath)
+		if readErr != nil {
+			log.Printf("error reading file for summarization: %v", readErr)
+			s.publishError(env, "Could not read file to summarize")
+			return
+		}
+		generatedText, err = s.aiModule.SummarizeCode(fileContent)
 
 	} else {
 		// Standard prompt extraction for other topics
@@ -132,11 +154,27 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, responseText s
 	responseTopicName := originalEnv.Topic + ":resp"
 	responseTopic := s.broker.GetTopic(responseTopicName)
 
+	// For summarization, the payload needs to include the original path for client-side matching
+	var payload interface{}
+	if originalEnv.Topic == "ai:summarize:code" {
+		var originalPayload struct {
+			FilePath string `json:"filePath"`
+		}
+		payloadBytes, _ := json.Marshal(originalEnv.Payload)
+		json.Unmarshal(payloadBytes, &originalPayload)
+		payload = map[string]interface{}{
+			"summary":  responseText,
+			"filePath": originalPayload.FilePath,
+		}
+	} else {
+		payload = responseText
+	}
+
 	responseEnv := &aether.Envelope{
 		ID:        uuid.New().String(),
 		Topic:     responseTopicName,
 		Type:      "ai_response",
-		Payload:   responseText, // The payload is now just the raw string
+		Payload:   payload,
 		CreatedAt: time.Now(),
 		Meta: map[string]string{
 			"correlationId": originalEnv.ID,

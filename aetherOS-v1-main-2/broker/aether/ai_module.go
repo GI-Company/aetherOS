@@ -243,6 +243,33 @@ func (m *AIModule) GenerateAccentColor(description string) (string, error) {
 	return resultText, nil
 }
 
+// SummarizeCode generates a one-sentence summary of a code snippet.
+func (m *AIModule) SummarizeCode(code string) (string, error) {
+	ctx := context.Background()
+	model := m.client.GenerativeModel("gemini-1.5-flash")
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{
+			genai.Text("You are an expert code summarizer. Your task is to provide a single, concise sentence that describes the purpose of the provided code snippet. Focus on the high-level functionality. Do not describe the syntax. Return a JSON object with a single key 'summary'."),
+		},
+	}
+	prompt := fmt.Sprintf("Code: ```\n%s\n```", code)
+	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+
+	if err != nil {
+		return "", fmt.Errorf("error summarizing code: %w", err)
+	}
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no content found in summary response")
+	}
+	var resultText string
+	for _, part := range resp.Candidates[0].Content.Parts {
+		if txt, ok := part.(genai.Text); ok {
+			resultText += string(txt)
+		}
+	}
+	return resultText, nil
+}
+
 // Close releases resources used by the AI module.
 func (m *AIModule) Close() {
 	if m.client != nil {

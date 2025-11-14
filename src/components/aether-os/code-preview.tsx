@@ -1,59 +1,75 @@
 
 'use client';
 
-import { getStorage, ref, getDownloadURL } from 'firebase/storage';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Skeleton } from '../ui/skeleton';
 import { AlertTriangle, Code2 } from 'lucide-react';
-import { summarizeCode } from '@/ai/flows/summarize-code';
+import { useAether } from '@/lib/aether_sdk_client';
 
 interface CodePreviewProps {
   filePath: string;
 }
 
-// Fetch and display a small preview of a code file
+// A simple in-memory cache for summaries
+const summaryCache = new Map<string, string>();
+
 const CodePreview = ({ filePath }: CodePreviewProps) => {
-  const [summary, setSummary] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const aether = useAether();
+  const [summary, setSummary] = useState<string | null>(summaryCache.get(filePath) || null);
+  const [isLoading, setIsLoading] = useState(!summary);
   const [error, setError] = useState<string | null>(null);
 
+  // Memoize the request ID to ensure we only process the response for the current component instance
+  const requestId = useMemo(() => `summary-${filePath}-${Date.now()}`, [filePath]);
+
   useEffect(() => {
+    if (summary || !aether || !filePath) return;
+
     let isMounted = true;
-    const fetchContentAndSummarize = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const storage = getStorage();
-        const fileRef = ref(storage, filePath);
-        const url = await getDownloadURL(fileRef);
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error('Failed to fetch file content');
-        }
-        const code = await response.text();
-        
-        if (isMounted) {
-          const result = await summarizeCode({ code });
-          if(isMounted) {
-            setSummary(result.summary);
-          }
-        }
-      } catch (e: any) {
-         if (isMounted) {
-            setError(e.message);
-         }
-      } finally {
-        if (isMounted) {
+    
+    const handleSummaryResponse = (env: any) => {
+        if (env.payload.filePath === filePath && isMounted) {
+            try {
+                const result = JSON.parse(env.payload.summary);
+                if (result.summary) {
+                    setSummary(result.summary);
+                    summaryCache.set(filePath, result.summary);
+                } else {
+                    setError("Invalid summary format received.");
+                }
+            } catch (e) {
+                setError("Failed to parse summary.");
+            }
             setIsLoading(false);
+            unsubscribe();
         }
-      }
     };
-    fetchContentAndSummarize();
+
+    const handleErrorResponse = (env: any) => {
+        // This is a rough check. Correlation ID would be better.
+        if (isMounted) {
+            setError(env.payload.error || 'Summarization failed');
+            setIsLoading(false);
+            unsubscribe();
+        }
+    };
+    
+    const summarySub = aether.subscribe('ai:summarize:code:resp', handleSummaryResponse);
+    const errorSub = aether.subscribe('ai:summarize:code:error', handleErrorResponse);
+
+    const unsubscribe = () => {
+        summarySub();
+        errorSub();
+    };
+
+    setIsLoading(true);
+    aether.publish('ai:summarize:code', { filePath });
 
     return () => {
       isMounted = false;
+      unsubscribe();
     };
-  }, [filePath]);
+  }, [filePath, aether, summary, requestId]);
 
   if (isLoading) {
     return <Skeleton className="w-full h-full p-2 space-y-1">
@@ -87,3 +103,5 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 };
 
 export default CodePreview;
+
+    

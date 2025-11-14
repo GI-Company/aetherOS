@@ -37,9 +37,13 @@ const Terminal = () => {
         ]);
     };
     
-    aether.subscribe('ai:generate:resp', handleAIResponse);
-    aether.subscribe('ai:generate:error', handleAIError);
+    const sub = aether.subscribe('ai:generate:resp', handleAIResponse);
+    const errSub = aether.subscribe('ai:generate:error', handleAIError);
 
+    return () => {
+        if (sub) sub();
+        if (errSub) errSub();
+    }
   }, [aether]);
 
 
@@ -78,6 +82,7 @@ const Terminal = () => {
             <pre className="whitespace-pre-wrap font-mono">{item.content}</pre>
           </div>
         ))}
+        <div ref={endOfHistoryRef} />
       </div>
       <form onSubmit={handleFormSubmit} className="input-form">
         <span className="prompt">$</span>
@@ -91,7 +96,6 @@ const Terminal = () => {
           placeholder={aether ? "Enter a command..." : "Connecting to Aether Kernel..."}
         />
       </form>
-      <div ref={endOfHistoryRef} />
     </div>
   );
 };

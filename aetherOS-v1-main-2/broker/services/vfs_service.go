@@ -5,6 +5,7 @@ import (
 	"aether/broker/aether"
 	"encoding/json"
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,6 +32,8 @@ func (s *VfsService) Run() {
 		"vfs:delete",
 		"vfs:create:file",
 		"vfs:create:folder",
+		"vfs:read",
+		"vfs:write",
 	}
 
 	for _, topicName := range vfsTopics {
@@ -53,17 +56,20 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 	case "vfs:delete":
 		s.handleDelete(env)
 	case "vfs:create:file":
-		s.handleCreate(env)
+		s.handleCreateFile(env)
 	case "vfs:create:folder":
-		s.handleCreate(env)
+		s.handleCreateFolder(env)
+	case "vfs:read":
+		s.handleRead(env)
+	case "vfs:write":
+		s.handleWrite(env)
 	default:
 		log.Printf("VFS Service received unhandled topic: %s", env.Topic)
 	}
 }
 
-// handleCreate proxies creation requests. In a real scenario, this would
-// interact with a persistent storage system. For now, it just acknowledges.
-func (s *VfsService) handleCreate(env *aether.Envelope) {
+// handleCreateFile creates a new file in the VFS.
+func (s *VfsService) handleCreateFile(env *aether.Envelope) {
 	log.Printf("VFS Service processing %s message ID: %s", env.Topic, env.ID)
 
 	var payload struct {
@@ -71,20 +77,42 @@ func (s *VfsService) handleCreate(env *aether.Envelope) {
 		Name string `json:"name"`
 	}
 
-	payloadBytes, err := json.Marshal(env.Payload)
-	if err != nil {
-		s.publishError(env, "Invalid create payload format")
-		return
-	}
+	payloadBytes, _ := json.Marshal(env.Payload)
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		s.publishError(env, "Invalid create payload structure")
+		s.publishError(env, "Invalid create:file payload structure")
 		return
 	}
 
-	// This is where you would interact with vfsModule to create the file/folder
-	// For now, we just publish a success response to trigger frontend updates.
+	fullPath := filepath.Join(payload.Path, payload.Name)
+	if err := s.vfsModule.Write(fullPath, ""); err != nil {
+		s.publishError(env, err.Error())
+		return
+	}
 
-	s.publishSuccessResponse(env)
+	s.publishSuccessResponse(env, map[string]interface{}{"success": true, "path": fullPath})
+}
+
+// handleCreateFolder creates a new folder in the VFS.
+func (s *VfsService) handleCreateFolder(env *aether.Envelope) {
+	log.Printf("VFS Service processing %s message ID: %s", env.Topic, env.ID)
+
+	var payload struct {
+		Path string `json:"path"`
+		Name string `json:"name"`
+	}
+
+	payloadBytes, _ := json.Marshal(env.Payload)
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		s.publishError(env, "Invalid create:folder payload structure")
+		return
+	}
+
+	fullPath := filepath.Join(payload.Path, payload.Name)
+	if err := s.vfsModule.CreateDir(fullPath); err != nil {
+		s.publishError(env, err.Error())
+		return
+	}
+	s.publishSuccessResponse(env, map[string]interface{}{"success": true, "path": fullPath})
 }
 
 // handleList handles requests for listing directory contents.
@@ -149,44 +177,82 @@ func (s *VfsService) handleDelete(env *aether.Envelope) {
 	}
 
 	// Publish a generic success response
-	s.publishSuccessResponse(env)
+	s.publishSuccessResponse(env, map[string]interface{}{"success": true, "path": payload.Path})
+}
+
+func (s *VfsService) handleRead(env *aether.Envelope) {
+	log.Printf("VFS Service processing vfs:read message ID: %s", env.ID)
+
+	var payload struct {
+		Path string `json:"path"`
+	}
+	payloadBytes, _ := json.Marshal(env.Payload)
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		s.publishError(env, "Invalid read payload structure")
+		return
+	}
+
+	content, err := s.vfsModule.Read(payload.Path)
+	if err != nil {
+		s.publishError(env, err.Error())
+		return
+	}
+
+	responsePayload := map[string]interface{}{
+		"path":    payload.Path,
+		"content": content,
+	}
+
+	s.publishResponse(env, "vfs_read_response", responsePayload)
+}
+
+func (s *VfsService) handleWrite(env *aether.Envelope) {
+	log.Printf("VFS Service processing vfs:write message ID: %s", env.ID)
+
+	var payload struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	payloadBytes, _ := json.Marshal(env.Payload)
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		s.publishError(env, "Invalid write payload structure")
+		return
+	}
+
+	if err := s.vfsModule.Write(payload.Path, payload.Content); err != nil {
+		s.publishError(env, err.Error())
+		return
+	}
+
+	s.publishSuccessResponse(env, map[string]interface{}{"success": true, "path": payload.Path})
 }
 
 func (s *VfsService) publishListResponse(originalEnv *aether.Envelope, path string, files []*aether.FileInfo) {
-	responseTopicName := originalEnv.Topic + ":result"
-	responseTopic := s.broker.GetTopic(responseTopicName)
-
 	responsePayload := map[string]interface{}{
 		"path":  path,
 		"files": files,
 	}
+	s.publishResponse(originalEnv, "vfs_list_response", responsePayload)
+}
+
+func (s *VfsService) publishSuccessResponse(originalEnv *aether.Envelope, payload map[string]interface{}) {
+	s.publishResponse(originalEnv, "vfs_success_response", payload)
+}
+
+func (s *VfsService) publishResponse(originalEnv *aether.Envelope, responseType string, payload interface{}) {
+	responseTopicName := originalEnv.Topic + ":result"
+	responseTopic := s.broker.GetTopic(responseTopicName)
 
 	responseEnv := &aether.Envelope{
 		ID:          uuid.New().String(),
 		Topic:       responseTopicName,
-		Type:        "vfs_list_response",
-		Payload:     responsePayload,
+		Type:        responseType,
+		Payload:     payload,
 		CreatedAt:   time.Now(),
 		Meta:        map[string]string{"correlationId": originalEnv.ID},
 	}
 
 	log.Printf("VFS Service publishing response to topic: %s", responseTopicName)
-	responseTopic.Publish(responseEnv)
-}
-
-func (s *VfsService) publishSuccessResponse(originalEnv *aether.Envelope) {
-	responseTopicName := originalEnv.Topic + ":result"
-	responseTopic := s.broker.GetTopic(responseTopicName)
-
-	responseEnv := &aether.Envelope{
-		ID:          uuid.New().String(),
-		Topic:       responseTopicName,
-		Type:        "vfs_success_response",
-		Payload:     map[string]interface{}{"success": true, "path": originalEnv.Payload},
-		CreatedAt:   time.Now(),
-		Meta:        map[string]string{"correlationId": originalEnv.ID},
-	}
-	log.Printf("VFS Service publishing success to topic: %s", responseTopicName)
 	responseTopic.Publish(responseEnv)
 }
 

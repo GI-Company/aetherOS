@@ -1,122 +1,83 @@
-# Aether: A Browser-Native OS with an AI Core
 
-Aether is an experimental project to build a lightweight, browser-native operating system. It uses a Go-based microservices architecture to provide a runtime for applications, with a dedicated AI core powered by Google Gemini.
+# AetherOS: The Quorium Architecture Blueprint
 
-## Architecture
+**Version 1.0 | Status: Live Prototype**
 
-The Aether ecosystem is composed of two main components working in concert:
+## 1. Vision Statement: The Post-Application Operating System
 
-### 1. The Frontend: Aether OS Shell
+AetherOS represents a fundamental paradigm shift in human-computer interaction. It is not an operating system in the traditional sense, but a **cloud-native, AI-first runtime environment** where the distinction between user, application, and the system itself blurs. Our vision is to create a persistent, intelligent workspace that transcends individual devices, where user intent is translated directly into action by a core AI agent.
 
-*   **Location:** `/frontend`
-*   **Technology:** React.js
-*   **Description:** This is the user-facing interface for Aether. It acts as the "desktop environment" for the browser-based OS, allowing users to launch and interact with Aether applications and services. It communicates with the backend kernel via a WebSocket connection.
+The Quorium Architecture is the blueprint for this vision, defining a system that is fluid, extensible, and built on a foundation of decoupled services orchestrated by a central AI kernel.
 
-### 2. The Backend: Aether Kernel
+---
 
-*   **Location:** `/` (Root Project)
-*   **Technology:** Go
-*   **Description:** This is the heart of the operating system. It's a Go-based application that runs as a single server. It is built on a microservice-style architecture where different kernel services (like VFS and AI) communicate over a central, in-process message bus.
-*   **Features:**
-    *   **Modular Services:** Key functionalities like the Virtual File System (VFS) and AI Service are implemented as independent services running within the kernel.
-    *   **Central Message Bus:** Services communicate asynchronously using a publish-subscribe model, allowing for a decoupled and extensible architecture.
-    *   **WebSocket Bridge:** Exposes the kernel's message bus to the frontend via a WebSocket connection, enabling real-time, bidirectional communication.
-    *   **AI Service:** Integrates with Google's Gemini models to provide powerful generative AI capabilities to the entire OS.
-    *   **Virtual File System:** A VFS service that proxies file operations to the frontend, which uses IndexedDB for persistence.
+## 2. Architectural Principles
 
-## Getting Started
+The Quorium stack is designed around three core principles:
 
-To run the full Aether ecosystem, you need to start the backend kernel and the frontend development server.
+1.  **AI as the Core, Not an Add-on**: The central kernel is an AI-first service broker. All system operations, from generating text to orchestrating file access, are routed through this intelligent core, making the entire OS contextually aware and responsive to natural language.
 
-### Prerequisites
+2.  **Decoupled Services over Monolithic Apps**: Functionality is provided by independent services (e.g., `AIService`, `VfsService`) that communicate over a universal message bus. The user-facing "apps" are thin clients that interact with these services, allowing for unprecedented flexibility and scalability. The kernel can be enhanced, or services can be replaced, without ever modifying the presentation layer.
 
-*   Go (1.23 or later)
-*   Node.js and npm
-*   A valid `GEMINI_API_KEY` set as an environment variable.
+3.  **Cloud-Native Persistence and Orchestration**: The user's entire state—from authentication and files to the position of windows on their desktop—is persisted in the cloud. The Go kernel acts as the master orchestrator, connecting the user-facing shell to backend capabilities and cloud services in real-time.
 
-### 1. Run the Aether Kernel
+---
 
-In your terminal, from the root directory of the project, run the following command:
+## 3. System Blueprint: The Quorium Stack
 
-```bash
-go run main.go
-```
+The AetherOS architecture is composed of two primary macro-components: the **Aether Kernel (Go Backend)** and the **Aether Shell (React Frontend)**, connected by a persistent WebSocket message bus.
 
-The kernel will start and will be available on the port configured in `config.yaml` (default: `8080`). It handles both HTTP requests and WebSocket connections.
+ 
+*(Diagram placeholder - a visual representation would go here)*
 
-### 2. Run the Frontend
+### Layer 1: The Aether Kernel (Go Backend)
 
-In a separate terminal, navigate to the `frontend` directory, install dependencies, and start the Vite development server:
+The Kernel is the heart and brain of AetherOS. It is a lightweight, high-performance Go application responsible for service orchestration and computation. It is explicitly **stateless** regarding user data, focusing solely on processing requests and routing information.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+-   **Technology**: Go (Golang)
+-   **Core Components**:
+    -   **Message Broker (`/broker/aether`)**: A high-speed, in-memory pub-sub system. It manages a dynamic collection of topics (e.g., `ai:generate`, `vfs:list`) and broadcasts messages from publishers to all subscribed clients. This is the central nervous system of the OS.
+    -   **WebSocket Gateway (`/broker/server`)**: A crucial bridge that exposes the internal message bus to the outside world over a persistent WebSocket connection. It handles client connections, subscriptions to various response topics (e.g., `ai:generate:resp`), and dynamically publishes incoming client messages to their intended service topic within the kernel.
+    -   **Service Host (`main.go`)**: The main application entry point that initializes and runs all kernel services, connecting them to the message broker.
 
-The Aether OS shell will now be accessible in your browser, typically at `http://localhost:5173`.
+-   **Kernel Services (`/broker/services`)**: These are the long-running daemons that provide the core functionality of AetherOS. Each service listens on specific topics on the message bus.
+    -   **`AIService`**: The primary intelligence of the OS. It subscribes to all `ai:*` topics. When it receives a prompt (e.g., from the Terminal), it uses the **`AIModule`** (which integrates the Google Gemini SDK) to communicate with the generative models. It then publishes the result to the corresponding `:resp` topic.
+    -   **`VfsService`**: A secure proxy for the file system. It subscribes to all `vfs:*` topics. When it receives a request (e.g., a file list request from the File Explorer), it uses the **`VFSModule`** (which integrates the Firebase Storage SDK for Go) to perform the requested operation against the user's cloud storage. It then publishes the files list or a success confirmation back to the bus.
 
-## Usage
+### Layer 2: The Aether Shell (React Frontend)
 
-Interaction with the Aether kernel and its services is done via JSON messages sent over the WebSocket connection. The frontend `VFSProxy` and other future services will handle this communication.
+The Shell is the presentation layer of the OS. It is a sophisticated, single-page application responsible for rendering the entire user experience, from the desktop to the individual applications.
 
-For example, to write a file to the VFS, the frontend would send a message like this over the WebSocket:
+-   **Technology**: React, Vite, Tailwind CSS
+-   **Core Components**:
+    -   **`AetherClient` (`/frontend/src/lib/aether_sdk.js`)**: The frontend's connection to the kernel. This SDK manages the WebSocket connection, handles message serialization (envelopes), and provides a simple `publish()` and `subscribe()` API for all other components and applications.
+    -   **`Desktop` (`/frontend/src/components/Desktop.jsx`)**: The top-level component that manages the state of all open windows, the dock, and the overall workspace.
+    -   **Window Manager (`/frontend/src/components/Window.jsx`)**: A sophisticated component using `react-draggable` and `react-resizable` to provide a classic desktop windowing experience. It handles focus, z-index stacking, and minimization/maximization.
 
-```json
-{
-  "topic": "vfs:write",
-  "payload": {
-    "path": "/home/user/welcome.txt",
-    "content": "Hello from Aether!"
-  }
-}
-```
+-   **Applications (`/frontend/src/apps/`)**: These are not traditional applications but rather React components that act as user interfaces for the kernel's services.
+    -   **Example 1: `FileExplorer.jsx`**: Does **not** contain any file system logic. When the user navigates to a folder, it simply calls `aether.publish('vfs:list', { path: '/home/user' })`. It then subscribes to the `vfs:list:result` topic and updates its UI when it receives the file list from the Go kernel.
+    -   **Example 2: `CodeEditor.jsx`**: To save a file, it calls `aether.publish('vfs:write', { path: '...', content: '...' })`. It subscribes to `vfs:write:result` to know when the save is complete.
+    -   **Example 3: `VmTerminal.jsx` (Placeholder)**: When a user types a command, it calls `aether.publish('ai:generate', { prompt: '...' })` and displays the response it receives on `ai:generate:resp`.
 
-Similarly, to use the AI service, a message would be sent to the `ai:generate` topic:
+### Layer 3: Cloud Persistence & Services (Firebase)
 
-```json
-{
-  "topic": "ai:generate",
-  "payload": "Tell me a story about a brave robot."
-}
-```
+Firebase provides the foundational, serverless infrastructure that makes AetherOS a truly cloud-native platform. The frontend and backend interact with it for different purposes.
 
-The kernel service would process the request and publish the response on a corresponding response topic (e.g., `ai:generate:resp`), which the frontend would be listening for.
+-   **Firebase Authentication**: Manages user identity (Google, Anonymous). The frontend handles the sign-in flow, and the resulting user identity is used for security across all services.
+-   **Firebase Cloud Storage**: The official, persistent file system for AetherOS. The **Go kernel's `VfsService`** is the sole authority for interacting with Cloud Storage, ensuring all file operations are secure and centralized. The frontend never accesses Storage directly.
+-   **Firestore Database**: Used for storing user-specific metadata that needs to be accessed quickly by the frontend, such as user preferences, presence information, and saved workspace layouts.
 
-## Deeper Dive into Services
+---
 
-The Aether kernel is built around a set of services that communicate over the message bus. Here's a closer look at the core services available.
+## 4. The Computing Paradigm: Orchestrated Intent
 
-### Virtual File System (VFS)
+The interaction flow in AetherOS is fundamentally different from a traditional OS:
 
-The VFS service provides a hierarchical file system abstraction. All file operations are broadcast over the WebSocket, allowing the frontend to stay in sync with any changes.
+1.  **User Action**: A user interacts with an application component (e.g., clicks "Save" in the Code Editor).
+2.  **Publish Intent**: The application component does not perform the action. Instead, it serializes the user's *intent* into a JSON message (an `Envelope`) and publishes it to a specific topic on the message bus (e.g., `vfs:write`).
+3.  **Kernel Orchestration**: The Go kernel's WebSocket Gateway receives the message and routes it to the appropriate service (the `VfsService`).
+4.  **Service Execution**: The `VfsService` executes the request against the backend resource (Firebase Storage) and performs the necessary computation.
+5.  **Publish Result**: The service publishes the result (e.g., a success message or an error) back to a response topic on the bus (e.g., `vfs:write:result`).
+6.  **UI Update**: The originating application component, subscribed to the response topic, receives the result and updates its UI accordingly (e.g., shows a "Saved" notification).
 
-**Topics:**
-
-*   `vfs:list`: Requests a listing of files and folders at a given path.
-    *   **Response:** `vfs:list:result` with a payload containing the file list.
-*   `vfs:create:file`: Creates a new empty file at the specified path.
-*   `vfs:create:folder`: Creates a new folder at the specified path.
-*   `vfs:delete`: Deletes a file or folder at the specified path.
-
-### AI Service
-
-The AI service is a gateway to the powerful capabilities of Google's Gemini models. It allows any part of the Aether system to leverage generative AI.
-
-**Topics:**
-
-*   `ai:generate`: Sends a prompt to the Gemini model for text generation.
-    *   **Response:** `ai:generate:resp` with the generated content from the model.
-
-## Contributing
-
-Aether is an open and experimental project. Contributions are welcome! If you'd like to get involved, please check out the open issues on GitHub. Feel free to fork the repository, make your changes, and submit a pull request.
-
-## Roadmap
-
-This project is in its early stages. Here are some of the features and improvements planned for the future:
-
-*   **Application Runtime:** A more robust system for defining, installing, and running applications within Aether.
-*   **Persistent Storage:** Implementing client-side storage using IndexedDB to make the VFS truly persistent across sessions.
-*   **User Authentication:** Adding user accounts and authentication to personalize the Aether experience.
-*   **Expanded AI Services:** Integrating more of Gemini's capabilities, such as multimodal input (text and images) and streaming responses.
+This model ensures the UI is always responsive, as no action is blocking. It makes the system incredibly robust, as the kernel can manage a queue of operations, and it makes the entire OS extensible, as new services can be added to the kernel to handle new topics without ever changing the frontend code.

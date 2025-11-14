@@ -1,0 +1,20 @@
+http_port: 8080
+ws_port: 8081
+
+ai:
+  enabled: true
+  provider: google_gemini
+  api_key_env: GEMINI_API_KEY
+
+vfs:
+  default_root: /home/user
+
+auth:
+  enabled: false
+  jwt_secret: "your-super-secret-and-long-jwt-secret"
+
+permissions:
+  enabled: true
+
+logging:
+  level: info

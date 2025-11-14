@@ -1,12 +1,10 @@
-
 'use client';
 
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect, useCallback } from "react";
+import { Input } from "../components/Input";
 import { Globe, RefreshCw, ArrowLeft, ArrowRight, Home, Loader2 } from "lucide-react";
-import BrowserWelcomePage from "@/components/aether-os/browser-welcome-page";
-import { generateWebPageContent } from "@/ai/flows/generate-web-page-content";
-import { useToast } from "@/hooks/use-toast";
+import BrowserWelcomePage from "../components/aether-os/browser-welcome-page";
+import { useAether } from '../lib/aether_sdk';
 
 const DEFAULT_URL = "aether://welcome";
 
@@ -23,7 +21,7 @@ export default function BrowserApp() {
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
   const [inputValue, setInputValue] = useState(DEFAULT_URL);
   const [pageCache, setPageCache] = useState<PageCache>({});
-  const { toast } = useToast();
+  const aether = useAether();
 
   const currentUrl = history[currentUrlIndex];
   const currentPageState = pageCache[currentUrl];
@@ -31,29 +29,35 @@ export default function BrowserApp() {
   const canGoBack = currentUrlIndex > 0;
   const canGoForward = currentUrlIndex < history.length - 1;
   
+  const fetchPageContent = useCallback(async (url: string) => {
+    if (!aether) return;
+    setPageCache(prev => ({ ...prev, [url]: { isLoading: true, content: null, error: null } }));
+    
+    aether.publish('ai:generate:page', { topic: url });
+    
+    const correlationId = Math.random().toString(36).substring(7);
+    
+    const handlePageContent = (env: any) => {
+        setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: env.payload, error: null } }));
+        aether.subscribe('ai:generate:page:resp', handlePageContent)(); // Unsubscribe
+    };
+
+    const handleError = (env: any) => {
+        setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: null, error: env.payload.error || 'An unknown error occurred.' } }));
+        aether.subscribe('ai:generate:page:error', handleError)(); // Unsubscribe
+    };
+
+    aether.subscribe('ai:generate:page:resp', handlePageContent);
+    aether.subscribe('ai:generate:page:error', handleError);
+  }, [aether]);
+
   useEffect(() => {
     if (currentUrl !== DEFAULT_URL && !pageCache[currentUrl]) {
-      const fetchPageContent = async () => {
-        setPageCache(prev => ({ ...prev, [currentUrl]: { isLoading: true, content: null, error: null } }));
-        try {
-          const result = await generateWebPageContent({ topic: currentUrl });
-          setPageCache(prev => ({ ...prev, [currentUrl]: { isLoading: false, content: result.htmlContent, error: null } }));
-        } catch (err: any) {
-          console.error("Failed to generate page content:", err);
-          toast({
-            title: "Content Generation Failed",
-            description: "The AI failed to generate content for this page.",
-            variant: "destructive"
-          });
-          setPageCache(prev => ({ ...prev, [currentUrl]: { isLoading: false, content: null, error: err.message || 'An unknown error occurred.' } }));
-        }
-      };
-      fetchPageContent();
+      fetchPageContent(currentUrl);
     }
-  }, [currentUrl, pageCache, toast]);
+  }, [currentUrl, pageCache, fetchPageContent]);
 
   const navigateTo = (url: string) => {
-    // If we are navigating from a point in history, truncate the future history
     const newHistory = history.slice(0, currentUrlIndex + 1);
     newHistory.push(url);
     setHistory(newHistory);
@@ -62,15 +66,10 @@ export default function BrowserApp() {
   };
   
   const refreshPage = () => {
-    // Invalidate cache for the current URL to force a refetch
-    setPageCache(prev => {
-      const newCache = { ...prev };
-      delete newCache[currentUrl];
-      return newCache;
-    });
-    // This will trigger the useEffect to fetch the page content again.
-    // To make it instant, we can force a re-render or a slight state change.
-    setHistory([...history]); 
+    const newCache = { ...pageCache };
+    delete newCache[currentUrl];
+    setPageCache(newCache);
+    fetchPageContent(currentUrl);
   }
 
   const goBack = () => {
@@ -105,7 +104,7 @@ export default function BrowserApp() {
 
     if (currentPageState?.isLoading) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+        <div className="flex flex-col items-center justify-center h-full text-gray-400">
           <Loader2 className="h-8 w-8 animate-spin mb-4" />
           <p>Generating page content for...</p>
           <p className="font-mono text-sm mt-1">{currentUrl}</p>
@@ -115,50 +114,50 @@ export default function BrowserApp() {
 
     if (currentPageState?.error) {
       return (
-        <div className="text-center text-destructive p-8">
+        <div className="text-center text-red-400 p-8">
             <Globe className="h-16 w-16 mx-auto mb-4" />
             <p className="font-semibold text-lg">Page Failed to Load</p>
-            <p className="text-sm mt-2">The AI content generator encountered an error.</p>
+            <p className="text-sm mt-2">{currentPageState.error}</p>
         </div>
       );
     }
     
     if (currentPageState?.content) {
       return (
-         <div className="p-4 md:p-6 prose dark:prose-invert max-w-full" dangerouslySetInnerHTML={{ __html: currentPageState.content }} />
+         <div className="p-4 md:p-6" dangerouslySetInnerHTML={{ __html: currentPageState.content }} />
       );
     }
 
-    return null; // Should be handled by loading state
+    return null;
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="flex-shrink-0 p-2 border-b flex items-center gap-2 bg-card">
-        <button className="p-1 rounded-full hover:bg-muted disabled:opacity-50" onClick={goBack} disabled={!canGoBack}>
+    <div className="flex flex-col h-full bg-gray-900">
+      <div className="flex-shrink-0 p-2 border-b border-gray-700 flex items-center gap-2 bg-gray-800">
+        <button className="p-1 rounded-full hover:bg-gray-700 disabled:opacity-50" onClick={goBack} disabled={!canGoBack}>
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <button className="p-1 rounded-full hover:bg-muted disabled:opacity-50" onClick={goForward} disabled={!canGoForward}>
+        <button className="p-1 rounded-full hover:bg-gray-700 disabled:opacity-50" onClick={goForward} disabled={!canGoForward}>
           <ArrowRight className="h-4 w-4" />
         </button>
-        <button className="p-1 rounded-full hover:bg-muted disabled:opacity-50" onClick={refreshPage}>
+        <button className="p-1 rounded-full hover:bg-gray-700 disabled:opacity-50" onClick={refreshPage}>
           <RefreshCw className="h-4 w-4" />
         </button>
-        <button className="p-1 rounded-full hover:bg-muted" onClick={goHome}>
+        <button className="p-1 rounded-full hover:bg-gray-700" onClick={goHome}>
           <Home className="h-4 w-4" />
         </button>
         <div className="relative flex-grow">
-          <Globe className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Globe className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
           <form onSubmit={handleAddressBarSubmit}>
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              className="pl-9 bg-background"
+              className="pl-9 bg-gray-900"
             />
           </form>
         </div>
       </div>
-      <div className="flex-grow bg-background overflow-y-auto">
+      <div className="flex-grow bg-gray-900 overflow-y-auto">
         {renderContent()}
       </div>
     </div>

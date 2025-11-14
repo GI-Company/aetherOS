@@ -23,11 +23,12 @@ func NewAIService(broker *aether.Broker, aiModule *aether.AIModule) *AIService {
 	}
 }
 
-// Run starts the AI service's listener.
+// Run starts the AI service's listener for multiple topics.
 func (s *AIService) Run() {
-	// List of AI-related topics to listen on
 	aiTopics := []string{
 		"ai:generate",
+		"ai:generate:page",
+		"ai:design:component",
 		"ai:agent",
 	}
 
@@ -48,7 +49,7 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 	log.Printf("AI Service processing message ID %s on topic %s", env.ID, env.Topic)
 
 	var prompt string
-	// Standardize prompt extraction
+	// Standardize prompt extraction from various payload structures
 	if p, ok := env.Payload.(string); ok {
 		prompt = p
 	} else {
@@ -60,7 +61,12 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			return
 		}
 		if err := json.Unmarshal(payloadBytes, &payloadData); err == nil {
+			// Check for common keys like 'prompt', 'topic', or 'description'
 			if p, ok := payloadData["prompt"].(string); ok {
+				prompt = p
+			} else if p, ok := payloadData["topic"].(string); ok {
+				prompt = p
+			} else if p, ok := payloadData["description"].(string); ok {
 				prompt = p
 			}
 		}
@@ -72,18 +78,22 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		return
 	}
 
-	// Route based on topic
 	var generatedText string
 	var err error
 
+	// Route based on topic
 	switch env.Topic {
 	case "ai:generate":
 		generatedText, err = s.aiModule.GenerateText(prompt)
+	case "ai:generate:page":
+		generatedText, err = s.aiModule.GenerateWebPage(prompt)
+	case "ai:design:component":
+		generatedText, err = s.aiModule.DesignComponent(prompt)
 	// Add other cases for different AI flows here in the future
 	// case "ai:agent":
 	// 	generatedText, err = s.aiModule.ExecuteAgent(prompt)
 	default:
-		// For now, default all AI topics to GenerateText for simplicity
+		// Default all other AI topics to GenerateText for simplicity
 		generatedText, err = s.aiModule.GenerateText(prompt)
 	}
 
@@ -104,7 +114,7 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, responseText s
 		ID:        uuid.New().String(),
 		Topic:     responseTopicName,
 		Type:      "ai_response",
-		Payload:   responseText,
+		Payload:   responseText, // The payload is now just the raw string
 		CreatedAt: time.Now(),
 		Meta: map[string]string{
 			"correlationId": originalEnv.ID,

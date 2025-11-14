@@ -1,19 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { designByPromptUiGeneration } from "@/ai/flows/design-by-prompt-ui-generation";
-import { useToast } from "@/hooks/use-toast";
+import { Button } from "../components/Button";
+import { Textarea } from "../components/Textarea";
+import { useAether } from '../lib/aether_sdk';
+import { useToast } from "../hooks/useToast";
 import { Wand2, Loader2, Copy } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "../components/ScrollArea";
+import { Card, CardContent } from "../components/Card";
 
 export default function DesignStudioApp() {
   const [prompt, setPrompt] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const aether = useAether();
   const { toast } = useToast();
 
   const handleGenerate = async () => {
@@ -25,23 +25,37 @@ export default function DesignStudioApp() {
       });
       return;
     }
+    if (!aether) {
+      toast({ title: "Aether client not available", variant: "destructive" });
+      return;
+    }
+    
     setIsLoading(true);
     setGeneratedCode("");
-    try {
-      const result = await designByPromptUiGeneration({ prompt });
-      // Clean up the code from markdown fences
-      const cleanedCode = result.uiElementCode.replace(/```.*\n/g, '').replace(/```/g, '').trim();
+
+    aether.publish('ai:design:component', { description: prompt });
+
+    const handleResponse = (env: any) => {
+      // The payload is now the raw code string
+      const cleanedCode = env.payload.replace(/```.*\n/g, '').replace(/```/g, '').trim();
       setGeneratedCode(cleanedCode);
-    } catch (error) {
-      console.error("Error generating UI:", error);
+      setIsLoading(false);
+      aether.subscribe('ai:design:component:resp', handleResponse)(); // Unsubscribe
+    };
+
+    const handleError = (env: any) => {
+      console.error("Error generating UI:", env.payload.error);
       toast({
         title: "Generation Failed",
-        description: "An error occurred while generating the UI component.",
+        description: env.payload.error || "An error occurred while generating the UI component.",
         variant: "destructive"
       });
-    } finally {
       setIsLoading(false);
-    }
+      aether.subscribe('ai:design:component:error', handleError)(); // Unsubscribe
+    };
+    
+    aether.subscribe('ai:design:component:resp', handleResponse);
+    aether.subscribe('ai:design:component:error', handleError);
   };
   
   const copyToClipboard = () => {
@@ -54,20 +68,20 @@ export default function DesignStudioApp() {
   };
 
   return (
-    <div className="p-4 h-full flex flex-col gap-4">
-      <h2 className="text-2xl font-headline">Design by Prompt</h2>
-      <p className="text-sm text-muted-foreground -mt-2">
+    <div className="p-4 h-full flex flex-col gap-4 bg-gray-800 text-white">
+      <h2 className="text-2xl font-bold">Design by Prompt</h2>
+      <p className="text-sm text-gray-400 -mt-2">
         Describe a UI component, and let the Aether-Architect generate the code for you.
       </p>
       
       <div className="flex flex-col gap-2">
-        <Label htmlFor="design-prompt">Component Description</Label>
+        <label htmlFor="design-prompt" className="text-sm font-medium">Component Description</label>
         <Textarea
           id="design-prompt"
           placeholder="e.g., 'A responsive card component with an image, title, description, and a call-to-action button'"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          className="min-h-0"
+          className="min-h-0 bg-gray-900 border-gray-600"
           disabled={isLoading}
         />
         <Button onClick={handleGenerate} disabled={isLoading}>
@@ -86,8 +100,8 @@ export default function DesignStudioApp() {
       </div>
 
       <div className="flex-grow flex flex-col gap-2">
-         <Label htmlFor="code-output">Generated Code</Label>
-        <Card className="flex-grow relative bg-background/50">
+         <label htmlFor="code-output" className="text-sm font-medium">Generated Code</label>
+        <Card className="flex-grow relative bg-gray-900/50 border-gray-700">
           <CardContent className="p-0 h-full">
             <ScrollArea className="h-full">
               {generatedCode && (
@@ -99,7 +113,7 @@ export default function DesignStudioApp() {
                 <code>
                   {isLoading ? (
                     <div className="flex items-center justify-center h-full">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
                     </div>
                   ) : generatedCode || "Your generated code will appear here."}
                 </code>

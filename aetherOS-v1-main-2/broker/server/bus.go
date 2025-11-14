@@ -43,27 +43,31 @@ var upgrader = websocket.Upgrader{
 }
 
 // handleWSGateway upgrades the connection and connects the client to the bus.
-// The client can then publish to any topic and will receive messages from any topic it subscribes to client-side.
 func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return // upgrader logs errors
 	}
 
-	// All clients connect to a central hub/bus topic.
-	// The specific topics they receive messages from are managed by having the client
-	// subscribe to all topics it is interested in.
-	busTopic := s.Broker.GetTopic("bus") // A general topic for receiving messages
+	busTopic := s.Broker.GetTopic("bus")
 	client := aether.NewClient(conn, busTopic)
 
 	// Subscribe this client to all topics that might send responses.
-	// A more advanced system might have clients declare their subscriptions
-	// via a special message after connecting.
+	// This makes the gateway a general-purpose connection to the bus.
 	s.Broker.GetTopic("ai:generate:resp").Subscribe(client)
 	s.Broker.GetTopic("ai:generate:error").Subscribe(client)
+	s.Broker.GetTopic("ai:generate:page:resp").Subscribe(client)
+	s.Broker.GetTopic("ai:generate:page:error").Subscribe(client)
+	s.Broker.GetTopic("ai:design:component:resp").Subscribe(client)
+	s.Broker.GetTopic("ai:design:component:error").Subscribe(client)
+	s.Broker.GetTopic("vfs:list:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:delete:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:create:file:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:create:folder:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:read:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:write:result").Subscribe(client)
 
 
-	// The client is also subscribed to its primary hubTopic
 	busTopic.Subscribe(client)
 
 	go client.WritePump()

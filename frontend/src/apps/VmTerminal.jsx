@@ -1,11 +1,8 @@
-
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Terminal } from 'lucide-react';
-import { useFirebase } from '@/firebase';
-import { cn } from '@/lib/utils';
-import { agenticToolUser } from '@/ai/flows/agenticToolUser';
+import { useAether } from '../lib/aether_sdk';
+import { cn } from '../lib/utils';
 import { Loader2 } from 'lucide-react';
 
 type HistoryItem = {
@@ -14,7 +11,7 @@ type HistoryItem = {
 };
 
 export default function VmTerminalApp() {
-  const { user } = useFirebase();
+  const aether = useAether();
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<HistoryItem[]>(() => [
     { type: 'response', content: 'AetherOS Natural Language Shell [Version 1.0.0]' },
@@ -24,7 +21,8 @@ export default function VmTerminalApp() {
   const endOfHistoryRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const username = user?.displayName?.split(' ')[0].toLowerCase() || 'guest';
+  // Simplified user/host for demo purposes
+  const username = 'user';
   const hostname = 'aether-ai';
   const prompt = `${username}@${hostname}:~$`;
 
@@ -38,7 +36,7 @@ export default function VmTerminalApp() {
 
   const handleCommand = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || !aether) return;
 
     const command = input.trim();
     const newHistory: HistoryItem[] = [
@@ -49,25 +47,24 @@ export default function VmTerminalApp() {
     setInput('');
     setIsLoading(true);
 
-    try {
-        const result = await agenticToolUser(command);
-        let responseHistory = [...newHistory];
+    // This now sends the command to the Go backend via the message bus
+    aether.publish('ai:generate', command);
 
-        if (result.isWorkflow && result.dispatchedEvents) {
-            result.dispatchedEvents.forEach(event => {
-                responseHistory.push({ type: 'system', content: `[Action Dispatched: ${event.dispatchedEvent}] Payload: ${JSON.stringify(event.payload)}` });
-            });
-        } else if (result.conversationalResponse) {
-            responseHistory.push({ type: 'response', content: result.conversationalResponse });
-        } else {
-             responseHistory.push({ type: 'response', content: "I was unable to process that command." });
-        }
-        setHistory(responseHistory);
-    } catch (err: any) {
-        setHistory(prev => [...prev, { type: 'response', content: `Error: ${err.message}` }]);
-    } finally {
-        setIsLoading(false);
-    }
+    const handleResponse = (env: any) => {
+      // The payload is just the raw text response
+      setHistory(prev => [...prev, { type: 'response', content: env.payload }]);
+      setIsLoading(false);
+      aether.subscribe('ai:generate:resp', handleResponse)(); // Unsubscribe
+    };
+
+    const handleError = (env: any) => {
+       setHistory(prev => [...prev, { type: 'response', content: `Error: ${env.payload.error}` }]);
+       setIsLoading(false);
+       aether.subscribe('ai:generate:error', handleError)(); // Unsubscribe
+    };
+    
+    aether.subscribe('ai:generate:resp', handleResponse);
+    aether.subscribe('ai:generate:error', handleError);
   };
   
   const handleTerminalClick = () => {

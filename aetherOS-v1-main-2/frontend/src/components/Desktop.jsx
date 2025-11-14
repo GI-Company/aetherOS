@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Window from './Window';
 import Dock from './Dock';
@@ -12,11 +13,15 @@ const Desktop = () => {
   const nextId = useRef(0);
   const desktopRef = useRef(null);
   
-  const openApp = useCallback((app) => {
+  const openApp = useCallback((app, props = {}) => {
     // Check if the app is already open
     const existingWindow = windows.find(w => w.appId === app.id);
     if (existingWindow) {
       focusWindow(existingWindow.id);
+      // If props are passed, update the existing window's props
+      if (Object.keys(props).length > 0) {
+        setWindows(prev => prev.map(w => w.id === existingWindow.id ? { ...w, props: { ...w.props, ...props } } : w));
+      }
       return;
     }
 
@@ -32,6 +37,7 @@ const Desktop = () => {
       zIndex: nextZIndex.current++,
       isMinimized: false,
       isMaximized: false,
+      props: props, // Store the props
     };
     setWindows([...windows, newWindow]);
     setActiveWindow(newWindow.id);
@@ -122,6 +128,8 @@ const Desktop = () => {
         
         {windows.map((win) => {
           const AppToRender = APPS.find(app => app.id === win.appId).component;
+          // Pass the onAppOpen function to apps that need it
+          const appProps = { ...win.props, onAppOpen: openApp };
           return (
             <Window
               key={win.id}
@@ -142,7 +150,7 @@ const Desktop = () => {
               isActive={activeWindow === win.id}
               bounds={desktopRef}
             >
-              <AppToRender />
+              <AppToRender {...appProps} />
             </Window>
           );
         })}

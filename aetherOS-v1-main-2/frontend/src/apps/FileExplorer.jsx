@@ -7,9 +7,10 @@ import { Button } from '../components/Button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/DropdownMenu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/AlertDialog';
 import { Input } from '../components/Input';
+import { APPS } from '../lib/apps';
 
 
-const FileExplorer = () => {
+const FileExplorer = ({ onAppOpen }) => {
   const [files, setFiles] = useState([]);
   const [currentPath, setCurrentPath] = useState('/home/user');
   const [isLoading, setIsLoading] = useState(true);
@@ -65,6 +66,11 @@ const FileExplorer = () => {
       setCurrentPath(item.path);
     } else {
       console.log(`Opening file: ${item.name}`);
+      // Find the code editor app and open it with the file path
+      const codeEditorApp = APPS.find(app => app.id === 'code-editor');
+      if (codeEditorApp && onAppOpen) {
+          onAppOpen(codeEditorApp, { filePath: item.path });
+      }
     }
   };
   
@@ -77,7 +83,9 @@ const FileExplorer = () => {
   const handleCreate = (name) => {
       if (!name || !aether || !creatingItemType) return;
       const topic = `vfs:create:${creatingItemType}`;
-      aether.publish(topic, { path: currentPath, name });
+      const payload = { path: currentPath, name };
+      console.log(`Publishing to ${topic} with payload:`, payload);
+      aether.publish(topic, payload);
   };
   
   const formatBytes = (bytes, decimals = 2) => {

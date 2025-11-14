@@ -1,3 +1,5 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
 /**
  * Aether SDK for frontend clients to communicate with the Aether Kernel.
  */
@@ -6,27 +8,31 @@
 // be obtained from an authentication service.
 const FAKE_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcm9udGVuZC11c2VyIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE3NjcyMzkwMjJ9.C6F5_5Jrg9A3p6h4Yl-4I0n-bYd28Y9bJmJgYzRzZDA";
 
-
-export class Client {
+class AetherClient {
   constructor(baseUrl) {
-    // The base URL should be ws://localhost:8080/v1/bus/ws
     this.baseUrl = baseUrl;
     this.ws = null;
     this.subscriptions = new Map();
     this.messageQueue = [];
     this.isConnected = false;
+    this.connectionPromise = null;
   }
 
-  async connect() {
-    return new Promise((resolve, reject) => {
-        // The URL no longer needs a topic, as routing is handled by the backend.
+  connect() {
+    if (this.isConnected) {
+        return Promise.resolve();
+    }
+    if (this.connectionPromise) {
+        return this.connectionPromise;
+    }
+
+    this.connectionPromise = new Promise((resolve, reject) => {
         const url = `${this.baseUrl}?token=${FAKE_JWT}`;
         this.ws = new WebSocket(url);
 
         this.ws.onopen = () => {
-            console.log("WebSocket connection established.");
+            console.log("Aether-Kernel connection established.");
             this.isConnected = true;
-            // Send any queued messages
             this.messageQueue.forEach(msg => this.ws.send(msg));
             this.messageQueue = [];
             resolve();
@@ -35,6 +41,7 @@ export class Client {
         this.ws.onmessage = (event) => {
             try {
                 const envelope = JSON.parse(event.data);
+                // console.log("Received envelope:", envelope.topic, envelope.payload);
                 if (this.subscriptions.has(envelope.topic)) {
                     this.subscriptions.get(envelope.topic).forEach(callback => {
                         callback(envelope);
@@ -47,21 +54,19 @@ export class Client {
 
         this.ws.onerror = (error) => {
             console.error("WebSocket error:", error);
+            this.connectionPromise = null;
             reject(error);
         };
 
         this.ws.onclose = () => {
             console.log("WebSocket connection closed.");
             this.isConnected = false;
+            this.connectionPromise = null;
         };
     });
+    return this.connectionPromise;
   }
 
-  /**
-   * Publishes a message to a topic on the Aether message bus.
-   * @param {string} topic The topic to publish to.
-   * @param {any} payload The message payload.
-   */
   async publish(topic, payload) {
     const envelope = {
       id: crypto.randomUUID(),
@@ -75,25 +80,23 @@ export class Client {
     if (this.isConnected) {
       this.ws.send(message);
     } else {
-      // Queue the message if the connection is not yet open
       this.messageQueue.push(message);
-      console.log("Connection not open. Queuing message for topic:", topic);
     }
   }
 
-  /**
-   * Subscribes to a topic on the Aether message bus.
-   * @param {string} topic The topic to subscribe to.
-   * @param {function} callback The callback to invoke when a message is received.
-   */
   subscribe(topic, callback) {
     if (!this.subscriptions.has(topic)) {
       this.subscriptions.set(topic, []);
     }
     this.subscriptions.get(topic).push(callback);
     
-    // This just registers the callback client-side. The server now sends all
-    // relevant topic messages over the single WebSocket connection.
+    // We could add an unsubscribe method to remove callbacks
+    return () => {
+        const callbacks = this.subscriptions.get(topic);
+        if (callbacks) {
+            this.subscriptions.set(topic, callbacks.filter(cb => cb !== callback));
+        }
+    }
   }
   
   close() {
@@ -102,3 +105,35 @@ export class Client {
     }
   }
 }
+
+// React Context for the Aether Client
+const AetherContext = createContext(null);
+
+export const AetherProvider = ({ children }) => {
+    const [client, setClient] = useState(null);
+
+    useEffect(() => {
+        const aetherClient = new AetherClient('ws://localhost:8080/v1/bus/ws');
+        aetherClient.connect()
+            .then(() => {
+                setClient(aetherClient);
+            })
+            .catch(err => {
+                console.error("Failed to connect Aether client in provider", err);
+            });
+        
+        return () => {
+            aetherClient.close();
+        };
+    }, []);
+
+    return (
+        <AetherContext.Provider value={client}>
+            {children}
+        </AetherContext.Provider>
+    );
+};
+
+export const useAether = () => {
+    return useContext(AetherContext);
+};

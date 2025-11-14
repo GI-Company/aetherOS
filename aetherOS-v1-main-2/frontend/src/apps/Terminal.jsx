@@ -1,69 +1,51 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Client } from '../lib/aether_sdk';
+import { useAether } from '../lib/aether_sdk';
 import './Terminal.css';
 
 const Terminal = () => {
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState([
+      { type: 'response', content: 'Aether Kernel Terminal [Version 1.0]' },
+      { type: 'response', content: '(c) Aether Technologies. All rights reserved.' },
+      { type: 'response', content: ' ' },
+  ]);
   const [input, setInput] = useState('');
-  const [aetherClient, setAetherClient] = useState(null);
+  const aether = useAether(); // Use the context hook
   const endOfHistoryRef = useRef(null);
-
-  // Initialize Aether Client
-  useEffect(() => {
-    const initializeClient = async () => {
-      try {
-        // The WebSocket URL is now simpler.
-        const client = new Client('ws://localhost:8080/v1/bus/ws');
-        await client.connect();
-        console.log("Aether client connected.");
-        setAetherClient(client);
-
-        // Subscribe to AI responses
-        client.subscribe('ai:generate:resp', (env) => {
-            console.log("Received AI response:", env);
-            setHistory((prevHistory) => [
-              ...prevHistory,
-              { type: 'response', content: env.payload },
-            ]);
-        });
-        
-        client.subscribe('ai:generate:error', (env) => {
-            console.error("Received AI error:", env);
-             setHistory((prevHistory) => [
-              ...prevHistory,
-              { type: 'error', content: env.payload.error || "An unknown AI error occurred." },
-            ]);
-        })
-
-      } catch (error) {
-        console.error("Failed to connect Aether client:", error);
-        setHistory((prevHistory) => [
-          ...prevHistory,
-          { type: 'error', content: 'Connection to Aether Kernel failed.' },
-        ]);
-      }
-    };
-    initializeClient();
-
-    // Cleanup on unmount
-    return () => {
-      if (aetherClient) {
-        aetherClient.close();
-      }
-    };
-  }, []); // Run only once
+  const inputRef = useRef(null);
 
   useEffect(() => {
     endOfHistoryRef.current?.scrollIntoView({ behavior: 'smooth' });
+    inputRef.current?.focus();
   }, [history]);
 
-  const handleInputChange = (e) => {
-    setInput(e.target.value);
-  };
+  useEffect(() => {
+    if (!aether) return;
+
+    const handleAIResponse = (env) => {
+        console.log("Received AI response:", env);
+        setHistory((prevHistory) => [
+          ...prevHistory,
+          { type: 'response', content: env.payload },
+        ]);
+    };
+    
+    const handleAIError = (env) => {
+        console.error("Received AI error:", env);
+         setHistory((prevHistory) => [
+          ...prevHistory,
+          { type: 'error', content: env.payload.error || "An unknown AI error occurred." },
+        ]);
+    };
+    
+    aether.subscribe('ai:generate:resp', handleAIResponse);
+    aether.subscribe('ai:generate:error', handleAIError);
+
+  }, [aether]);
+
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (!input.trim() || !aetherClient) return;
+    if (!input.trim() || !aether) return;
 
     const command = input;
     setHistory((prevHistory) => [
@@ -72,9 +54,8 @@ const Terminal = () => {
     ]);
     setInput('');
     
-    // Publish command to the AI service
     try {
-        await aetherClient.publish('ai:generate', command);
+        await aether.publish('ai:generate', command);
     } catch (error) {
         console.error("Failed to publish command:", error);
          setHistory((prevHistory) => [
@@ -84,26 +65,30 @@ const Terminal = () => {
     }
   };
 
+  const handleTerminalClick = () => {
+      inputRef.current?.focus();
+  }
+
   return (
-    <div className="terminal">
+    <div className="terminal h-full w-full" onClick={handleTerminalClick}>
       <div className="history">
         {history.map((item, index) => (
           <div key={index} className={`history-item ${item.type}`}>
             {item.type === 'command' && <span className="prompt">$ </span>}
-            {item.content}
+            <pre className="whitespace-pre-wrap font-mono">{item.content}</pre>
           </div>
         ))}
       </div>
       <form onSubmit={handleFormSubmit} className="input-form">
         <span className="prompt">$</span>
         <input
+          ref={inputRef}
           type="text"
           value={input}
-          onChange={handleInputChange}
+          onChange={(e) => setInput(e.target.value)}
           className="input"
-          autoFocus
-          disabled={!aetherClient}
-          placeholder={aetherClient ? "Enter a command..." : "Connecting to Aether Kernel..."}
+          disabled={!aether}
+          placeholder={aether ? "Enter a command..." : "Connecting to Aether Kernel..."}
         />
       </form>
       <div ref={endOfHistoryRef} />

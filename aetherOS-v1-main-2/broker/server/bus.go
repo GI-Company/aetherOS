@@ -50,23 +50,27 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 		return // upgrader logs errors
 	}
 
-	// All clients connect to a central hub, but can publish to any topic.
-	// We will create response topics for them to receive messages on.
-	// For simplicity, we'll subscribe them to a "system:events" topic to receive broadcasts.
-	// A more advanced implementation might have clients declare subscriptions.
-	hubTopic := s.Broker.GetTopic("system:events") // A general topic for receiving messages
-	client := aether.NewClient(conn, hubTopic)
+	// All clients connect to a central hub/bus topic.
+	// The specific topics they receive messages from are managed by having the client
+	// subscribe to all topics it is interested in.
+	busTopic := s.Broker.GetTopic("bus") // A general topic for receiving messages
+	client := aether.NewClient(conn, busTopic)
 
-	// Subscribing the client to multiple response topics.
-	// The client-side SDK will filter messages by topic.
-	aiRespTopic := s.Broker.GetTopic("ai:generate:resp")
-	aiErrorTopic := s.Broker.GetTopic("ai:generate:error")
+	// Subscribe this client to all topics that might send responses.
+	// A more advanced system might have clients declare their subscriptions
+	// via a special message after connecting.
+	s.Broker.GetTopic("ai:generate:resp").Subscribe(client)
+	s.Broker.GetTopic("ai:generate:error").Subscribe(client)
+	s.Broker.GetTopic("vfs:list:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:create:file:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:create:folder:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:delete:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:write:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:read:result").Subscribe(client)
 
-	aiRespTopic.Subscribe(client)
-	aiErrorTopic.Subscribe(client)
 
 	// The client is also subscribed to its primary hubTopic
-	hubTopic.Subscribe(client)
+	busTopic.Subscribe(client)
 
 	go client.WritePump()
 	go client.ReadPump()

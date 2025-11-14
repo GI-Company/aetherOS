@@ -1,3 +1,4 @@
+
 package services
 
 import (
@@ -11,14 +12,14 @@ import (
 
 // VfsService handles file system-related requests from the message bus.
 type VfsService struct {
-	broker   *aether.Broker
+	broker    *aether.Broker
 	vfsModule *aether.VFSModule
 }
 
 // NewVfsService creates a new VFS service.
 func NewVfsService(broker *aether.Broker, vfsModule *aether.VFSModule) *VfsService {
 	return &VfsService{
-		broker:   broker,
+		broker:    broker,
 		vfsModule: vfsModule,
 	}
 }
@@ -27,7 +28,8 @@ func NewVfsService(broker *aether.Broker, vfsModule *aether.VFSModule) *VfsServi
 func (s *VfsService) Run() {
 	vfsTopics := []string{
 		"vfs:list",
-		// Add other topics like vfs:create, vfs:delete etc. here
+		"vfs:delete",
+		// Add other topics like vfs:create etc. here
 	}
 
 	for _, topicName := range vfsTopics {
@@ -47,6 +49,8 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 	switch env.Topic {
 	case "vfs:list":
 		s.handleList(env)
+	case "vfs:delete":
+		s.handleDelete(env)
 	// Add other cases here for vfs:create, vfs:delete etc.
 	default:
 		log.Printf("VFS Service received unhandled topic: %s", env.Topic)
@@ -90,6 +94,33 @@ func (s *VfsService) handleList(env *aether.Envelope) {
 	s.publishListResponse(env, payload.Path, files)
 }
 
+// handleDelete handles requests for deleting files or folders.
+func (s *VfsService) handleDelete(env *aether.Envelope) {
+	log.Printf("VFS Service processing vfs:delete message ID: %s", env.ID)
+
+	var payload struct {
+		Path string `json:"path"`
+	}
+
+	payloadBytes, err := json.Marshal(env.Payload)
+	if err != nil {
+		s.publishError(env, "Invalid delete payload format")
+		return
+	}
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		s.publishError(env, "Invalid delete payload structure")
+		return
+	}
+
+	if err := s.vfsModule.Delete(payload.Path); err != nil {
+		log.Printf("error deleting path %s: %v", payload.Path, err)
+		s.publishError(env, err.Error())
+		return
+	}
+
+	// Publish a generic success response
+	s.publishSuccessResponse(env)
+}
 
 func (s *VfsService) publishListResponse(originalEnv *aether.Envelope, path string, files []*aether.FileInfo) {
 	responseTopicName := originalEnv.Topic + ":result"
@@ -101,17 +132,31 @@ func (s *VfsService) publishListResponse(originalEnv *aether.Envelope, path stri
 	}
 
 	responseEnv := &aether.Envelope{
-		ID:        uuid.New().String(),
-		Topic:     responseTopicName,
-		Type:      "vfs_list_response",
-		Payload:   responsePayload,
-		CreatedAt: time.Now(),
-		Meta: map[string]string{
-			"correlationId": originalEnv.ID,
-		},
+		ID:          uuid.New().String(),
+		Topic:       responseTopicName,
+		Type:        "vfs_list_response",
+		Payload:     responsePayload,
+		CreatedAt:   time.Now(),
+		Meta:        map[string]string{"correlationId": originalEnv.ID},
 	}
 
 	log.Printf("VFS Service publishing response to topic: %s", responseTopicName)
+	responseTopic.Publish(responseEnv)
+}
+
+func (s *VfsService) publishSuccessResponse(originalEnv *aether.Envelope) {
+	responseTopicName := originalEnv.Topic + ":result"
+	responseTopic := s.broker.GetTopic(responseTopicName)
+
+	responseEnv := &aether.Envelope{
+		ID:          uuid.New().String(),
+		Topic:       responseTopicName,
+		Type:        "vfs_success_response",
+		Payload:     map[string]interface{}{"success": true, "path": originalEnv.Payload},
+		CreatedAt:   time.Now(),
+		Meta:        map[string]string{"correlationId": originalEnv.ID},
+	}
+	log.Printf("VFS Service publishing success to topic: %s", responseTopicName)
 	responseTopic.Publish(responseEnv)
 }
 
@@ -122,14 +167,12 @@ func (s *VfsService) publishError(originalEnv *aether.Envelope, errorMsg string)
 	errorPayload := map[string]string{"error": errorMsg}
 
 	errorEnv := &aether.Envelope{
-		ID:        uuid.New().String(),
-		Topic:     errorTopicName,
-		Type:      "vfs_error",
-		Payload:   errorPayload,
-		CreatedAt: time.Now(),
-		Meta: map[string]string{
-			"correlationId": originalEnv.ID,
-		},
+		ID:          uuid.New().String(),
+		Topic:       errorTopicName,
+		Type:        "vfs_error",
+		Payload:     errorPayload,
+		CreatedAt:   time.Now(),
+		Meta:        map[string]string{"correlationId": originalEnv.ID},
 	}
 	log.Printf("VFS Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)

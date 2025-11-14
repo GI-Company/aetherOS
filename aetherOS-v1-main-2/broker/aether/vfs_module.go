@@ -1,6 +1,8 @@
+
 package aether
 
 import (
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -37,14 +39,14 @@ func (vfs *VFSModule) initDefaultFiles() {
 	// Adding some default files and folders for demonstration.
 	// The key is the full path.
 	vfs.files = map[string]*FileInfo{
-		"/home":                       {Name: "home", IsDir: true, ModTime: now, Path: "/home"},
-		"/home/user":                  {Name: "user", IsDir: true, ModTime: now, Path: "/home/user"},
-		"/home/user/documents":        {Name: "documents", IsDir: true, ModTime: now, Path: "/home/user/documents"},
+		"/home":                           {Name: "home", IsDir: true, ModTime: now, Path: "/home"},
+		"/home/user":                      {Name: "user", IsDir: true, ModTime: now, Path: "/home/user"},
+		"/home/user/documents":            {Name: "documents", IsDir: true, ModTime: now, Path: "/home/user/documents"},
 		"/home/user/documents/resume.txt": {Name: "resume.txt", Size: 1024, IsDir: false, ModTime: now, Path: "/home/user/documents/resume.txt"},
-		"/home/user/photos":           {Name: "photos", IsDir: true, ModTime: now, Path: "/home/user/photos"},
+		"/home/user/photos":               {Name: "photos", IsDir: true, ModTime: now, Path: "/home/user/photos"},
 		"/home/user/photos/vacation.jpg":  {Name: "vacation.jpg", Size: 204800, IsDir: false, ModTime: now, Path: "/home/user/photos/vacation.jpg"},
-		"/home/user/welcome.txt":      {Name: "welcome.txt", Size: 256, IsDir: false, ModTime: now, Path: "/home/user/welcome.txt"},
-		"/README.md":                  {Name: "README.md", Size: 512, IsDir: false, ModTime: now, Path: "/README.md"},
+		"/home/user/welcome.txt":          {Name: "welcome.txt", Size: 256, IsDir: false, ModTime: now, Path: "/home/user/welcome.txt"},
+		"/README.md":                      {Name: "README.md", Size: 512, IsDir: false, ModTime: now, Path: "/README.md"},
 	}
 }
 
@@ -71,7 +73,7 @@ func (vfs *VFSModule) List(path string) ([]*FileInfo, error) {
 			results = append(results, info)
 		}
 	}
-	
+
 	// Add root directories if listing "/"
 	if cleanPath == "/" {
 		for p, info := range vfs.files {
@@ -90,14 +92,40 @@ func (vfs *VFSModule) List(path string) ([]*FileInfo, error) {
 		}
 	}
 
-
 	// Sort results: folders first, then by name
 	sort.Slice(results, func(i, j int) bool {
 		if results[i].IsDir != results[j].IsDir {
 			return results[i].IsDir
 		}
-		return results[i].Name < results[j].Name
+		return results[i].Name < results[i].Name
 	})
 
 	return results, nil
+}
+
+// Delete removes a file or folder from the VFS.
+func (vfs *VFSModule) Delete(path string) error {
+	vfs.mu.Lock()
+	defer vfs.mu.Unlock()
+
+	cleanPath := filepath.Clean(path)
+
+	_, ok := vfs.files[cleanPath]
+	if !ok {
+		return fmt.Errorf("path not found: %s", cleanPath)
+	}
+
+	// If it's a directory, delete all children
+	if vfs.files[cleanPath].IsDir {
+		for p := range vfs.files {
+			if strings.HasPrefix(p, cleanPath+"/") {
+				delete(vfs.files, p)
+			}
+		}
+	}
+
+	// Delete the file/folder itself
+	delete(vfs.files, cleanPath)
+
+	return nil
 }

@@ -3,14 +3,12 @@
 
 import Image from "next/image";
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import TopBar from "./top-bar";
-import Dock from "./dock";
-import Window from "./window";
+import TopBar from "@/components/aether-os/top-bar";
+import Dock from "@/components/aether-os/dock";
+import Window from "@/components/aether-os/window";
 import { App, APPS } from "@/lib/apps";
-import CommandPalette from "./command-palette";
 import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "../ui/toast";
-import { proactiveOsAssistance } from "@/ai/flows/proactive-os-assistance";
+import { ToastAction } from "@/components/ui/toast";
 import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2, PartyPopper } from "lucide-react";
@@ -20,7 +18,7 @@ import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
 import { getAuth, signOut } from "firebase/auth";
-import TutorialDialog from "./tutorial-dialog";
+import TutorialDialog from "@/components/aether-os/tutorial-dialog";
 import { TUTORIALS } from "@/lib/tutorials";
 
 export type WindowInstance = {
@@ -232,39 +230,6 @@ export default function Desktop() {
         });
     }
   }, [openApps, highestZIndex, toast]);
-
-  useEffect(() => {
-    const focusedApp = openApps.find(app => app.id === focusedAppId);
-    
-    if (focusedApp && !user?.isAnonymous) {
-       const proactiveToastTimeout = setTimeout(async () => {
-        try {
-            const openAppNames = openApps.filter(a => !a.isMinimized).map(a => a.app.name).join(', ');
-            const assistance = await proactiveOsAssistance({
-                userActivity: `Working in the ${focusedApp.app.name} app.`,
-                context: `Current open applications: ${openAppNames}. Had ${focusedApp.app.name} focused for 10 seconds.`
-            });
-
-            if (assistance.suggestion) {
-              let action;
-              if (assistance.suggestion.toLowerCase().includes("arrange")) {
-                action = <ToastAction altText="Arrange Windows" onClick={arrangeWindows}>Arrange</ToastAction>
-              }
-
-              toast({
-                  title: "Proactive OS Assistance",
-                  description: assistance.suggestion,
-                  action: action,
-              });
-            }
-        } catch (error) {
-            console.warn("Proactive assistance AI call failed:", error);
-        }
-      }, 10000); 
-
-      return () => clearTimeout(proactiveToastTimeout);
-    }
-  }, [focusedAppId, openApps, toast, arrangeWindows, user]);
 
   const openApp = useCallback((app: App, props: Record<string, any> = {}) => {
     const existingAppInstance = openApps.find(a => a.app.id === app.id);
@@ -537,18 +502,9 @@ export default function Desktop() {
             );
           })}
         </div>
-        <Dock ref={dockRef} onAppClick={openApp} openApps={openApps} onAppFocus={focusApp} />
+        <Dock ref={dockRef} onAppClick={openApp} openApps={openApps} onAppFocus={focusApp} focusedAppId={focusedAppId}/>
       </div>
-      <CommandPalette 
-        open={commandPaletteOpen} 
-        setOpen={setCommandPaletteOpen} 
-        onOpenApp={openApp}
-        openApps={openApps}
-        onArrangeWindows={arrangeWindows}
-        onOpenFile={openFile}
-        setWallpaper={setWallpaper}
-      />
-       <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+      <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Upgrade Your Account</DialogTitle>

@@ -2,13 +2,13 @@
 "use client";
 
 import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '../Button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../Card';
 import { FolderPlus, FolderOpen } from 'lucide-react';
-import { useAether } from '@/lib/aether_sdk_client';
-import { useUser } from '@/firebase';
-import { useToast } from '@/hooks/use-toast';
-import { osEvent } from '@/lib/events';
+import { useAether } from '../../lib/aether_sdk';
+import { useUser } from '../../lib/aether_sdk';
+import { useToast } from '../../hooks/useToast';
+import { osEvent } from '../../lib/events';
 
 interface WelcomeScreenProps {
     onSelectProject: (path: string) => void;
@@ -16,7 +16,7 @@ interface WelcomeScreenProps {
 
 export default function WelcomeScreen({ onSelectProject }: WelcomeScreenProps) {
     const aether = useAether();
-    const { user } = useUser();
+    const { user } = useAether();
     const { toast } = useToast();
 
     const handleCreateProject = () => {
@@ -26,7 +26,8 @@ export default function WelcomeScreen({ onSelectProject }: WelcomeScreenProps) {
             const path = `users/${user.uid}/${projectName}`;
             aether.publish('vfs:create:folder', { path: `users/${user.uid}`, name: projectName });
             onSelectProject(path);
-            toast({title: "Project Created", description: `Switched to new project: ${projectName}`})
+            toast({title: "Project Created", description: `Switched to new project: ${projectName}`});
+            osEvent.emit('file-system-change');
         }
     };
     
@@ -39,11 +40,11 @@ export default function WelcomeScreen({ onSelectProject }: WelcomeScreenProps) {
     }
 
     return (
-        <div className="h-full w-full flex items-center justify-center p-8 bg-background">
-            <Card className="w-full max-w-md">
+        <div className="h-full w-full flex items-center justify-center p-8 bg-gray-900">
+            <Card className="w-full max-w-md bg-gray-800 border-gray-700 text-white">
                 <CardHeader>
-                    <CardTitle className="text-3xl font-headline">Code Editor</CardTitle>
-                    <CardDescription>Create a new project or open an existing one.</CardDescription>
+                    <CardTitle className="text-3xl text-center">Code Editor</CardTitle>
+                    <CardDescription className="text-center">Create a new project or open an existing one.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <Button className="w-full justify-start h-14 text-base" onClick={handleCreateProject}>

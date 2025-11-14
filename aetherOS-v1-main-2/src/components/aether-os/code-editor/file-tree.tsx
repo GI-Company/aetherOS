@@ -2,12 +2,20 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useAether } from '../../lib/aether_sdk';
+import { useAether } from '@/lib/aether_sdk_client';
 import { Loader2, RefreshCw } from "lucide-react";
-import { Button } from "../Button";
-import FileTreeItem, { FileSystemItem } from "./file-tree-item";
-import { cn } from "../../lib/utils";
-import { osEvent } from '../../lib/events';
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import FileTreeItem from "./file-tree-item";
+import { cn } from "@/lib/utils";
+
+interface FileSystemItem {
+    name: string;
+    path: string;
+    type: 'folder' | 'file';
+    children?: FileSystemItem[];
+}
 
 interface FileTreeProps {
     basePath: string;
@@ -16,14 +24,34 @@ interface FileTreeProps {
 
 const buildFileTree = (files: any[], basePath: string): FileSystemItem[] => {
     const rootItems: FileSystemItem[] = [];
+    const allNodes: { [key: string]: FileSystemItem } = {};
+
     if (!files) return [];
 
-    const directChildren = files.map(file => ({
-      name: file.name,
-      path: file.path,
-      type: file.isDir ? 'folder' : 'file',
-      children: file.isDir ? [] : undefined,
-    }));
+    // Create all nodes
+    files.forEach(file => {
+        const node: FileSystemItem = {
+            name: file.name,
+            path: file.path,
+            type: file.isDir ? 'folder' : 'file',
+            children: file.isDir ? [] : undefined,
+        };
+        allNodes[file.path] = node;
+    });
+
+    // Build the tree
+    Object.values(allNodes).forEach(node => {
+        const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
+        if (parentPath === basePath || (basePath === '/' && parentPath === '')) {
+            if (!rootItems.some(item => item.path === node.path)) {
+                rootItems.push(node);
+            }
+        } else if (allNodes[parentPath] && allNodes[parentPath].children) {
+            if (!allNodes[parentPath].children!.some(child => child.path === node.path)) {
+                allNodes[parentPath].children!.push(node);
+            }
+        }
+    });
 
     const sortChildren = (nodes: FileSystemItem[]) => {
         nodes.sort((a, b) => {
@@ -31,10 +59,15 @@ const buildFileTree = (files: any[], basePath: string): FileSystemItem[] => {
             if (a.type === 'file' && b.type === 'folder') return 1;
             return a.name.localeCompare(b.name);
         });
+        nodes.forEach(node => {
+            if (node.children) {
+                sortChildren(node.children);
+            }
+        });
     };
-
-    sortChildren(directChildren);
-    return directChildren;
+    
+    sortChildren(rootItems);
+    return rootItems;
 };
 
 
@@ -42,34 +75,40 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
     const aether = useAether();
     const [tree, setTree] = useState<FileSystemItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
 
-    const fetchFiles = useCallback(async () => {
+    const fetchFiles = useCallback(async (path: string) => {
         if (!aether) return;
         setIsLoading(true);
-        aether.publish('vfs:list', { path: basePath });
-    }, [aether, basePath]);
+        aether.publish('vfs:list', { path });
+    }, [aether]);
 
     useEffect(() => {
-        if (!aether) return;
+        if (!aether || !basePath) return;
 
-        const handleFileList = (env) => {
+        const handleFileList = (env: any) => {
             if (env.payload.path === basePath) {
                 const fileTree = buildFileTree(env.payload.files, basePath);
                 setTree(fileTree);
                 setIsLoading(false);
             }
         };
-
+        
         const sub = aether.subscribe('vfs:list:result', handleFileList);
-        const handleGlobalFsChange = () => fetchFiles();
-        osEvent.on('file-system-change', handleGlobalFsChange);
+        
+        fetchFiles(basePath);
 
-        fetchFiles();
+        const mutationSub = aether.subscribe('vfs:delete:result', () => fetchFiles(basePath));
+        const createFileSub = aether.subscribe('vfs:create:file:result', () => fetchFiles(basePath));
+        const createFolderSub = aether.subscribe('vfs:create:folder:result', () => fetchFiles(basePath));
 
         return () => {
             sub();
-            osEvent.off('file-system-change', handleGlobalFsChange);
+            mutationSub();
+            createFileSub();
+            createFolderSub();
         };
+
     }, [aether, basePath, fetchFiles]);
 
 
@@ -77,6 +116,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         if (!aether || !name) return;
         const topic = `vfs:create:${type}`;
         aether.publish(topic, {path, name});
+        toast({ title: `Creating ${type}...`, description: name });
     };
     
     const handleDelete = async (item: FileSystemItem) => {
@@ -84,19 +124,20 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
        const confirm = window.confirm(`Are you sure you want to delete ${item.name}?`);
        if (confirm) {
            aether.publish('vfs:delete', { path: item.path });
+           toast({ title: `Deleting...`, description: item.name });
        }
     };
 
 
     return (
-        <div className="flex-grow flex flex-col min-h-0 text-white">
-             <div className="p-2 border-b border-gray-700 flex-shrink-0">
-                <Button variant="ghost" size="sm" onClick={fetchFiles} disabled={isLoading}>
+        <div className="flex-grow flex flex-col min-h-0">
+             <div className="p-2 border-b flex-shrink-0">
+                <Button variant="ghost" size="sm" onClick={() => fetchFiles(basePath)} disabled={isLoading}>
                     <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
                     Refresh
                 </Button>
             </div>
-            <div className="flex-grow overflow-y-auto">
+            <ScrollArea className="flex-grow">
                 <div className="p-2 text-sm">
                     {isLoading ? (
                         <div className="flex items-center justify-center p-4">
@@ -114,10 +155,10 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
                         ))
                     )}
                      { !isLoading && tree.length === 0 &&
-                        <p className="text-gray-500 text-center p-4">Project is empty.</p>
+                        <p className="text-muted-foreground text-center p-4">Project is empty.</p>
                      }
                 </div>
-            </div>
+            </ScrollArea>
         </div>
     );
 }

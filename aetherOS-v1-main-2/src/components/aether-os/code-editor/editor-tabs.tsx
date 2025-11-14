@@ -2,14 +2,15 @@
 "use client";
 
 import React, { useRef, lazy, Suspense } from "react";
-import { Button } from "../Button";
-import { cn } from "../../lib/utils";
+import { Button } from "@/components/ui/button";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { X, Loader2, Save } from "lucide-react";
-import { useAether } from '../../lib/aether_sdk';
-import { useToast } from "../../hooks/useToast";
-import { osEvent } from '../../lib/events';
+import { useToast } from "@/hooks/use-toast";
+import { useAether } from "@/lib/aether_sdk_client";
+import { osEvent } from "@/lib/events";
 
-const MonacoEditor = lazy(() => import("../monaco-editor"));
+const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
 
 export type EditorFile = {
     id: string;
@@ -77,33 +78,36 @@ export default function EditorTabs({
     };
 
     return (
-        <div className="flex flex-col h-full w-full bg-gray-800 text-white">
+        <div className="flex flex-col h-full w-full bg-card">
             {/* Tabs */}
-            <div className="flex-shrink-0 border-b border-gray-700">
-                <div className="flex">
-                    {files.map(file => (
-                        <div
-                            key={file.id}
-                            onClick={() => onTabClick(file.id)}
-                            className={cn(
-                                "flex items-center gap-2 px-3 py-2 border-r border-gray-700 text-sm cursor-pointer",
-                                activeFileId === file.id
-                                    ? "bg-gray-900 text-white"
-                                    : "bg-gray-700/50 text-gray-400 hover:bg-gray-700"
-                            )}
-                        >
-                            <span className={cn(file.isDirty && "italic")}>{file.name}{file.isDirty ? '*' : ''}</span>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 rounded-full"
-                                onClick={(e) => { e.stopPropagation(); onCloseTab(file.id); }}
+            <div className="flex-shrink-0 border-b">
+                <ScrollArea className="w-full whitespace-nowrap">
+                    <div className="flex">
+                        {files.map(file => (
+                            <div
+                                key={file.id}
+                                onClick={() => onTabClick(file.id)}
+                                className={cn(
+                                    "flex items-center gap-2 px-3 py-2 border-r text-sm cursor-pointer",
+                                    activeFileId === file.id
+                                        ? "bg-background text-foreground"
+                                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                )}
                             >
-                                <X className="h-3 w-3" />
-                            </Button>
-                        </div>
-                    ))}
-                </div>
+                                <span className={cn(file.isDirty && "italic")}>{file.name}{file.isDirty ? '*' : ''}</span>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 rounded-full"
+                                    onClick={(e) => { e.stopPropagation(); onCloseTab(file.id); }}
+                                >
+                                    <X className="h-3 w-3" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                     <ScrollBar orientation="horizontal" />
+                </ScrollArea>
             </div>
 
             {/* Editor Pane */}
@@ -121,13 +125,13 @@ export default function EditorTabs({
                                 value={activeFile.content}
                                 onMount={handleEditorDidMount}
                                 onChange={(value) => onContentChange(activeFile.id, value || '')}
-                                language={activeFile.name.split('.').pop() === 'jsx' ? 'javascript' : 'javascript'}
+                                language={activeFile.name.split('.').pop() === 'tsx' ? 'typescript' : 'javascript'}
                                 path={activeFile.path}
                             />
                         </Suspense>
                     </>
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center text-gray-500">
+                    <div className="flex h-full w-full items-center justify-center text-muted-foreground">
                         <p>Select a file from the tree to start editing.</p>
                     </div>
                 )}

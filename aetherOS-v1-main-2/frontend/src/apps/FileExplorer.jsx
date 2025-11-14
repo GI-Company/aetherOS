@@ -8,20 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/AlertDialog';
 import { Input } from '../components/Input';
 import { APPS } from '../lib/apps';
-import { Progress } from '../components/Progress';
-import { osEvent } from '@/lib/events';
-
-const Dropzone = ({ visible }) => (
-    <div
-        className={`pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'}`}
-    >
-        <div className="flex flex-col items-center gap-4 rounded-lg border-2 border-dashed border-blue-400 p-12">
-            <FolderPlus className="h-16 w-16 text-blue-400" />
-            <p className="text-lg font-semibold text-blue-400">Drop files to upload</p>
-        </div>
-    </div>
-);
-
+import { osEvent } from '../lib/events';
 
 const FileExplorer = ({ onAppOpen }) => {
   const [files, setFiles] = useState([]);
@@ -30,9 +17,6 @@ const FileExplorer = ({ onAppOpen }) => {
   const [itemToDelete, setItemToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [creatingItemType, setCreatingItemType] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isDragOver, setIsDragOver] = useState(false);
   const aether = useAether(); 
   const { user } = useAether();
 
@@ -68,20 +52,12 @@ const FileExplorer = ({ onAppOpen }) => {
       setCreatingItemType(null);
       fetchFiles(currentPath); 
     };
-
-    const handleUploadResult = (env) => {
-      console.log('Received upload result:', env.payload);
-      setIsUploading(false);
-      setUploadProgress(0);
-      fetchFiles(currentPath);
-    };
     
     const subs = [
       aether.subscribe('vfs:list:result', handleFileList),
       aether.subscribe('vfs:delete:result', handleMutationResult),
       aether.subscribe('vfs:create:file:result', handleMutationResult),
-      aether.subscribe('vfs:create:folder:result', handleMutationResult),
-      aether.subscribe('vfs:write:result', handleUploadResult)
+      aether.subscribe('vfs:create:folder:result', handleMutationResult)
     ];
 
     const handleGlobalFsChange = () => fetchFiles(currentPath);
@@ -101,7 +77,8 @@ const FileExplorer = ({ onAppOpen }) => {
     } else {
       const codeEditorApp = APPS.find(app => app.id === 'code-editor');
       if (codeEditorApp && onAppOpen) {
-          onAppOpen(codeEditorApp, { filePath: item.path, fileToOpen: item.path });
+          const projectPath = item.path.substring(0, item.path.lastIndexOf('/')) || '/';
+          onAppOpen(codeEditorApp, { filePath: projectPath, fileToOpen: item.path });
       }
     }
   };
@@ -120,44 +97,6 @@ const FileExplorer = ({ onAppOpen }) => {
       aether.publish(topic, payload);
   };
 
-  const handleUpload = async (filesToUpload) => {
-    if (!filesToUpload || filesToUpload.length === 0 || !aether) return;
-    setIsUploading(true);
-    setUploadProgress(0);
-    
-    const file = filesToUpload[0];
-    
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-        const base64Content = reader.result.toString().split(',')[1];
-        aether.publish('vfs:write', {
-            path: `${currentPath}/${file.name}`,
-            content: base64Content,
-            encoding: 'base64'
-        });
-        setUploadProgress(50);
-    };
-    reader.onerror = (error) => {
-        console.error("Error reading file:", error);
-        setIsUploading(false);
-    };
-  }
-  
-  // Drag and drop handlers
-  const handleDragEnter = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); };
-  const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); };
-  const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleUpload(Array.from(e.dataTransfer.files));
-    }
-  };
-
-  
   const formatBytes = (bytes, decimals = 2) => {
       if (bytes === 0) return '0 Bytes';
       const k = 1024;
@@ -205,14 +144,7 @@ const FileExplorer = ({ onAppOpen }) => {
 
 
   return (
-    <div
-      className="h-full w-full bg-gray-800 text-white flex flex-col relative"
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-    >
-       <Dropzone visible={isDragOver} />
+    <div className="h-full w-full bg-gray-800 text-white flex flex-col relative">
       <div className="p-2 border-b border-gray-700 flex justify-between items-center text-sm">
         <div>Path: {currentPath}</div>
          <DropdownMenu>
@@ -232,7 +164,6 @@ const FileExplorer = ({ onAppOpen }) => {
             </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {isUploading && <Progress value={uploadProgress} className="w-full h-1" />}
       <div className="flex-grow overflow-y-auto">
         <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
           <AlertDialogContent>

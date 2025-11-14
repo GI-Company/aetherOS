@@ -2,23 +2,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useToast } from "../hooks/useToast";
-import { useAether } from '../lib/aether_sdk';
+import { useToast } from "@/hooks/use-toast";
 import { Loader2, FolderOpen } from "lucide-react";
-import WelcomeScreen from "../components/code-editor/welcome-screen";
-import FileTree from "../components/code-editor/file-tree";
-import EditorTabs from "../components/code-editor/editor-tabs";
-import AiPanel from "../components/code-editor/ai-panel";
-import { Button } from "../components/Button";
-
-export type EditorFile = {
-  id: string;
-  name: string;
-  path: string;
-  content: string;
-  isDirty: boolean;
-};
-
+import WelcomeScreen from "@/components/aether-os/code-editor/welcome-screen";
+import FileTree from "@/components/aether-os/code-editor/file-tree";
+import EditorTabs, { type EditorFile } from "@/components/aether-os/code-editor/editor-tabs";
+import AiPanel from "@/components/aether-os/code-editor/ai-panel";
+import { Button } from "@/components/ui/button";
+import { useAether } from "@/lib/aether_sdk_client";
 
 interface CodeEditorAppProps {
   filePath?: string; // Can be used to open a project folder
@@ -69,18 +60,18 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
             setOpenFiles(prev => [...prev, newFile]);
             setActiveFileId(fileId);
             // Unsubscribe after getting the result
-            handleReadResultSub();
+            aether.subscribe('vfs:read:result', handleReadResult)();
           }
         };
 
         const handleReadError = (env: any) => {
           console.error("Error opening file:", env.payload.error);
           toast({ title: "Error", description: `Could not load file: ${env.payload.error}`, variant: "destructive" });
-          handleReadErrorSub();
+          aether.subscribe('vfs:read:error', handleReadError)();
         };
 
-        const handleReadResultSub = aether.subscribe('vfs:read:result', handleReadResult);
-        const handleReadErrorSub = aether.subscribe('vfs:read:error', handleReadError);
+        aether.subscribe('vfs:read:result', handleReadResult);
+        aether.subscribe('vfs:read:error', handleReadError);
 
     } else {
        const newFile: EditorFile = {
@@ -97,14 +88,10 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   }, [openFiles, toast, aether]);
 
   useEffect(() => {
-    if (fileToOpen && aether) {
-      // Ensure project is set before trying to open a file
-      if (initialProjectPath && projectPath !== initialProjectPath) {
-        setProjectPath(initialProjectPath);
-      }
+    if (fileToOpen) {
       handleOpenFile(fileToOpen);
     }
-  }, [fileToOpen, aether, handleOpenFile, initialProjectPath, projectPath]);
+  }, [fileToOpen, handleOpenFile]);
 
   const handleCloseFile = (fileId: string) => {
     setOpenFiles(prev => {
@@ -156,7 +143,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   const activeFile = openFiles.find(f => f.id === activeFileId) || null;
 
   if (!aether) {
-    return <div className="flex h-full w-full items-center justify-center text-gray-500"><Loader2 className="animate-spin" /></div>;
+    return <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
   }
   
   if (!projectPath) {
@@ -164,11 +151,11 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   }
 
   return (
-    <div className="flex h-full bg-gray-900 flex-row">
+    <div className="flex h-full bg-background flex-row">
       {/* File Tree Panel */}
-      <div className="w-[250px] bg-gray-800/50 border-r border-gray-700 flex flex-col">
-        <div className="p-2 border-b border-gray-700">
-           <Button variant="ghost" size="sm" className="w-full justify-start text-left text-white" onClick={() => setProjectPath(null)}>
+      <div className="w-[250px] bg-card/50 border-r flex flex-col">
+        <div className="p-2 border-b">
+           <Button variant="ghost" size="sm" className="w-full justify-start text-left" onClick={() => setProjectPath(null)}>
               <FolderOpen className="h-4 w-4 mr-2"/>
               <span className="truncate">{projectPath.split('/').pop() || 'Project'}</span>
            </Button>
@@ -192,7 +179,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
               onSave={markFileAsSaved}
             />
           </div>
-          <div className="w-1/3 border-l border-gray-700 h-full">
+          <div className="w-1/3 border-l h-full">
              <AiPanel
               activeFile={activeFile}
               onCodeUpdate={updateActiveFileContent}

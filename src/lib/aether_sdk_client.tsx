@@ -2,8 +2,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { initializeApp, FirebaseApp } from "firebase/app";
-import { getAuth, onAuthStateChanged, Auth, User } from "firebase/auth";
 
 /**
  * Aether SDK for frontend clients.

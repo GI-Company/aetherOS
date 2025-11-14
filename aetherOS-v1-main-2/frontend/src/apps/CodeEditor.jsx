@@ -1,123 +1,192 @@
 
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { useAether } from '../lib/aether_sdk';
-import { Loader2, Save } from 'lucide-react';
-import { Button } from '../components/Button';
+import { Loader2, FolderOpen } from "lucide-react";
+import WelcomeScreen from "../components/aether-os/code-editor/welcome-screen";
+import FileTree from "../components/aether-os/code-editor/file-tree";
+import EditorTabs, { type EditorFile } from "../components/aether-os/code-editor/editor-tabs";
+import AiPanel from "../components/aether-os/code-editor/ai-panel";
+import { Button } from "../components/ui/button";
 
-const Editor = lazy(() => import('@monaco-editor/react'));
+interface CodeEditorAppProps {
+  filePath?: string; // Can be used to open a project folder
+  fileToOpen?: string;
+}
 
-const CodeEditor = ({ filePath }) => {
-  const [content, setContent] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
+export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen }: CodeEditorAppProps) {
+  const [projectPath, setProjectPath] = useState<string | null>(initialProjectPath || null);
+  const [openFiles, setOpenFiles] = useState<EditorFile[]>([]);
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  
+  const { toast } = useToast();
   const aether = useAether();
 
-  useEffect(() => {
-    if (!filePath || !aether) {
-      setIsLoading(false);
-      setError('No file path provided or Aether client not ready.');
+  const handleSetProject = (path: string) => {
+    setProjectPath(path);
+    setOpenFiles([]);
+    setActiveFileId(null);
+  };
+  
+  const handleOpenFile = useCallback(async (filePath: string, fileContent?: string) => {
+    if (!aether) return;
+    // Check if file is already open
+    const existingFile = openFiles.find(f => f.path === filePath);
+    if (existingFile) {
+      setActiveFileId(existingFile.id);
       return;
     }
 
-    const fetchContent = async () => {
-        setIsLoading(true);
-        setError(null);
-        setContent('');
+    const fileId = `file_${Date.now()}`;
+    let content = fileContent;
+
+    // If content is not provided, fetch it
+    if (typeof content === 'undefined') {
+        toast({ title: "Opening File...", description: `Loading content for ${filePath}` });
         
         aether.publish('vfs:read', { path: filePath });
+
+        const handleReadResult = (env: any) => {
+          if (env.payload.path === filePath) {
+            const newFile: EditorFile = {
+              id: fileId,
+              name: filePath.split('/').pop() || 'untitled',
+              path: filePath,
+              content: env.payload.content || '',
+              isDirty: false,
+            };
+            setOpenFiles(prev => [...prev, newFile]);
+            setActiveFileId(fileId);
+            // Unsubscribe after getting the result
+            aether.subscribe('vfs:read:result', handleReadResult)();
+          }
+        };
+
+        const handleReadError = (env: any) => {
+          console.error("Error opening file:", env.payload.error);
+          toast({ title: "Error", description: `Could not load file: ${env.payload.error}`, variant: "destructive" });
+          aether.subscribe('vfs:read:error', handleReadError)();
+        };
+
+        aether.subscribe('vfs:read:result', handleReadResult);
+        aether.subscribe('vfs:read:error', handleReadError);
+
+    } else {
+       const newFile: EditorFile = {
+        id: fileId,
+        name: filePath.split('/').pop() || 'untitled',
+        path: filePath,
+        content: content || '',
+        isDirty: false,
+      };
+      
+      setOpenFiles(prev => [...prev, newFile]);
+      setActiveFileId(fileId);
     }
-    
-    const handleReadResult = (env) => {
-        if (env.payload.path === filePath) {
-            setContent(env.payload.content || '');
-            setIsLoading(false);
-        }
-    };
-    
-    const handleReadError = (env) => {
-        if(env.meta?.correlationId) { // Check if error corresponds to our request
-            setError(env.payload.error || 'Could not load file');
-            setIsLoading(false);
-        }
-    };
-    
-    const sub = aether.subscribe('vfs:read:result', handleReadResult);
-    const errSub = aether.subscribe('vfs:read:error', handleReadError);
+  }, [openFiles, toast, aether]);
 
-    fetchContent();
+  useEffect(() => {
+    if (fileToOpen) {
+      handleOpenFile(fileToOpen);
+    }
+  }, [fileToOpen, handleOpenFile]);
 
-    return () => {
-      sub && sub();
-      errSub && errSub();
-    };
-    
-  }, [filePath, aether]);
-  
-  const handleSave = async () => {
-    if (!filePath || isSaving || !aether) return;
-    setIsSaving(true);
-    setError(null);
+  const handleCloseFile = (fileId: string) => {
+    setOpenFiles(prev => {
+      const fileToCloseIndex = prev.findIndex(f => f.id === fileId);
+      if (fileToCloseIndex === -1) return prev;
+      
+      const fileToClose = prev[fileToCloseIndex];
 
-    aether.publish('vfs:write', { path: filePath, content });
-    
-    const sub = aether.subscribe('vfs:write:result', (env) => {
-        if(env.payload.path === filePath) {
-            setTimeout(() => {
-                setIsSaving(false);
-            }, 1000);
-            sub && sub();
-            errSub && errSub();
+      if (fileToClose.isDirty && !window.confirm("You have unsaved changes. Are you sure you want to close this file?")) {
+        return prev;
+      }
+
+      const updatedFiles = prev.filter(f => f.id !== fileId);
+
+      // If the closed file was the active one, select a new active file
+      if (activeFileId === fileId) {
+        if (updatedFiles.length === 0) {
+          setActiveFileId(null);
+        } else if (fileToCloseIndex > 0) {
+          // Select previous tab
+          setActiveFileId(updatedFiles[fileToCloseIndex - 1].id);
+        } else {
+          // Select next tab
+          setActiveFileId(updatedFiles[0].id);
         }
-    });
-
-    const errSub = aether.subscribe('vfs:write:error', (env) => {
-        if(env.meta?.correlationId) {
-             setError("Failed to save the file.");
-             setIsSaving(false);
-             sub && sub();
-             errSub && errSub();
-        }
+      }
+      return updatedFiles;
     });
   };
+
+  const updateFileContent = (fileId: string, newContent: string) => {
+    setOpenFiles(prev => prev.map(f =>
+      f.id === fileId ? { ...f, content: newContent, isDirty: true } : f
+    ));
+  };
   
-  const handleEditorChange = (value) => {
-      setContent(value || '');
+  const updateActiveFileContent = (newContent: string) => {
+    if (activeFileId) {
+      updateFileContent(activeFileId, newContent);
+    }
+  }
+
+  const markFileAsSaved = (fileId: string) => {
+    setOpenFiles(prev => prev.map(f =>
+      f.id === fileId ? { ...f, isDirty: false } : f
+    ));
+  };
+
+  const activeFile = openFiles.find(f => f.id === activeFileId) || null;
+
+  if (!aether) {
+    return <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
+  }
+  
+  if (!projectPath) {
+    return <WelcomeScreen onSelectProject={handleSetProject} />;
   }
 
   return (
-    <div className="h-full w-full bg-gray-900 text-white flex flex-col">
-       <div className="p-2 border-b border-gray-700 flex justify-end">
-            <Button onClick={handleSave} disabled={isLoading || isSaving}>
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                Save
-            </Button>
+    <div className="flex h-full bg-background flex-row">
+      {/* File Tree Panel */}
+      <div className="w-[250px] bg-card/50 border-r flex flex-col">
+        <div className="p-2 border-b">
+           <Button variant="ghost" size="sm" className="w-full justify-start text-left" onClick={() => setProjectPath(null)}>
+              <FolderOpen className="h-4 w-4 mr-2"/>
+              <span className="truncate">{projectPath.split('/').pop() || 'Project'}</span>
+           </Button>
         </div>
-      <div className="flex-grow relative">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          </div>
-        ) : error ? (
-          <div className="flex items-center justify-center h-full text-red-400 p-4">
-            Error loading file: {error}
-          </div>
-        ) : (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>}>
-            <Editor
-              height="100%"
-              language="javascript" // Should be dynamic based on file type
-              theme="vs-dark"
-              value={content}
-              onChange={handleEditorChange}
-              options={{ minimap: { enabled: false } }}
-              path={filePath} // Pass path for better language detection
+        <FileTree
+          basePath={projectPath}
+          onFileSelect={handleOpenFile}
+        />
+      </div>
+
+      {/* Editor and AI Panel */}
+      <div className="flex-grow flex flex-col md:w-2/3">
+        <div className="flex-grow w-full h-full flex">
+          <div className="flex-grow w-2/3 h-full">
+            <EditorTabs
+              files={openFiles}
+              activeFileId={activeFileId}
+              onTabClick={setActiveFileId}
+              onCloseTab={handleCloseFile}
+              onContentChange={updateFileContent}
+              onSave={markFileAsSaved}
             />
-          </Suspense>
-        )}
+          </div>
+          <div className="w-1/3 border-l h-full">
+             <AiPanel
+              activeFile={activeFile}
+              onCodeUpdate={updateActiveFileContent}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
-};
-
-export default CodeEditor;
+}

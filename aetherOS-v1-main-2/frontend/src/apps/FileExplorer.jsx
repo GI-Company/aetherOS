@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '../components/Input';
 import { APPS } from '../lib/apps';
 import { Progress } from '../components/Progress';
+import { osEvent } from '@/lib/events';
 
 const Dropzone = ({ visible }) => (
     <div
@@ -32,11 +33,10 @@ const FileExplorer = ({ onAppOpen }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const aether = useAether(); // Using user from SDK context for path
+  const aether = useAether(); 
   const { user } = useAether();
 
   useEffect(() => {
-    // In a real app, you'd get the user's UID after they log in
     if(user?.uid) {
         setCurrentPath(`users/${user.uid}`);
     }
@@ -83,11 +83,15 @@ const FileExplorer = ({ onAppOpen }) => {
       aether.subscribe('vfs:create:folder:result', handleMutationResult),
       aether.subscribe('vfs:write:result', handleUploadResult)
     ];
+
+    const handleGlobalFsChange = () => fetchFiles(currentPath);
+    osEvent.on('file-system-change', handleGlobalFsChange);
     
     fetchFiles(currentPath);
 
     return () => {
       subs.forEach(sub => sub && sub());
+      osEvent.off('file-system-change', handleGlobalFsChange);
     };
   }, [aether, currentPath, fetchFiles]);
   
@@ -97,7 +101,7 @@ const FileExplorer = ({ onAppOpen }) => {
     } else {
       const codeEditorApp = APPS.find(app => app.id === 'code-editor');
       if (codeEditorApp && onAppOpen) {
-          onAppOpen(codeEditorApp, { filePath: item.path });
+          onAppOpen(codeEditorApp, { filePath: item.path, fileToOpen: item.path });
       }
     }
   };
@@ -123,7 +127,6 @@ const FileExplorer = ({ onAppOpen }) => {
     
     const file = filesToUpload[0];
     
-    // We need to read the file as a base64 string to send over JSON
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
@@ -133,8 +136,7 @@ const FileExplorer = ({ onAppOpen }) => {
             content: base64Content,
             encoding: 'base64'
         });
-        // Note: Progress is harder with this model. We'll just show an indeterminate loader.
-        setUploadProgress(50); // Show some progress
+        setUploadProgress(50);
     };
     reader.onerror = (error) => {
         console.error("Error reading file:", error);

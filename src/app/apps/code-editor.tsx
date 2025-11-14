@@ -3,29 +3,26 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useFirebase, useStorage } from "@/firebase";
-import { osEvent } from "@/lib/events";
-import { getDownloadURL, ref } from 'firebase/storage';
 import { Loader2, FolderOpen } from "lucide-react";
 import WelcomeScreen from "@/components/aether-os/code-editor/welcome-screen";
 import FileTree from "@/components/aether-os/code-editor/file-tree";
 import EditorTabs, { type EditorFile } from "@/components/aether-os/code-editor/editor-tabs";
 import AiPanel from "@/components/aether-os/code-editor/ai-panel";
 import { Button } from "@/components/ui/button";
+import { useAether } from "@/lib/aether_sdk_client";
 
 interface CodeEditorAppProps {
   filePath?: string; // Can be used to open a project folder
-  initialContent?: string;
+  fileToOpen?: string;
 }
 
-export default function CodeEditorApp({ filePath: initialProjectPath }: CodeEditorAppProps) {
+export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen }: CodeEditorAppProps) {
   const [projectPath, setProjectPath] = useState<string | null>(initialProjectPath || null);
   const [openFiles, setOpenFiles] = useState<EditorFile[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   
   const { toast } = useToast();
-  const { user } = useFirebase();
-  const storage = useStorage();
+  const aether = useAether();
 
   const handleSetProject = (path: string) => {
     setProjectPath(path);
@@ -34,6 +31,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath }: CodeEdit
   };
   
   const handleOpenFile = useCallback(async (filePath: string, fileContent?: string) => {
+    if (!aether) return;
     // Check if file is already open
     const existingFile = openFiles.find(f => f.path === filePath);
     if (existingFile) {
@@ -46,33 +44,54 @@ export default function CodeEditorApp({ filePath: initialProjectPath }: CodeEdit
 
     // If content is not provided, fetch it
     if (typeof content === 'undefined') {
-      try {
         toast({ title: "Opening File...", description: `Loading content for ${filePath}` });
-        if (!storage) throw new Error("Storage not available");
-        const fileRef = ref(storage, filePath);
-        const url = await getDownloadURL(fileRef);
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Failed to fetch file content.");
-        content = await response.text();
-      } catch (error: any) {
-        console.error("Error opening file:", error);
-        toast({ title: "Error", description: `Could not load file: ${error.message}`, variant: "destructive" });
-        return;
-      }
-    }
-    
-    const newFile: EditorFile = {
-      id: fileId,
-      name: filePath.split('/').pop() || 'untitled',
-      path: filePath,
-      content: content || '',
-      isDirty: false,
-    };
-    
-    setOpenFiles(prev => [...prev, newFile]);
-    setActiveFileId(fileId);
+        
+        aether.publish('vfs:read', { path: filePath });
 
-  }, [openFiles, storage, toast]);
+        const handleReadResult = (env: any) => {
+          if (env.payload.path === filePath) {
+            const newFile: EditorFile = {
+              id: fileId,
+              name: filePath.split('/').pop() || 'untitled',
+              path: filePath,
+              content: env.payload.content || '',
+              isDirty: false,
+            };
+            setOpenFiles(prev => [...prev, newFile]);
+            setActiveFileId(fileId);
+            // Unsubscribe after getting the result
+            aether.subscribe('vfs:read:result', handleReadResult)();
+          }
+        };
+
+        const handleReadError = (env: any) => {
+          console.error("Error opening file:", env.payload.error);
+          toast({ title: "Error", description: `Could not load file: ${env.payload.error}`, variant: "destructive" });
+          aether.subscribe('vfs:read:error', handleReadError)();
+        };
+
+        aether.subscribe('vfs:read:result', handleReadResult);
+        aether.subscribe('vfs:read:error', handleReadError);
+
+    } else {
+       const newFile: EditorFile = {
+        id: fileId,
+        name: filePath.split('/').pop() || 'untitled',
+        path: filePath,
+        content: content || '',
+        isDirty: false,
+      };
+      
+      setOpenFiles(prev => [...prev, newFile]);
+      setActiveFileId(fileId);
+    }
+  }, [openFiles, toast, aether]);
+
+  useEffect(() => {
+    if (fileToOpen) {
+      handleOpenFile(fileToOpen);
+    }
+  }, [fileToOpen, handleOpenFile]);
 
   const handleCloseFile = (fileId: string) => {
     setOpenFiles(prev => {
@@ -123,7 +142,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath }: CodeEdit
 
   const activeFile = openFiles.find(f => f.id === activeFileId) || null;
 
-  if (!user) {
+  if (!aether) {
     return <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
   }
   
@@ -171,5 +190,3 @@ export default function CodeEditorApp({ filePath: initialProjectPath }: CodeEdit
     </div>
   );
 }
-
-    

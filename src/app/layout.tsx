@@ -1,9 +1,11 @@
+
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { FirebaseClientProvider } from "@/firebase";
+import { AetherProvider } from "@/lib/aether_sdk_client";
 
 const fontBody = Inter({
   subsets: ["latin"],
@@ -36,7 +38,9 @@ export default function RootLayout({
         )}
       >
         <FirebaseClientProvider>
-          {children}
+          <AetherProvider>
+            {children}
+          </AetherProvider>
         </FirebaseClientProvider>
         <Toaster />
       </body>

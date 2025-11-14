@@ -6,11 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { X, Loader2, Save } from "lucide-react";
-import type Editor from "@monaco-editor/react";
-import { useFirebase, useStorage, errorEmitter } from "@/firebase";
-import { ref, uploadString } from "firebase/storage";
-import { FirestorePermissionError } from "@/firebase/errors";
 import { useToast } from "@/hooks/use-toast";
+import { useAether } from "@/lib/aether_sdk_client";
 import { osEvent } from "@/lib/events";
 
 const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
@@ -43,42 +40,41 @@ export default function EditorTabs({
 
     const activeFile = files.find(f => f.id === activeFileId);
     const editorRef = useRef<any>(null); // To hold Monaco editor instance
-    const { user } = useFirebase();
-    const storage = useStorage();
+    const aether = useAether();
     const { toast } = useToast();
-    const [isSaving, setIsSaving] = useState(false);
+    const [isSaving, setIsSaving] = React.useState(false);
 
     const handleEditorDidMount = (editor: any) => {
         editorRef.current = editor;
     };
 
     const handleSave = () => {
-        if (!activeFile || !storage || !user) {
-            toast({ title: "Cannot Save", description: "No active file or storage unavailable.", variant: "destructive" });
+        if (!activeFile || !aether) {
+            toast({ title: "Cannot Save", description: "No active file or aether client unavailable.", variant: "destructive" });
             return;
         }
 
         setIsSaving(true);
         toast({ title: "Saving...", description: `Saving ${activeFile.name}` });
 
-        const fileRef = ref(storage, activeFile.path);
-        uploadString(fileRef, activeFile.content)
-            .then(() => {
+        aether.publish('vfs:write', { path: activeFile.path, content: activeFile.content });
+
+        const sub = aether.subscribe('vfs:write:result', (env) => {
+            if (env.payload.path === activeFile.path) { // Match response to the file being saved
                 toast({ title: "File Saved!", description: `${activeFile.name} has been saved.` });
                 onSave(activeFile.id);
-                osEvent.emit('file-system-change');
-            })
-            .catch((serverError) => {
-                const permissionError = new FirestorePermissionError({
-                    path: fileRef.fullPath,
-                    operation: 'write',
-                    requestResourceData: `(file content of ${activeFile.content.length} bytes)`,
-                });
-                errorEmitter.emit('permission-error', permissionError);
-            })
-            .finally(() => {
                 setIsSaving(false);
-            });
+                osEvent.emit('file-system-change');
+                sub(); // unsubscribe
+            }
+        });
+        const errSub = aether.subscribe('vfs:write:error', (env) => {
+            if (env.meta?.correlationId) { // This assumes backend sends correlationId
+                toast({ title: "Save failed", description: env.payload.error, variant: 'destructive'});
+                setIsSaving(false);
+                errSub();
+            }
+        });
     };
 
     return (
@@ -143,5 +139,3 @@ export default function EditorTabs({
         </div>
     );
 }
-
-    

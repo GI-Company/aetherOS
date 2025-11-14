@@ -30,6 +30,7 @@ func (s *AIService) Run() {
 		"ai:generate:page",
 		"ai:design:component",
 		"ai:agent",
+		"ai:search:files",
 	}
 
 	for _, topicName := range aiTopics {
@@ -48,54 +49,66 @@ func (s *AIService) Run() {
 func (s *AIService) handleRequest(env *aether.Envelope) {
 	log.Printf("AI Service processing message ID %s on topic %s", env.ID, env.Topic)
 
-	var prompt string
-	// Standardize prompt extraction from various payload structures
-	if p, ok := env.Payload.(string); ok {
-		prompt = p
-	} else {
-		var payloadData map[string]interface{}
-		payloadBytes, err := json.Marshal(env.Payload)
-		if err != nil {
-			log.Printf("error marshaling payload: %v", err)
-			s.publishError(env, "Invalid payload format")
-			return
-		}
-		if err := json.Unmarshal(payloadBytes, &payloadData); err == nil {
-			// Check for common keys like 'prompt', 'topic', or 'description'
-			if p, ok := payloadData["prompt"].(string); ok {
-				prompt = p
-			} else if p, ok := payloadData["topic"].(string); ok {
-				prompt = p
-			} else if p, ok := payloadData["description"].(string); ok {
-				prompt = p
-			}
-		}
-	}
-
-	if prompt == "" {
-		log.Println("AI Service: received empty prompt")
-		s.publishError(env, "Empty prompt received")
-		return
-	}
-
 	var generatedText string
 	var err error
 
-	// Route based on topic
-	switch env.Topic {
-	case "ai:generate":
-		generatedText, err = s.aiModule.GenerateText(prompt)
-	case "ai:generate:page":
-		generatedText, err = s.aiModule.GenerateWebPage(prompt)
-	case "ai:design:component":
-		generatedText, err = s.aiModule.DesignComponent(prompt)
-	// Add other cases for different AI flows here in the future
-	// case "ai:agent":
-	// 	generatedText, err = s.aiModule.ExecuteAgent(prompt)
-	default:
-		// Default all other AI topics to GenerateText for simplicity
-		generatedText, err = s.aiModule.GenerateText(prompt)
+	// Special handling for file search payload
+	if env.Topic == "ai:search:files" {
+		var payloadData struct {
+			Query          string   `json:"query"`
+			AvailableFiles []string `json:"availableFiles"`
+		}
+		payloadBytes, _ := json.Marshal(env.Payload)
+		if err := json.Unmarshal(payloadBytes, &payloadData); err != nil {
+			log.Printf("error unmarshaling search payload: %v", err)
+			s.publishError(env, "Invalid search payload format")
+			return
+		}
+		generatedText, err = s.aiModule.SemanticFileSearch(payloadData.Query, payloadData.AvailableFiles)
+
+	} else {
+		// Standard prompt extraction for other topics
+		var prompt string
+		if p, ok := env.Payload.(string); ok {
+			prompt = p
+		} else {
+			var payloadData map[string]interface{}
+			payloadBytes, err := json.Marshal(env.Payload)
+			if err != nil {
+				log.Printf("error marshaling payload: %v", err)
+				s.publishError(env, "Invalid payload format")
+				return
+			}
+			if err := json.Unmarshal(payloadBytes, &payloadData); err == nil {
+				if p, ok := payloadData["prompt"].(string); ok {
+					prompt = p
+				} else if p, ok := payloadData["topic"].(string); ok {
+					prompt = p
+				} else if p, ok := payloadData["description"].(string); ok {
+					prompt = p
+				}
+			}
+		}
+
+		if prompt == "" {
+			log.Println("AI Service: received empty prompt")
+			s.publishError(env, "Empty prompt received")
+			return
+		}
+
+		// Route based on topic for non-search requests
+		switch env.Topic {
+		case "ai:generate":
+			generatedText, err = s.aiModule.GenerateText(prompt)
+		case "ai:generate:page":
+			generatedText, err = s.aiModule.GenerateWebPage(prompt)
+		case "ai:design:component":
+			generatedText, err = s.aiModule.DesignComponent(prompt)
+		default:
+			generatedText, err = s.aiModule.GenerateText(prompt)
+		}
 	}
+
 
 	if err != nil {
 		log.Printf("error processing AI request: %v", err)
@@ -144,3 +157,5 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	log.Printf("AI Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
 }
+
+    

@@ -132,9 +132,68 @@ func (m *AIModule) DesignComponent(prompt string) (string, error) {
 	return resultText, nil
 }
 
+// SemanticFileSearch searches for files based on a natural language query.
+func (m *AIModule) SemanticFileSearch(query string, availableFiles []string) (string, error) {
+	ctx := context.Background()
+	model := m.client.GenerativeModel("gemini-1.5-flash")
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{
+			genai.Text(`You are a semantic file search engine. Given a user's query and a list of available file paths, identify the most relevant files.
+- Analyze the user's query for intent, keywords, file types, and potential date references (like "yesterday" or "last week").
+- Match this against the provided file paths.
+- Return a JSON object with a 'results' key, which is an array of objects. Each object should have a 'path' and 'type' ('file' or 'folder').
+- If no files seem relevant, return an empty 'results' array.
+- Do not include files in the result that are not in the provided 'availableFiles' list.
+- Prioritize accuracy. It is better to return fewer, more relevant results than many irrelevant ones.
+Example Output: {"results": [{"path": "/home/user/documents/report.docx", "type": "file"}]}`),
+		},
+	}
+
+	filesJSON, err := json.Marshal(availableFiles)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal available files: %w", err)
+	}
+
+	fullPrompt := fmt.Sprintf("Query: '%s'\nAvailable Files: %s", query, string(filesJSON))
+	resp, err := model.GenerateContent(ctx, genai.Text(fullPrompt))
+
+	if err != nil {
+		return "", fmt.Errorf("error during semantic search: %w", err)
+	}
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no content found in search response")
+	}
+	var resultText string
+	for _, part := range resp.Candidates[0].Content.Parts {
+		if txt, ok := part.(genai.Text); ok {
+			resultText += string(txt)
+		}
+	}
+
+	// Clean the response
+	cleanedJSON := resultText
+	if strings.HasPrefix(cleanedJSON, "```json") {
+		cleanedJSON = strings.TrimPrefix(cleanedJSON, "```json")
+		cleanedJSON = strings.TrimSuffix(cleanedJSON, "```")
+	}
+	cleanedJSON = strings.TrimSpace(cleanedJSON)
+
+	// Validate JSON
+	var temp aný
+	if err := json.Unmarshal([]byte(cleanedJSON), &temp); err != nil {
+		return "", fmt.Errorf("model returned invalid JSON: %w. Response: %s", err, cleanedJSON)
+	}
+
+
+	return cleanedJSON, nil
+}
+
+
 // Close releases resources used by the AI module.
 func (m *AIModule) Close() {
 	if m.client != nil {
 		m.client.Close()
 	}
 }
+
+    

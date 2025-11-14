@@ -7,96 +7,23 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Folder, File, Search, Loader2, RefreshCw, FilePlus, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useFirebase, useMemoFirebase } from "@/firebase";
-import { getStorage, ref, listAll, getMetadata, uploadString, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { osEvent } from "@/lib/events";
 import { FileItem } from "@/lib/types";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import Dropzone from "@/components/aether-os/dropzone";
-import { semanticFileSearch } from "@/ai/flows/semantic-file-search";
 import FileRow from "@/components/aether-os/file-row";
 import Breadcrumbs from "@/components/aether-os/breadcrumbs";
-
-
-const useStorageFiles = (currentPath: string) => {
-    const { user } = useFirebase();
-    const [allFiles, setAllFiles] = useState<FileItem[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<Error | null>(null);
-
-    const refresh = useCallback(async () => {
-        if (!user || !currentPath) return;
-        setIsLoading(true);
-        setError(null);
-        try {
-            const storage = getStorage();
-            const listRef = ref(storage, currentPath);
-            const res = await listAll(listRef);
-
-            const fetchedFiles: FileItem[] = [];
-
-            for (const prefix of res.prefixes) {
-                fetchedFiles.push({
-                    name: prefix.name,
-                    type: 'folder',
-                    path: prefix.fullPath,
-                    size: 0,
-                    modified: new Date(), // Storage API doesn't provide folder metadata
-                });
-            }
-
-            for (const itemRef of res.items) {
-                 if (itemRef.name.endsWith('.placeholder')) continue;
-                const metadata = await getMetadata(itemRef);
-                fetchedFiles.push({
-                    name: metadata.name,
-                    type: 'file',
-                    path: metadata.fullPath,
-                    size: metadata.size,
-                    modified: new Date(metadata.updated),
-                });
-            }
-            
-            const sortedFiles = fetchedFiles.sort((a, b) => {
-                if (a.type === 'folder' && b.type === 'file') return -1;
-                if (a.type === 'file' && b.type === 'folder') return 1;
-                return a.name.localeCompare(b.name);
-            });
-
-            setAllFiles(sortedFiles);
-        } catch (err: any) {
-            setError(err);
-            console.error("Error listing files:", err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [user, currentPath]);
-
-    useEffect(() => {
-        refresh();
-        
-        const handleFileSystemChange = () => {
-            refresh();
-        };
-
-        osEvent.on('file-system-change', handleFileSystemChange);
-
-        return () => {
-            osEvent.off('file-system-change', handleFileSystemChange);
-        };
-    }, [refresh]);
-
-    return { allFiles, isLoading, error, refresh };
-};
+import { useAether } from "@/lib/aether_sdk_client";
+import { useUser } from "@/firebase";
 
 
 interface FileExplorerAppProps {
   onOpenFile?: (filePath: string, content?: string) => void;
   searchQuery?: string;
 }
+
 
 const NewItemRow = ({
   type,
@@ -166,11 +93,15 @@ const NewItemRow = ({
 };
 
 export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery }: FileExplorerAppProps) {
-  const { user } = useFirebase();
+  const { user } = useUser();
+  const aether = useAether();
   const basePath = useMemo(() => user ? `users/${user.uid}` : '', [user]);
   const [currentPath, setCurrentPath] = useState(basePath);
   
-  const { allFiles, isLoading, refresh } = useStorageFiles(currentPath);
+  const [allFiles, setAllFiles] = useState<FileItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+  
   const [displayedFiles, setDisplayedFiles] = useState<FileItem[]>([]);
   
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery || "");
@@ -183,8 +114,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
 
   const [itemToDelete, setItemToDelete] = useState<FileItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const { toast } = useToast();
   
   useEffect(() => {
     if (basePath && !currentPath) {
@@ -192,65 +121,104 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     }
   }, [basePath, currentPath])
 
+  const refresh = useCallback(() => {
+    if (!aether || !currentPath) return;
+    setIsLoading(true);
+    aether.publish('vfs:list', { path: currentPath });
+  }, [aether, currentPath]);
+
+
   useEffect(() => {
     if (!searchQuery) {
         setDisplayedFiles(allFiles);
     }
   }, [allFiles, searchQuery]);
+  
+  useEffect(() => {
+    if (!aether) return;
+
+    const handleFileList = (env: any) => {
+        const { path, files: receivedFiles } = env.payload;
+        if (path === currentPath) {
+            setAllFiles(receivedFiles || []);
+            setIsLoading(false);
+        }
+    };
+    
+    const handleMutationResult = () => {
+        setIsDeleting(false);
+        setItemToDelete(null);
+        setCreatingItemType(null);
+        refresh();
+    };
+
+    const subs = [
+      aether.subscribe('vfs:list:result', handleFileList),
+      aether.subscribe('vfs:delete:result', handleMutationResult),
+      aether.subscribe('vfs:create:file:result', handleMutationResult),
+      aethersubscribe('vfs:create:folder:result', handleMutationResult),
+    ];
+    
+    refresh();
+
+    return () => {
+      subs.forEach(sub => sub && sub());
+    };
+  }, [aether, currentPath, refresh]);
 
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
-    if (!query) {
+    if (!query || !aether) {
       setDisplayedFiles(allFiles);
       return;
     }
     setIsSearching(true);
     setCreatingItemType(null);
     try {
-      const storage = getStorage();
-      const rootRef = ref(storage, basePath);
-      const allPathsResult = await listAll(rootRef);
-      // This is a simplified approach. A real app might have a backend service to get all file paths.
-      const availableFilePaths = [
-          ...allPathsResult.items.map(item => item.fullPath),
-          ...allPathsResult.prefixes.map(prefix => prefix.fullPath)
-      ];
+        aether.publish('ai:search:files', { query, availableFiles: allFiles.map(f => f.path) });
+        
+        const handleResponse = async (env: any) => {
+            const searchResultsJson = JSON.parse(env.payload);
+            const results = searchResultsJson.results || [];
+            
+            const searchResultItems = results.map((result: any) => {
+              const foundFile = allFiles.find(f => f.path === result.path);
+              return foundFile || { name: result.path.split('/').pop()!, type: result.type, path: result.path, size: 0, modified: new Date() };
+            }) as FileItem[];
 
-      const { results } = await semanticFileSearch({ query, availableFiles: availableFilePaths });
-      
-      const searchResultPromises = results.map(async (result) => {
-          if (result.type === 'folder') {
-              return { name: result.path.split('/').pop()!, type: 'folder', path: result.path, size: 0, modified: new Date() };
-          }
-          const metadata = await getMetadata(ref(storage, result.path));
-          return { name: metadata.name, type: 'file', path: metadata.fullPath, size: metadata.size, modified: new Date(metadata.updated) };
-      });
+            setDisplayedFiles(searchResultItems);
 
-      const searchResults = (await Promise.all(searchResultPromises)) as FileItem[];
-      
-      setDisplayedFiles(searchResults);
-      
-      toast({
-          title: "Search Complete",
-          description: `Found ${searchResults.length} matching item(s).`
-      });
+            toast({
+                title: "Search Complete",
+                description: `Found ${searchResultItems.length} matching item(s).`
+            });
+            setIsSearching(false);
+            aether.subscribe('ai:search:files:resp', handleResponse)(); // Unsubscribe
+        };
+
+        const handleError = (env: any) => {
+            toast({ title: "Search Failed", description: env.payload.error, variant: "destructive" });
+            setIsSearching(false);
+            aether.subscribe('ai:search:files:error', handleError)(); // Unsubscribe
+        };
+
+        aether.subscribe('ai:search:files:resp', handleResponse);
+        aether.subscribe('ai:search:files:error', handleError);
 
     } catch (err: any) {
         console.error("Search failed:", err);
         toast({ title: "Search Failed", description: err.message, variant: "destructive" });
-    } finally {
         setIsSearching(false);
     }
-  }, [allFiles, basePath, toast]);
+  }, [allFiles, toast, aether]);
 
 
   useEffect(() => {
      if (initialSearchQuery) {
         handleSearch(initialSearchQuery);
      }
-     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSearchQuery]);
+  }, [initialSearchQuery, handleSearch]);
 
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -272,111 +240,46 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setCreatingItemType(null);
   }
 
-  const handleUpload = async (files: File[] | FileList) => {
-    if (!files || files.length === 0 || !user) return;
+  const handleUpload = async (files: File[]) => {
+    if (!files || files.length === 0 || !user || !aether) return;
     setIsUploading(true);
     setUploadProgress(0);
     
+    // For simplicity, we'll handle one file at a time.
     const file = files[0];
-    const storage = getStorage();
-    const storageRef = ref(storage, `${currentPath}/${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const base64Content = reader.result?.toString().split(',')[1];
+      if (base64Content) {
+        aether.publish('vfs:write', { path: `${currentPath}/${file.name}`, content: base64Content, encoding: 'base64' });
 
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(progress);
-      },
-      (error) => {
-        console.error(error);
-        toast({ title: "Upload Failed", description: error.message, variant: "destructive"});
-        setIsUploading(false);
-      },
-      () => {
-        toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
-        osEvent.emit('file-system-change');
-        setIsUploading(false);
+        const sub = aether.subscribe('vfs:write:result', () => {
+          toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
+          setIsUploading(false);
+          refresh();
+          sub();
+        });
       }
-    );
+    };
+    reader.onerror = () => {
+       toast({ title: "Upload Failed", description: "Could not read file for upload.", variant: "destructive"});
+       setIsUploading(false);
+    }
   }
 
   const handleCreate = async (name: string) => {
-      if (!name || !user || !creatingItemType) return;
-      
-      const isFile = creatingItemType === 'file';
-      const pathSegment = isFile ? name : `${name}/.placeholder`;
-      const fullPath = `${currentPath}/${pathSegment}`;
-      
-      try {
-          const storage = getStorage();
-          const itemRef = ref(storage, fullPath);
-          await uploadString(itemRef, '');
-          
-          toast({ title: 'Success', description: `Successfully created ${creatingItemType} "${name}".` });
-          
-          osEvent.emit('file-system-change');
-
-          if (isFile && onOpenFile) {
-            onOpenFile(`${currentPath}/${name}`, '');
-          }
-      } catch (err: any) {
-          console.error(`Error creating ${creatingItemType}:`, err);
-          toast({ title: `Failed to create ${creatingItemType}`, description: err.message, variant: "destructive" });
-      } finally {
-          setCreatingItemType(null);
-      }
+      if (!name || !user || !creatingItemType || !aether) return;
+      const topic = `vfs:create:${creatingItemType}`;
+      aether.publish(topic, {path: currentPath, name});
+      setCreatingItemType(null);
   }
 
   const confirmDelete = () => {
-    if (!itemToDelete) return;
+    if (!itemToDelete || !aether) return;
     setIsDeleting(true);
-
-    const deleteItem = async (item: FileItem) => {
-      const storage = getStorage();
-
-      if (item.type === 'file') {
-        const fileRef = ref(storage, item.path);
-        await deleteObject(fileRef);
-      } else if (item.type === 'folder') {
-        // Recursively delete folder contents
-        const listRef = ref(storage, item.path);
-        const res = await listAll(listRef);
-        // Delete all files in the folder
-        await Promise.all(res.items.map(itemRef => deleteObject(itemRef)));
-        // Recursively delete all subfolders
-        await Promise.all(res.prefixes.map(folderRef => deleteItem({
-          name: folderRef.name,
-          path: folderRef.fullPath,
-          type: 'folder',
-          size: 0,
-          modified: new Date(),
-        })));
-         // After deleting contents, try to delete the .placeholder file if it exists,
-         // which is used to represent the folder itself in some cases.
-        const placeholderRef = ref(storage, `${item.path}/.placeholder`);
-        try {
-          await deleteObject(placeholderRef);
-        } catch (error: any) {
-            if (error.code !== 'storage/object-not-found') {
-              console.warn(`Could not delete placeholder for ${item.path}:`, error);
-            }
-        }
-      }
-    };
-
-    deleteItem(itemToDelete)
-      .then(() => {
-        toast({ title: 'Item Deleted', description: `"${itemToDelete.name}" was successfully deleted.` });
-        osEvent.emit('file-system-change');
-      })
-      .catch((err: any) => {
-        console.error("Deletion failed:", err);
-        toast({ title: "Deletion Failed", description: err.message, variant: "destructive" });
-      })
-      .finally(() => {
-        setIsDeleting(false);
-        setItemToDelete(null);
-      });
+    aether.publish('vfs:delete', { path: itemToDelete.path });
   };
   
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {

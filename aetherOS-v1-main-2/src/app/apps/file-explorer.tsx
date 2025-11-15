@@ -254,7 +254,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
           toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
           setIsUploading(false);
           refresh();
-          sub();
+          if (sub) sub();
         });
       }
     };

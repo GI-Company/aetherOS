@@ -6,7 +6,7 @@ import {Label}from '@/components/ui/label';
 import {Textarea}from '@/components/ui/textarea';
 import {Tabs, TabsContent, TabsList, TabsTrigger} from '@/components/ui/tabs';
 import {useState, useEffect} from 'react';
-import {useToast} from '@/hooks/use-toast';
+import {useToast}from '@/hooks/use-toast';
 import {
   Wand2,
   Loader2,
@@ -19,11 +19,11 @@ import {
   Timer,
 } from 'lucide-react';
 import {Separator} from '@/components/ui/separator';
-import {useTheme} from '@/hooks/use-theme';
-import {useFirebase, useDoc, useMemoFirebase} from '@/firebase';
+import {useTheme}from '@/hooks/use-theme';
+import {useFirebase, useDoc, useMemoFirebase}from '@/firebase';
 import AuthForm from '@/firebase/auth/auth-form';
 import {App, APPS} from '@/lib/apps';
-import {Input} from '@/components/ui/input';
+import {Input}from '@/components/ui/input';
 import {
   getAuth,
 } from 'firebase/auth';

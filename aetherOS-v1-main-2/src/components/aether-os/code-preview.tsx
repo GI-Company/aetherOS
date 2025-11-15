@@ -23,6 +23,8 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
     if (summary || !aether || !filePath) return;
 
     let isMounted = true;
+    let summarySub: (() => void) | undefined;
+    let errorSub: (() => void) | undefined;
     
     const handleSummaryResponse = (payload: any) => {
         if (payload.filePath === filePath && isMounted) {
@@ -47,8 +49,8 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         }
     };
     
-    const summarySub = aether.subscribe('ai:summarize:code:resp', handleSummaryResponse);
-    const errorSub = aether.subscribe('ai:summarize:code:error', handleErrorResponse);
+    summarySub = aether.subscribe('ai:summarize:code:resp', handleSummaryResponse);
+    errorSub = aether.subscribe('ai:summarize:code:error', handleErrorResponse);
 
     setIsLoading(true);
     aether.publish('ai:summarize:code', { filePath });

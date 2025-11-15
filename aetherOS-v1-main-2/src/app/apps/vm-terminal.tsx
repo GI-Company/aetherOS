@@ -48,24 +48,24 @@ export default function VmTerminalApp() {
     setInput('');
     setIsLoading(true);
 
-    // This now sends the command to the Go backend via the message bus
     aether.publish('ai:generate', command);
 
-    const handleResponse = (env: any) => {
-      // The payload is just the raw text response
-      setHistory(prev => [...prev, { type: 'response', content: env.payload }]);
+    const handleResponse = (payload: any) => {
+      setHistory(prev => [...prev, { type: 'response', content: payload }]);
       setIsLoading(false);
-      aether.subscribe('ai:generate:resp', handleResponse)(); // Unsubscribe
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
 
-    const handleError = (env: any) => {
-       setHistory(prev => [...prev, { type: 'response', content: `Error: ${env.payload.error}` }]);
+    const handleError = (payload: any) => {
+       setHistory(prev => [...prev, { type: 'response', content: `Error: ${payload.error}` }]);
        setIsLoading(false);
-       aether.subscribe('ai:generate:error', handleError)(); // Unsubscribe
+       if (resSub) resSub();
+       if (errSub) errSub();
     };
     
-    aether.subscribe('ai:generate:resp', handleResponse);
-    aether.subscribe('ai:generate:error', handleError);
+    const resSub = aether.subscribe('ai:generate:resp', handleResponse);
+    const errSub = aether.subscribe('ai:generate:error', handleError);
   };
   
   const handleTerminalClick = () => {

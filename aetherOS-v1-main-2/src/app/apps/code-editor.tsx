@@ -60,18 +60,20 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
             setOpenFiles(prev => [...prev, newFile]);
             setActiveFileId(fileId);
             // Unsubscribe after getting the result
-            aether.subscribe('vfs:read:result', handleReadResult)();
+            if (readSub) readSub();
+            if (errorSub) errorSub();
           }
         };
 
         const handleReadError = (payload: any) => {
           console.error("Error opening file:", payload.error);
           toast({ title: "Error", description: `Could not load file: ${payload.error}`, variant: "destructive" });
-          aether.subscribe('vfs:read:error', handleReadError)();
+          if (readSub) readSub();
+          if (errorSub) errorSub();
         };
 
-        aether.subscribe('vfs:read:result', handleReadResult);
-        aether.subscribe('vfs:read:error', handleReadError);
+        const readSub = aether.subscribe('vfs:read:result', handleReadResult);
+        const errorSub = aether.subscribe('vfs:read:error', handleReadError);
 
     } else {
        const newFile: EditorFile = {
@@ -190,5 +192,3 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
     </div>
   );
 }
-
-    

@@ -175,42 +175,38 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     }
     setIsSearching(true);
     setCreatingItemType(null);
-    try {
-        aether.publish('ai:search:files', { query, availableFiles: allFiles.map(f => f.path) });
+    
+    aether.publish('ai:search:files', { query, availableFiles: allFiles.map(f => f.path) });
+    
+    const handleResponse = (payload: any) => {
+        const results = payload.results || [];
         
-        const handleResponse = async (payload: any) => {
-            // The Go backend now sends a structured JSON object directly.
-            const results = payload.results || [];
-            
-            const searchResultItems = results.map((result: any) => {
-              const foundFile = allFiles.find(f => f.path === result.path);
-              return foundFile || { name: result.path.split('/').pop()!, type: result.type, path: result.path, size: 0, modTime: new Date() };
-            }) as FileItem[];
+        const searchResultItems = results.map((result: any) => {
+          const foundFile = allFiles.find(f => f.path === result.path);
+          return foundFile || { name: result.path.split('/').pop()!, type: result.type, path: result.path, size: 0, modTime: new Date() };
+        }) as FileItem[];
 
-            setDisplayedFiles(searchResultItems);
+        setDisplayedFiles(searchResultItems);
 
-            toast({
-                title: "Search Complete",
-                description: `Found ${searchResultItems.length} matching item(s).`
-            });
-            setIsSearching(false);
-            aether.subscribe('ai:search:files:resp', handleResponse)(); // Unsubscribe
-        };
-
-        const handleError = (payload: any) => {
-            toast({ title: "Search Failed", description: payload.error, variant: "destructive" });
-            setIsSearching(false);
-            aether.subscribe('ai:search:files:error', handleError)(); // Unsubscribe
-        };
-
-        aether.subscribe('ai:search:files:resp', handleResponse);
-        aether.subscribe('ai:search:files:error', handleError);
-
-    } catch (err: any) {
-        console.error("Search failed:", err);
-        toast({ title: "Search Failed", description: err.message, variant: "destructive" });
+        toast({
+            title: "Search Complete",
+            description: `Found ${searchResultItems.length} matching item(s).`
+        });
         setIsSearching(false);
-    }
+        if (resSub) resSub();
+        if (errSub) errSub();
+    };
+
+    const handleError = (payload: any) => {
+        toast({ title: "Search Failed", description: payload.error, variant: "destructive" });
+        setIsSearching(false);
+        if (resSub) resSub();
+        if (errSub) errSub();
+    };
+
+    const resSub = aether.subscribe('ai:search:files:resp', handleResponse);
+    const errSub = aether.subscribe('ai:search:files:error', handleError);
+
   }, [allFiles, toast, aether]);
 
 
@@ -245,7 +241,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsUploading(true);
     setUploadProgress(0);
     
-    // For simplicity, we'll handle one file at a time.
     const file = files[0];
     
     const reader = new FileReader();
@@ -427,5 +422,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
-
-    

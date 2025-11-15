@@ -193,5 +193,3 @@ export const AetherProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 export const useAether = (): AetherClient | null => {
     return useContext(AetherContext);
 };
-
-    

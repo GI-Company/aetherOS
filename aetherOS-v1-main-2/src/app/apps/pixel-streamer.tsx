@@ -34,29 +34,31 @@ export default function PixelStreamerApp() {
     
     aether.publish('ai:generate:image', { prompt });
 
-    const handleResponse = (env: any) => {
-      setGeneratedImage(env.payload.imageUrl);
+    const handleResponse = (payload: any) => {
+      setGeneratedImage(payload.imageUrl);
       toast({
         title: "Image Generated!",
         description: "The Pixel Streamer engine has rendered your prompt."
       });
       setIsLoading(null);
-      aether.subscribe('ai:generate:image:resp', handleResponse)(); // Unsubscribe
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
 
-    const handleError = (env: any) => {
-      console.error("Error generating image:", env.payload.error);
+    const handleError = (payload: any) => {
+      console.error("Error generating image:", payload.error);
       toast({
         title: "Generation Failed",
-        description: env.payload.error || "An error occurred while communicating with the image generation service.",
+        description: payload.error || "An error occurred while communicating with the image generation service.",
         variant: "destructive"
       });
       setIsLoading(null);
-      aether.subscribe('ai:generate:image:error', handleError)(); // Unsubscribe
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
 
-    aether.subscribe('ai:generate:image:resp', handleResponse);
-    aether.subscribe('ai:generate:image:error', handleError);
+    const resSub = aether.subscribe('ai:generate:image:resp', handleResponse);
+    const errSub = aether.subscribe('ai:generate:image:error', handleError);
   };
 
   const handleSaveImage = async () => {
@@ -76,32 +78,33 @@ export default function PixelStreamerApp() {
     const fileName = `${safePrompt}_${Date.now()}.png`;
     const filePath = `users/${user.uid}/${fileName}`;
     
-    // The image data is a data URI, we need to extract the base64 part
     const base64Content = generatedImage.split(',')[1];
     
     aether.publish('vfs:write', { path: filePath, content: base64Content, encoding: 'base64' });
 
-    const handleSaveResponse = (env: any) => {
+    const handleSaveResponse = (payload: any) => {
       toast({
         title: "Image Saved!",
         description: `${fileName} has been saved.`
       });
       setIsLoading(null);
-      aether.subscribe('vfs:write:result', handleSaveResponse)(); // Unsubscribe
+      if (saveSub) saveSub();
+      if (errSub) errSub();
     };
     
-    const handleSaveError = (env: any) => {
+    const handleSaveError = (payload: any) => {
        toast({
         title: "Save Failed",
-        description: env.payload.error || "Could not save the image.",
+        description: payload.error || "Could not save the image.",
         variant: "destructive"
       });
       setIsLoading(null);
-      aether.subscribe('vfs:write:error', handleSaveError)(); // Unsubscribe
+      if (saveSub) saveSub();
+      if (errSub) errSub();
     };
 
-    aether.subscribe('vfs:write:result', handleSaveResponse);
-    aether.subscribe('vfs:write:error', handleSaveError);
+    const saveSub = aether.subscribe('vfs:write:result', handleSaveResponse);
+    const errSub = aether.subscribe('vfs:write:error', handleSaveError);
   };
 
 

@@ -36,18 +36,22 @@ export default function BrowserApp() {
     
     aether.publish('ai:generate:page', { topic: url });
         
-    const handlePageContent = (env: any) => {
-        setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: env.payload, error: null } }));
-        aether.subscribe('ai:generate:page:resp', handlePageContent)(); // Unsubscribe
+    const handlePageContent = (payload: any) => {
+        setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: payload, error: null } }));
+        // Unsubscribe immediately after receiving the response.
+        if (sub) sub();
+        if (errSub) errSub();
     };
 
-    const handleError = (env: any) => {
-        setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: null, error: env.payload.error || 'An unknown error occurred.' } }));
-        aether.subscribe('ai:generate:page:error', handleError)(); // Unsubscribe
+    const handleError = (payload: any) => {
+        setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: null, error: payload.error || 'An unknown error occurred.' } }));
+        // Unsubscribe immediately after receiving the response.
+        if (sub) sub();
+        if (errSub) errSub();
     };
 
-    aether.subscribe('ai:generate:page:resp', handlePageContent);
-    aether.subscribe('ai:generate:page:error', handleError);
+    const sub = aether.subscribe('ai:generate:page:resp', handlePageContent);
+    const errSub = aether.subscribe('ai:generate:page:error', handleError);
   }, [aether]);
 
   useEffect(() => {

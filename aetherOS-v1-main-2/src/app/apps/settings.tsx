@@ -77,9 +77,9 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
 
     aether.publish('ai:generate:palette', { contentDescription: themePrompt });
 
-    const handleResponse = (env: any) => {
+    const handleResponse = (payload: any) => {
       try {
-        const result = JSON.parse(env.payload);
+        const result = JSON.parse(payload);
         applyTheme({palette: result});
         toast({
           title: 'Base Theme Applied!',
@@ -94,18 +94,20 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
         });
       } finally {
         setIsLoading(null);
-        aether.subscribe('ai:generate:palette:resp', handleResponse)();
+        if (resSub) resSub();
+        if (errSub) errSub();
       }
     };
     
-    const handleError = (env: any) => {
+    const handleError = (payload: any) => {
         toast({ title: 'Error', description: 'Failed to generate theme.', variant: 'destructive' });
         setIsLoading(null);
-        aether.subscribe('ai:generate:palette:error', handleError)();
+        if (resSub) resSub();
+        if (errSub) errSub();
     }
     
-    aether.subscribe('ai:generate:palette:resp', handleResponse);
-    aether.subscribe('ai:generate:palette:error', handleError);
+    const resSub = aether.subscribe('ai:generate:palette:resp', handleResponse);
+    const errSub = aether.subscribe('ai:generate:palette:error', handleError);
   };
 
   const handleGenerateAccent = async () => {
@@ -125,9 +127,9 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
 
     aether.publish('ai:generate:accent', { description: accentPrompt });
 
-    const handleResponse = (env: any) => {
+    const handleResponse = (payload: any) => {
         try {
-            const result = JSON.parse(env.payload);
+            const result = JSON.parse(payload);
             const {accentColor} = result;
 
             const rgb = parseInt(accentColor.substring(1), 16);
@@ -152,18 +154,20 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
             });
         } finally {
             setIsLoading(null);
-            aether.subscribe('ai:generate:accent:resp', handleResponse)();
+            if (resSub) resSub();
+            if (errSub) errSub();
         }
     };
 
-    const handleError = (env: any) => {
+    const handleError = (payload: any) => {
         toast({ title: 'Error', description: 'Failed to generate accent color.', variant: 'destructive' });
         setIsLoading(null);
-        aether.subscribe('ai:generate:accent:error', handleError)();
+        if (resSub) resSub();
+        if (errSub) errSub();
     }
 
-    aether.subscribe('ai:generate:accent:resp', handleResponse);
-    aether.subscribe('ai:generate:accent:error', handleError);
+    const resSub = aether.subscribe('ai:generate:accent:resp', handleResponse);
+    const errSub = aether.subscribe('ai:generate:accent:error', handleError);
   };
 
   const onAccountLinked = () => {

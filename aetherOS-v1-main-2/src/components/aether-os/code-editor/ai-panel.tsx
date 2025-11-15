@@ -40,11 +40,11 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
     aether.publish('ai:generate', { prompt: `Given the existing code:\n\n${activeFile.content}\n\nGenerate new code based on this request: ${prompt}` });
 
     const handleResponse = (payload: any) => {
-      // The payload is now the raw code string
       const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
       onCodeUpdate(cleanedCode);
       setIsLoading(null);
-      aether.subscribe('ai:generate:resp', handleResponse)(); // Unsubscribe
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
 
     const handleError = (payload: any) => {
@@ -55,11 +55,12 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
         variant: "destructive"
       });
       setIsLoading(null);
-      aether.subscribe('ai:generate:error', handleError)(); // Unsubscribe
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
     
-    aether.subscribe('ai:generate:resp', handleResponse);
-    aether.subscribe('ai:generate:error', handleError);
+    const resSub = aether.subscribe('ai:generate:resp', handleResponse);
+    const errSub = aether.subscribe('ai:generate:error', handleError);
   };
   
   const handleRefactorCode = async () => {
@@ -77,7 +78,8 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
       const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
       onCodeUpdate(cleanedCode);
       setIsLoading(null);
-      aether.subscribe('ai:generate:resp', handleResponse)();
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
 
     const handleError = (payload: any) => {
@@ -88,11 +90,12 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
         variant: "destructive"
       });
       setIsLoading(null);
-      aether.subscribe('ai:generate:error', handleError)();
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
     
-    aether.subscribe('ai:generate:resp', handleResponse);
-    aether.subscribe('ai:generate:error', handleError);
+    const resSub = aether.subscribe('ai:generate:resp', handleResponse);
+    const errSub = aether.subscribe('ai:generate:error', handleError);
   };
 
   return (

@@ -86,9 +86,9 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
     useEffect(() => {
         if (!aether || !basePath) return;
 
-        const handleFileList = (env: any) => {
-            if (env.payload.path === basePath) {
-                const fileTree = buildFileTree(env.payload.files, basePath);
+        const handleFileList = (payload: any) => {
+            if (payload.path === basePath) {
+                const fileTree = buildFileTree(payload.files, basePath);
                 setTree(fileTree);
                 setIsLoading(false);
             }

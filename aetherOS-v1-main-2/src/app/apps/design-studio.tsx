@@ -36,27 +36,28 @@ export default function DesignStudioApp() {
 
     aether.publish('ai:design:component', { description: prompt });
 
-    const handleResponse = (env: any) => {
-      // The payload is now the raw code string
-      const cleanedCode = env.payload.replace(/```.*\n/g, '').replace(/```/g, '').trim();
+    const handleResponse = (payload: any) => {
+      const cleanedCode = payload.replace(/```.*\n/g, '').replace(/```/g, '').trim();
       setGeneratedCode(cleanedCode);
       setIsLoading(false);
-      aether.subscribe('ai:design:component:resp', handleResponse)(); // Unsubscribe
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
 
-    const handleError = (env: any) => {
-      console.error("Error generating UI:", env.payload.error);
+    const handleError = (payload: any) => {
+      console.error("Error generating UI:", payload.error);
       toast({
         title: "Generation Failed",
-        description: env.payload.error || "An error occurred while generating the UI component.",
+        description: payload.error || "An error occurred while generating the UI component.",
         variant: "destructive"
       });
       setIsLoading(false);
-      aether.subscribe('ai:design:component:error', handleError)(); // Unsubscribe
+      if (resSub) resSub();
+      if (errSub) errSub();
     };
     
-    aether.subscribe('ai:design:component:resp', handleResponse);
-    aether.subscribe('ai:design:component:error', handleError);
+    const resSub = aether.subscribe('ai:design:component:resp', handleResponse);
+    const errSub = aether.subscribe('ai:design:component:error', handleError);
   };
   
   const copyToClipboard = () => {

@@ -19,9 +19,6 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
   const [isLoading, setIsLoading] = useState(!summary);
   const [error, setError] = useState<string | null>(null);
 
-  // Memoize the request ID to ensure we only process the response for the current component instance
-  const requestId = useMemo(() => `summary-${filePath}-${Date.now()}`, [filePath]);
-
   useEffect(() => {
     if (summary || !aether || !filePath) return;
 
@@ -36,7 +33,8 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
                 setError("Invalid summary format received.");
             }
             setIsLoading(false);
-            unsubscribe();
+            if(summarySub) summarySub();
+            if(errorSub) errorSub();
         }
     };
 
@@ -44,26 +42,23 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         if (isMounted) {
             setError(payload.error || 'Summarization failed');
             setIsLoading(false);
-            unsubscribe();
+            if(summarySub) summarySub();
+            if(errorSub) errorSub();
         }
     };
     
     const summarySub = aether.subscribe('ai:summarize:code:resp', handleSummaryResponse);
     const errorSub = aether.subscribe('ai:summarize:code:error', handleErrorResponse);
 
-    const unsubscribe = () => {
-        summarySub();
-        errorSub();
-    };
-
     setIsLoading(true);
     aether.publish('ai:summarize:code', { filePath });
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      if(summarySub) summarySub();
+      if(errorSub) errorSub();
     };
-  }, [filePath, aether, summary, requestId]);
+  }, [filePath, aether, summary]);
 
   if (isLoading) {
     return <Skeleton className="w-full h-full p-2 space-y-1">
@@ -97,5 +92,3 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 };
 
 export default CodePreview;
-
-    

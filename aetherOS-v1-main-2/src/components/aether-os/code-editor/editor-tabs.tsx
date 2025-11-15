@@ -59,21 +59,25 @@ export default function EditorTabs({
 
         aether.publish('vfs:write', { path: activeFile.path, content: activeFile.content });
 
-        const sub = aether.subscribe('vfs:write:result', (payload) => {
-            // The Go payload is already a JSON object
-            if (payload.path === activeFile.path) { // Match response to the file being saved
+        const handleResult = (payload: any) => {
+            if (payload.path === activeFile.path) {
                 toast({ title: "File Saved!", description: `${activeFile.name} has been saved.` });
                 onSave(activeFile.id);
                 setIsSaving(false);
                 osEvent.emit('file-system-change');
-                sub(); // unsubscribe
+                if (sub) sub();
+                if (errSub) errSub();
             }
-        });
-        const errSub = aether.subscribe('vfs:write:error', (payload) => {
+        };
+        const handleError = (payload: any) => {
             toast({ title: "Save failed", description: payload.error, variant: 'destructive'});
             setIsSaving(false);
-            errSub();
-        });
+            if (sub) sub();
+            if (errSub) errSub();
+        };
+        
+        const sub = aether.subscribe('vfs:write:result', handleResult);
+        const errSub = aether.subscribe('vfs:write:error', handleError);
     };
 
     return (
@@ -138,5 +142,3 @@ export default function EditorTabs({
         </div>
     );
 }
-
-    

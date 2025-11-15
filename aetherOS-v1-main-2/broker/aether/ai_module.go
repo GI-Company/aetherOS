@@ -20,8 +20,11 @@ type AIModule struct {
 // NewAIModule creates a new AI module.
 func NewAIModule() (*AIModule, error) {
 	ctx := context.Background()
-	// The client automatically uses the GEMINI_API_KEY environment variable.
-	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("GEMINI_API_KEY")))
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY environment variable not set")
+	}
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create genai client: %w", err)
 	}
@@ -270,11 +273,19 @@ func (m *AIModule) SummarizeCode(code string) (string, error) {
 	return resultText, nil
 }
 
+// GenerateImage generates an image from a text prompt.
+// This function needs to be implemented. For now, it returns a placeholder.
+func (m *AIModule) GenerateImage(prompt string) (string, error) {
+	// In a real implementation, this would call a text-to-image model.
+	// For now, we return a placeholder data URI.
+	// This is a 1x1 transparent GIF.
+	return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", nil
+}
+
+
 // Close releases resources used by the AI module.
 func (m *AIModule) Close() {
 	if m.client != nil {
 		m.client.Close()
 	}
 }
-
-    

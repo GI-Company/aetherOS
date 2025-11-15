@@ -25,7 +25,7 @@ interface Envelope {
 class AetherClient {
   private baseUrl: string;
   private ws: WebSocket | null;
-  private subscriptions: Map<string, Array<(payload: any) => void>>;
+  private subscriptions: Map<string, Array<(payload: any, envelope: Envelope) => void>>;
   private messageQueue: string[];
   private isConnected: boolean;
   private connectionPromise: Promise<void> | null;
@@ -66,15 +66,10 @@ class AetherClient {
         this.ws.onmessage = (event) => {
             try {
                 const envelope: Envelope = JSON.parse(event.data);
-                const payload = envelope.payload;
-                // The Go service now sends the payload directly, already parsed.
-                // The full envelope is passed to subscribers if they need metadata.
-                
                 if (this.subscriptions.has(envelope.topic)) {
                     this.subscriptions.get(envelope.topic)?.forEach(callback => {
-                        // The callback now receives the payload directly, which is what most apps expect.
-                        // The original implementation was passing the full envelope, which was inconsistent.
-                        callback(payload);
+                        // Pass both the direct payload and the full envelope
+                        callback(envelope.payload, envelope);
                     });
                 }
             } catch (error) {
@@ -110,12 +105,19 @@ class AetherClient {
   }
 
   async publish(topic: string, payload: any): Promise<void> {
-    // This is the structure the Go kernel now expects
     const fullEnvelope = {
         id: crypto.randomUUID(),
         topic: topic,
         contentType: 'application/json',
-        payload: payload, // The payload is an object
+        // This is the critical change: the Go backend expects the payload
+        // to be nested inside another payload object.
+        payload: {
+            id: crypto.randomUUID(),
+            topic: topic,
+            contentType: 'application/json',
+            payload: payload,
+            createdAt: new Date().toISOString(),
+        },
         createdAt: new Date().toISOString(),
     };
 
@@ -131,7 +133,7 @@ class AetherClient {
     }
   }
 
-  subscribe(topic: string, callback: (payload: any) => void): () => void {
+  subscribe(topic: string, callback: (payload: any, envelope: Envelope) => void): () => void {
     if (!this.subscriptions.has(topic)) {
       this.subscriptions.set(topic, []);
     }
@@ -156,7 +158,7 @@ class AetherClient {
 // React Context for the Aether Client
 const AetherContext = createContext<AetherClient | null>(null);
 
-export const AetherProvider = ({ children }: { children: React.ReactNode }) => {
+export const AetherProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [client, setClient] = useState<AetherClient | null>(null);
 
     useEffect(() => {

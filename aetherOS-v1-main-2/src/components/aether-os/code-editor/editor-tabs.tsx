@@ -60,6 +60,7 @@ export default function EditorTabs({
         aether.publish('vfs:write', { path: activeFile.path, content: activeFile.content });
 
         const sub = aether.subscribe('vfs:write:result', (payload) => {
+            // The Go payload is already a JSON object
             if (payload.path === activeFile.path) { // Match response to the file being saved
                 toast({ title: "File Saved!", description: `${activeFile.name} has been saved.` });
                 onSave(activeFile.id);
@@ -137,3 +138,5 @@ export default function EditorTabs({
         </div>
     );
 }
+
+    

@@ -190,3 +190,5 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
     </div>
   );
 }
+
+    

@@ -179,6 +179,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         aether.publish('ai:search:files', { query, availableFiles: allFiles.map(f => f.path) });
         
         const handleResponse = async (payload: any) => {
+            // The Go backend now sends a structured JSON object directly.
             const results = payload.results || [];
             
             const searchResultItems = results.map((result: any) => {
@@ -426,3 +427,5 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
+
+    

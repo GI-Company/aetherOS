@@ -35,7 +35,9 @@ func NewAIModule() (*AIModule, error) {
 func (m *AIModule) GenerateText(prompt string) (string, error) {
 	ctx := context.Background()
 	model := m.client.GenerativeModel("gemini-1.5-flash")
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	// The user prompt is now passed as data, not as a direct instruction.
+	fullPrompt := fmt.Sprintf("The user provided the following prompt: %s", prompt)
+	resp, err := model.GenerateContent(ctx, genai.Text(fullPrompt))
 
 	if err != nil {
 		return "", fmt.Errorf("error generating content: %w", err)
@@ -289,3 +291,5 @@ func (m *AIModule) Close() {
 		m.client.Close()
 	}
 }
+
+    

@@ -65,10 +65,12 @@ class AetherClient {
 
         this.ws.onmessage = (event) => {
             try {
+                // The Go backend sends the full envelope as the message data
                 const envelope: Envelope = JSON.parse(event.data);
                 if (this.subscriptions.has(envelope.topic)) {
                     this.subscriptions.get(envelope.topic)?.forEach(callback => {
-                        // Pass both the direct payload and the full envelope
+                        // The Go payload is already a marshaled JSON string or object.
+                        // We pass the raw payload and the full envelope for flexibility.
                         callback(envelope.payload, envelope);
                     });
                 }
@@ -191,3 +193,5 @@ export const AetherProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 export const useAether = (): AetherClient | null => {
     return useContext(AetherContext);
 };
+
+    

@@ -52,16 +52,13 @@ func (s *VfsService) Run() {
 func (s *VfsService) handleRequest(env *aether.Envelope) {
 	log.Printf("VFS Service processing message ID %s on topic %s", env.ID, env.Topic)
 
-	// Extract the raw payload from the envelope
-	var rawPayload json.RawMessage
-	var tempEnv struct {
-		Payload json.RawMessage `json:"payload"`
-	}
-	if err := json.Unmarshal(env.Payload, &tempEnv); err != nil {
+	// Extract the nested payload from the envelope
+	var innerEnv aether.Envelope
+	if err := json.Unmarshal(env.Payload, &innerEnv); err != nil {
 		s.publishError(env, "Invalid envelope structure")
 		return
 	}
-	rawPayload = tempEnv.Payload
+	rawPayload := innerEnv.Payload
 
 	var payloadData map[string]interface{}
 	if err := json.Unmarshal(rawPayload, &payloadData); err != nil {
@@ -161,9 +158,7 @@ func (s *VfsService) publishResponse(originalEnv *aether.Envelope, topicName str
 		ContentType: "application/json",
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now(),
-		Meta: map[string]string{
-			"correlationId": originalEnv.ID,
-		},
+		Meta:        []byte(`{"correlationId": "` + originalEnv.ID + `"}`),
 	}
 	responseTopic.Publish(responseEnv)
 }
@@ -183,9 +178,7 @@ func (s *VfsService) publishError(originalEnv *aether.Envelope, errorMsg string)
 		ContentType: "application/json",
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now(),
-		Meta: map[string]string{
-			"correlationId": originalEnv.ID,
-		},
+		Meta:        []byte(`{"correlationId": "` + originalEnv.ID + `"}`),
 	}
 	log.Printf("VFS Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)

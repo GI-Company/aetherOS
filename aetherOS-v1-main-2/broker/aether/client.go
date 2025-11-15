@@ -1,3 +1,4 @@
+
 package aether
 
 import (
@@ -51,13 +52,13 @@ func (c *Client) ReadPump() {
 			}
 			break
 		}
-		
+
 		var env Envelope
 		if err := json.Unmarshal(message, &env); err != nil {
 			log.Printf("invalid envelope: %v", err)
 			continue
 		}
-		// The payload is now raw bytes, as it can be a string or a complex JSON object
+		// The payload is the raw message itself, which contains the nested payload from the client.
 		env.Payload = message
 
 		// Dynamic Topic Publishing: Get the topic from the envelope and publish.
@@ -104,7 +105,7 @@ func (c *Client) WritePump() {
 				return
 			}
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			c.conn.SetWriteDeadline(time.now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}

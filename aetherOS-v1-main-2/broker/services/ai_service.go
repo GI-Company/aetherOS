@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.comcom/google/uuid"
+	"github.com/google/uuid"
 )
 
 // AIService handles AI-related requests from the message bus.
@@ -61,16 +61,14 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 	var responsePayload interface{}
 	var err error
 
-	// Extract the raw payload from the envelope
-	var rawPayload json.RawMessage
-	var tempEnv struct {
-		Payload json.RawMessage `json:"payload"`
-	}
-	if err := json.Unmarshal(env.Payload, &tempEnv); err != nil {
+	// The payload from the client is now nested. We need to unmarshal the outer envelope
+	// to get to the actual payload data.
+	var innerEnv aether.Envelope
+	if err := json.Unmarshal(env.Payload, &innerEnv); err != nil {
 		s.publishError(env, "Invalid envelope structure")
 		return
 	}
-	rawPayload = tempEnv.Payload
+	rawPayload := innerEnv.Payload
 
 	// Route based on topic
 	switch env.Topic {
@@ -214,9 +212,7 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, payload interf
 		ContentType: "application/json",
 		Payload:     responsePayloadBytes, // Already marshaled
 		CreatedAt:   time.Now(),
-		Meta: map[string]string{
-			"correlationId": originalEnv.ID,
-		},
+		Meta:        []byte(`{"correlationId": "` + originalEnv.ID + `"}`),
 	}
 
 	log.Printf("AI Service publishing response to topic: %s", responseTopicName)
@@ -237,9 +233,7 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 		ContentType: "application/json",
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now(),
-		Meta: map[string]string{
-			"correlationId": originalEnv.ID,
-		},
+		Meta:        []byte(`{"correlationId": "` + originalEnv.ID + `"}`),
 	}
 	log.Printf("AI Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)

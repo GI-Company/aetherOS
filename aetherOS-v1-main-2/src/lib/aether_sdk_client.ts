@@ -113,13 +113,7 @@ class AetherClient {
         contentType: 'application/json',
         // This is the critical change: the Go backend expects the payload
         // to be nested inside another payload object.
-        payload: {
-            id: crypto.randomUUID(),
-            topic: topic,
-            contentType: 'application/json',
-            payload: payload,
-            createdAt: new Date().toISOString(),
-        },
+        payload: payload,
         createdAt: new Date().toISOString(),
     };
 

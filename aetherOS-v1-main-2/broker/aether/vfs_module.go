@@ -14,6 +14,7 @@ import (
 	"cloud.google.com/go/storage"
 	firebase "firebase.google.com/go/v4"
 	"google.golang.org/api/iterator"
+	"log"
 )
 
 // FileInfo represents a file or directory in the VFS.
@@ -280,3 +281,5 @@ func (vfs *VFSModule) Close() {
 		vfs.client.Close()
 	}
 }
+
+    

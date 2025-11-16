@@ -64,17 +64,18 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 	switch env.Topic {
 	case "vfs:list":
 		files, err := s.vfs.List(path)
+		s.publishTelemetry("list", path, err, 0)
 		if err != nil {
 			s.publishError(env, err.Error())
 			return
 		}
-		// The payload needs to include the original path for the client to match the response.
 		s.publishResponse(env, "vfs:list:result", map[string]interface{}{
 			"path":  path,
 			"files": files,
 		})
 	case "vfs:delete":
 		err := s.vfs.Delete(path)
+		s.publishTelemetry("delete", path, err, 0)
 		if err != nil {
 			s.publishError(env, err.Error())
 			return
@@ -83,6 +84,7 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 	case "vfs:create:file":
 		name, _ := payloadData["name"].(string)
 		err := s.vfs.CreateFile(path, name)
+		s.publishTelemetry("create_file", path, err, 0)
 		if err != nil {
 			s.publishError(env, err.Error())
 			return
@@ -91,6 +93,7 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 	case "vfs:create:folder":
 		name, _ := payloadData["name"].(string)
 		err := s.vfs.CreateDir(path, name)
+		s.publishTelemetry("create_folder", path, err, 0)
 		if err != nil {
 			s.publishError(env, err.Error())
 			return
@@ -98,6 +101,7 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 		s.publishResponse(env, "vfs:create:folder:result", map[string]interface{}{"success": true, "path": path})
 	case "vfs:read":
 		content, err := s.vfs.Read(path)
+		s.publishTelemetry("read", path, err, int64(len(content)))
 		if err != nil {
 			s.publishError(env, err.Error())
 			return
@@ -116,6 +120,7 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 		if encoding == "base64" {
 			contentBytes, err = base64.StdEncoding.DecodeString(contentStr)
 			if err != nil {
+				s.publishTelemetry("write", path, err, 0)
 				s.publishError(env, "Invalid base64 content")
 				return
 			}
@@ -124,6 +129,7 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 		}
 
 		err = s.vfs.Write(path, contentBytes)
+		s.publishTelemetry("write", path, err, int64(len(contentBytes)))
 		if err != nil {
 			s.publishError(env, err.Error())
 			return
@@ -132,6 +138,41 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 	default:
 		s.publishError(env, "Unknown VFS topic: "+env.Topic)
 	}
+}
+
+func (s *VfsService) publishTelemetry(operation, path string, err error, size int64) {
+	telemetryTopic := s.broker.GetTopic("telemetry:vfs")
+	vfsEvent := aether.VfsEvent{
+		Operation: operation,
+		Path:      path,
+		Success:   err == nil,
+		Size:      size,
+	}
+	if err != nil {
+		vfsEvent.Error = err.Error()
+	}
+
+	sensorEvent := aether.SensorEvent{
+		Type:      "vfs",
+		Timestamp: time.Now(),
+		Payload:   vfsEvent,
+	}
+
+	payloadBytes, marshalErr := json.Marshal(sensorEvent)
+	if marshalErr != nil {
+		log.Printf("VFS Telemetry: Failed to marshal sensor event: %v", marshalErr)
+		return
+	}
+
+	envelope := &aether.Envelope{
+		ID:          uuid.New().String(),
+		Topic:       "telemetry:vfs",
+		Type:        "sensor_event",
+		ContentType: "application/json",
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now(),
+	}
+	telemetryTopic.Publish(envelope)
 }
 
 func (s *VfsService) publishResponse(originalEnv *aether.Envelope, topicName string, payload interface{}) {
@@ -157,7 +198,6 @@ func (s *VfsService) publishResponse(originalEnv *aether.Envelope, topicName str
 }
 
 func (s *VfsService) publishError(originalEnv *aether.Envelope, errorMsg string) {
-	// Errors are now published to a generic topic for each original topic
 	errorTopicName := originalEnv.Topic + ":error"
 	errorTopic := s.broker.GetTopic(errorTopicName)
 

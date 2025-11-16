@@ -18,7 +18,7 @@ import (
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"github.com/gorilla/mux"
-	"github.com/tetratelabs/wazero"
+	"github.comcom/tetratelabs/wazero"
 	"google.golang.org/api/option"
 )
 

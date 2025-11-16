@@ -3,11 +3,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, FolderOpen } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import WelcomeScreen from "@/components/aether-os/code-editor/welcome-screen";
 import FileTree from "@/components/aether-os/code-editor/file-tree";
 import EditorTabs, { type EditorFile } from "@/components/aether-os/code-editor/editor-tabs";
-import AiPanel from "@/components/aether-os/code-editor/ai-panel";
+import AiPanel from "@/components/aether-os/ai-panel";
 import { Button } from "@/components/ui/button";
 import { useUser } from "@/firebase";
 import { useAppAether } from "@/lib/use-app-aether";

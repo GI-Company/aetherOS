@@ -309,6 +309,8 @@ Available Tools:
   - Input: { "path": string }
 - 'ai:summarize:code': Summarizes a code file.
   - Input: { "filePath": string }
+- 'vm:run': Executes a WASM binary.
+  - Input: { "wasmBase64": string }
 
 Example User Prompt: "Research the latest news about WebAssembly and save it to a file called wasm_news.md"
 

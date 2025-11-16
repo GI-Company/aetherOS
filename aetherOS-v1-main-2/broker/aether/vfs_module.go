@@ -134,6 +134,10 @@ func (vfs *VFSModule) Delete(path string) error {
 	// To delete a "folder", we must delete all objects with that prefix.
 	// We list all objects with the prefix to see if it's a folder or a single file.
 	it := bucket.Objects(ctx, &storage.Query{Prefix: path})
+	if it == nil {
+		return fmt.Errorf("failed to create iterator for deletion check")
+	}
+
 	isFolder := false
 	objCount := 0
 	for {
@@ -153,6 +157,9 @@ func (vfs *VFSModule) Delete(path string) error {
 
 	// Re-start iterator for deletion
 	deleteIt := bucket.Objects(ctx, &storage.Query{Prefix: path})
+	if deleteIt == nil {
+		return fmt.Errorf("failed to create iterator for deletion")
+	}
 	for {
 		attrs, err := deleteIt.Next()
 		if err == iterator.Done {

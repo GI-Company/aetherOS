@@ -87,6 +87,17 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		var toolErr string = ""
 
 		switch payloadData.Tool {
+		case "vm:run":
+			if wasm, ok := payloadData.Input["wasmBase64"].(string); ok {
+				// Delegate to the ComputeService by publishing a message
+				s.publish(env, "vm:create", map[string]any{"wasmBase64": wasm})
+				// The result of this tool would be handled by listening to vm.exited/vm.stdout events.
+				// For now, we'll optimistically complete the node.
+				toolResult = map[string]any{"output": "WASM execution started."}
+			} else {
+				toolErr = "Invalid input for vm:run: wasmBase64 must be a string."
+			}
+
 		case "vfs:read":
 			if path, ok := payloadData.Input["path"].(string); ok {
 				content, readErr := s.vfs.Read(path)
@@ -302,6 +313,31 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, topicName stri
 	log.Printf("AI Service publishing response to topic: %s", topicName)
 	responseTopic.Publish(responseEnv)
 }
+
+// publish is a helper to send messages to the bus.
+func (s *AIService) publish(originalEnv *aether.Envelope, topicName string, payload interface{}) {
+	responseTopic := s.broker.GetTopic(topicName)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("AI Service: Failed to marshal payload for topic %s: %v", topicName, err)
+		return
+	}
+
+	responseEnv := &aether.Envelope{
+		ID:          uuid.New().String(),
+		Topic:       topicName,
+		Type:        "agent_event",
+		ContentType: "application/json",
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now(),
+	}
+	if originalEnv != nil {
+		responseEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+	}
+
+	responseTopic.Publish(responseEnv)
+}
+
 
 func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) {
 	errorTopicName := originalEnv.Topic + ":error"

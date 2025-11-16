@@ -14,7 +14,6 @@ import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2, PartyPopper } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { doc, serverTimestamp, arrayUnion } from "firebase/firestore";
-import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useInactivityTimer } from "@/hooks/use-inactivity-timer";
 import { getAuth, signOut } from "firebase/auth";
@@ -34,7 +33,7 @@ export type WindowInstance = {
     size: { width: number; height: number };
   },
   props?: Record<string, any>; // For passing props to app components
-  isDirty?: boolean; // For tracking unsaved changes in apps like CodeEditor
+  isDirty?: boolean; // For tracking unsaved changes in CodeEditor
 };
 
 export default function Desktop() {
@@ -82,7 +81,7 @@ export default function Desktop() {
             lastSeen: serverTimestamp(),
             displayName: user.displayName,
             photoURL: user.photoURL,
-            focusedApp: focusedApp?.app.id || null,
+            focusedApp: focusedApp?.app.manifest.id || null,
         }, { merge: true });
     };
 
@@ -126,7 +125,7 @@ export default function Desktop() {
     if (user && !user.isAnonymous && isInitialLoad.current) {
       if (userWorkspace && (userWorkspace as any).windows) {
         const restoredWindows = (userWorkspace as any).windows.map((w: any) => {
-          const app = APPS.find(app => app.id === w.appId);
+          const app = APPS.find(app => app.manifest.id === w.appId);
           if (!app) return null;
           // Find the max zIndex from restored windows to continue from there
           setHighestZIndex(prev => Math.max(prev, w.zIndex));
@@ -152,7 +151,7 @@ export default function Desktop() {
       if (userWorkspaceRef) {
         const windowsToSave = openApps.map(({ app, ...rest }) => ({
           ...rest,
-          appId: app.id,
+          appId: app.manifest.id,
           // We don't save the props or dirty state here for simplicity
           props: {},
           isDirty: false,
@@ -179,8 +178,8 @@ export default function Desktop() {
   }, []);
   
   const arrangeWindows = useCallback(() => {
-    const codeEditor = openApps.find(a => a.app.id === 'code-editor');
-    const browser = openApps.find(a => a.app.id === 'browser');
+    const codeEditor = openApps.find(a => a.app.manifest.id === 'system.code.editor');
+    const browser = openApps.find(a => a.app.manifest.id === 'system.browser');
     
     if (!codeEditor || !browser) {
         toast({
@@ -232,7 +231,7 @@ export default function Desktop() {
   }, [openApps, highestZIndex, toast]);
 
   const openApp = useCallback((app: App, props: Record<string, any> = {}) => {
-    const existingAppInstance = openApps.find(a => a.app.id === app.id);
+    const existingAppInstance = openApps.find(a => a.app.manifest.id === app.manifest.id);
     if (existingAppInstance) {
         if (existingAppInstance.isMinimized) {
             toggleMinimize(existingAppInstance.id);
@@ -251,7 +250,7 @@ export default function Desktop() {
       id: currentId,
       app: app,
       position: { x: 50 + (currentId % 10) * 20, y: 50 + (currentId % 10) * 20 },
-      size: app.defaultSize,
+      size: app.manifest.ui_hints.defaultSize,
       zIndex: highestZIndex + 1,
       isMinimized: false,
       isMaximized: false,
@@ -346,51 +345,32 @@ export default function Desktop() {
     }));
   };
   
- const openFile = async (filePath: string, content?: string) => {
-    const fileExtension = filePath.split('.').pop()?.toLowerCase();
-    const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+ const openFileOrApp = (appOrPath: App | string, props?: Record<string, any>) => {
+    if (typeof appOrPath === 'string') {
+        const filePath = appOrPath;
+        const fileExtension = filePath.split('.').pop()?.toLowerCase();
+        const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
-    let appToOpen;
-    let props: Record<string, any> = { filePath };
+        let appToOpen;
+        let finalProps: Record<string, any> = { ...props };
 
-    if (fileExtension && imageExtensions.includes(fileExtension)) {
-      appToOpen = APPS.find(a => a.id === 'image-viewer');
-    } else {
-      appToOpen = APPS.find(a => a.id === 'code-editor');
-      if (typeof content === 'string') {
-        props.initialContent = content;
-      } else {
-        try {
-          toast({
-              title: "Opening File...",
-              description: `Loading content for ${filePath}`,
-          });
-          const storage = getStorage();
-          const fileRef = ref(storage, filePath);
-          const downloadUrl = await getDownloadURL(fileRef);
-          
-          const response = await fetch(downloadUrl);
-          if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
-          
-          props.initialContent = await response.text();
-        } catch (error: any) {
-          console.error("Failed to open file content:", error);
-          toast({
-              title: "Error Opening File",
-              description: error.message || `Could not load content for ${filePath}.`,
-              variant: "destructive"
-          });
-          return; // Don't open the app if content fails to load
+        if (fileExtension && imageExtensions.includes(fileExtension)) {
+            appToOpen = APPS.find(a => a.manifest.id === 'system.image.viewer');
+            finalProps.filePath = filePath;
+        } else {
+            appToOpen = APPS.find(a => a.manifest.id === 'system.code.editor');
+            finalProps.fileToOpen = filePath;
         }
-      }
-    }
 
-    if (appToOpen) {
-      openApp(appToOpen, props);
+        if (appToOpen) {
+            openApp(appToOpen, finalProps);
+        } else {
+            toast({ title: "Error", description: "Could not find a suitable application to open this file.", variant: "destructive" });
+        }
     } else {
-      toast({ title: "Error", description: "Could not find a suitable application to open this file.", variant: "destructive" });
+        openApp(appOrPath, props);
     }
-  }
+ }
 
   const onUpgradeSuccess = () => {
     setUpgradeDialogOpen(false);
@@ -470,14 +450,14 @@ export default function Desktop() {
             const AppComponent = window.app.component;
             const componentProps: any = { ...window.props };
 
-            if (window.app.id === 'code-editor') {
+            if (window.app.manifest.id === 'system.code.editor') {
               componentProps.isDirty = window.isDirty;
               componentProps.setIsDirty = (isDirty: boolean) => setAppDirtyState(window.id, isDirty);
             }
-            if (window.app.id === 'file-explorer' || window.app.id === 'people') {
-              componentProps.onOpenFile = openFile;
+            if (window.app.manifest.id === 'system.file.explorer' || window.app.manifest.id === 'system.people') {
+              componentProps.onOpenFile = openFileOrApp;
             }
-             if (window.app.id === 'settings' || window.app.id === 'collaboration' || window.app.id === 'people') {
+             if (window.app.manifest.id === 'system.settings' || window.app.manifest.id === 'system.collaboration' || window.app.manifest.id === 'system.people') {
               componentProps.onOpenApp = openApp;
             }
 
@@ -509,7 +489,7 @@ export default function Desktop() {
                 <DialogHeader>
                     <DialogTitle>Upgrade Your Account</DialogTitle>
                     <DialogDescription>
-                        Create a permanent account to save your data and settings.
+                        Create a permanent account to save your work and unlock all features.
                     </DialogDescription>
                 </DialogHeader>
                 <AuthForm allowAnonymous={false} onUpgradeSuccess={onUpgradeSuccess} />

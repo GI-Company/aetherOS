@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAppAether } from '@/lib/use-app-aether';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { HELLO_WORLD_WASM_BASE64 } from '@/app/apps/hello-world/hello-world.wasm';
 
 type HistoryItem = {
   type: 'command' | 'response' | 'system' | 'agent' | 'stdout' | 'stderr' | 'error';
@@ -17,6 +18,7 @@ export default function VmTerminalApp() {
   const [history, setHistory] = useState<HistoryItem[]>(() => [
     { type: 'response', content: 'AetherOS Natural Language & VM Shell [Version 1.0.0]' },
     { type: 'response', content: 'Use natural language, or type `help` for a list of VM commands.' },
+    { type: 'response', content: `Example: run ${HELLO_WORLD_WASM_BASE64.substring(0, 40)}...` },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const endOfHistoryRef = useRef<HTMLDivElement>(null);
@@ -40,7 +42,7 @@ export default function VmTerminalApp() {
       "agent.taskgraph.created", "agent.taskgraph.started",
       "agent.taskgraph.completed", "agent.taskgraph.failed",
       "agent.tasknode.started", "agent.tasknode.completed", "agent.tasknode.failed",
-      "vm:started", "vm:stdout", "vm:stderr", "vm:exited", "vm:killed", "vm:crashed"
+      "vm:started", "vm:stdout", "vm:stderr", "vm:exited", "vm:killed", "vm:crashed", "vm:create:error", "vm:kill:error", "vm:stdin:error"
     ];
 
     const handleEvent = (payload: any, envelope: any) => {
@@ -62,7 +64,7 @@ export default function VmTerminalApp() {
                 type = 'agent';
                 break;
             case 'agent.tasknode.started':
-                message = `[Node: ${payload.nodeId}] Running ${payload.tool}...`;
+                message = `[Node: ${payload.nodeId}] Running...`;
                 type = 'agent';
                 break;
             case 'agent.tasknode.completed':
@@ -102,6 +104,9 @@ export default function VmTerminalApp() {
                 });
                  break;
             case 'vm:crashed':
+            case 'vm:create:error':
+            case 'vm:kill:error':
+            case 'vm:stdin:error':
                 message = `[VM] Error: ${payload.error}`;
                 type = 'error';
                 break;

@@ -29,6 +29,7 @@ import vmTerminalManifest from '@/app/apps/vm-terminal/manifest.json';
 import mailManifest from '@/app/apps/mail/manifest.json';
 import settingsManifest from '@/app/apps/settings/manifest.json';
 import billingManifest from '@/app/apps/billing/manifest.json';
+import helloWorldManifest from '@/app/apps/hello-world/manifest.json';
 
 
 export type AppManifest = {
@@ -75,6 +76,7 @@ const APP_METADATA: { [key: string]: { component: React.ComponentType<any>, icon
     [mailManifest.id]: { component: MailApp, icon: Mail },
     [settingsManifest.id]: { component: SettingsApp, icon: Settings },
     [billingManifest.id]: { component: BillingApp, icon: CreditCard },
+    [helloWorldManifest.id]: { component: () => null, icon: Code }, // No UI component for wasm app
 };
 
 const MANIFESTS: AppManifest[] = [
@@ -90,7 +92,8 @@ const MANIFESTS: AppManifest[] = [
   vmTerminalManifest,
   mailManifest,
   settingsManifest,
-  billingManifest
+  billingManifest,
+  helloWorldManifest
 ];
 
 export const APPS: App[] = MANIFESTS.map(manifest => {

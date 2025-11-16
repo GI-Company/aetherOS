@@ -1,0 +1,25 @@
+
+{
+  "id": "dev.aether.hello-world",
+  "name": "Hello World",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "A simple WASM application that prints a message.",
+  "entry": "app.wasm",
+  "permissions": {
+    "vm_run": true
+  },
+  "sandbox": {
+    "profile": "privileged"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
+  "ui_hints": {
+    "resizable": false,
+    "theme": "none",
+    "defaultSize": { "width": 0, "height": 0 },
+    "hideFromDock": true
+  }
+}

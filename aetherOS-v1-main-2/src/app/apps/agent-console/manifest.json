@@ -1,12 +1,21 @@
 
 {
-  "id": "agent-console",
+  "id": "system.agent.console",
   "name": "Agent Console",
   "version": "1.0.0",
   "developer": "AetherOS",
   "description": "Monitor and debug the AI agent's task execution.",
-  "permissions": ["ai_access"],
-  "entry_point": "index.tsx",
+  "entry": "index.tsx",
+  "permissions": {
+    "ai_access": true
+  },
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
   "ui_hints": {
     "resizable": true,
     "theme": "glassmorphism",

@@ -1,12 +1,19 @@
 
 {
-  "id": "mail",
+  "id": "system.mail",
   "name": "Mail",
   "version": "1.0.0",
   "developer": "AetherOS",
   "description": "A simple email client application.",
-  "permissions": [],
-  "entry_point": "index.tsx",
+  "entry": "index.tsx",
+  "permissions": {},
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
   "ui_hints": {
     "resizable": true,
     "theme": "glassmorphism",

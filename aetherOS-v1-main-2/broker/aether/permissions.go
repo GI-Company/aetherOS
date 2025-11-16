@@ -11,10 +11,26 @@ import (
 	"sync"
 )
 
+// SandboxConfig defines the execution environment for an app.
+type SandboxConfig struct {
+	Profile string `json:"profile"`
+}
+
+// SigningInfo contains the public key and fingerprint for an app.
+type SigningInfo struct {
+	PublicKey   string `json:"publicKey"`
+	Fingerprint string `json:"fingerprint"`
+}
+
 // AppManifest defines the structure of the manifest.json file.
 type AppManifest struct {
-	ID          string   `json:"id"`
-	Permissions []string `json:"permissions"`
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Version     string                 `json:"version"`
+	Entry       string                 `json:"entry"`
+	Permissions map[string]interface{} `json:"permissions"`
+	Sandbox     SandboxConfig          `json:"sandbox"`
+	Signing     SigningInfo            `json:"signing"`
 }
 
 // PermissionManager loads and manages app manifests and their permissions.
@@ -55,7 +71,7 @@ func (pm *PermissionManager) loadManifests(root string) error {
 				log.Printf("Warning: Could not parse manifest file at %s: %v", path, jsonErr)
 				return nil
 			}
-			
+
 			if manifest.ID == "" {
 				log.Printf("Warning: Manifest at %s is missing an 'id' field.", path)
 				return nil
@@ -69,6 +85,7 @@ func (pm *PermissionManager) loadManifests(root string) error {
 }
 
 // HasPermission checks if a given app has the required permission.
+// For now, this is a simple check. It will be expanded for granular permissions.
 func (pm *PermissionManager) HasPermission(appID string, requiredPermission string) bool {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
@@ -79,10 +96,10 @@ func (pm *PermissionManager) HasPermission(appID string, requiredPermission stri
 		return false // No manifest means no permissions
 	}
 
-	for _, p := range manifest.Permissions {
-		if p == requiredPermission {
-			return true
-		}
+	// This is a simplified check. We look for the key in the permissions map.
+	// In a real scenario, the value might contain configuration for the permission.
+	if _, exists := manifest.Permissions[requiredPermission]; exists {
+		return true
 	}
 
 	log.Printf("Permission denied for app '%s': missing required permission '%s'", appID, requiredPermission)
@@ -90,7 +107,7 @@ func (pm *PermissionManager) HasPermission(appID string, requiredPermission stri
 }
 
 // GetPermissions returns all permissions for a given app.
-func (pm *PermissionManager) GetPermissions(appID string) []string {
+func (pm *PermissionManager) GetPermissions(appID string) map[string]interface{} {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 

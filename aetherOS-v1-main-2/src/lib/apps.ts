@@ -37,8 +37,15 @@ export type AppManifest = {
   version: string;
   developer: string;
   description: string;
-  permissions: string[];
-  entry_point: string;
+  entry: string;
+  permissions: Record<string, any>;
+  sandbox: {
+      profile: 'ui' | 'background' | 'agent' | 'privileged';
+  };
+  signing: {
+      publicKey: string;
+      fingerprint: string;
+  };
   ui_hints: {
     resizable: boolean;
     theme: string;
@@ -53,24 +60,21 @@ export type App = {
   component: React.ComponentType<any>;
 };
 
-const ICONS: { [key: string]: LucideIcon } = {
-  Folder, Code, Image, Globe, MessagesSquare, Users, Bot, PenTool, Layers, Container, Mail, Settings, CreditCard
-};
-
-const COMPONENTS: { [key: string]: React.ComponentType<any> } = {
-    'file-explorer': FileExplorerApp,
-    'code-editor': CodeEditorApp,
-    'image-viewer': ImageViewerApp,
-    'browser': BrowserApp,
-    'collaboration': CollaborationApp,
-    'people': PeopleApp,
-    'agent-console': AgentConsoleApp,
-    'design-studio': DesignStudioApp,
-    'pixel-streamer': PixelStreamerApp,
-    'virtual-machine': VmTerminalApp,
-    'mail': MailApp,
-    'settings': SettingsApp,
-    'billing': BillingApp
+// A helper map to associate manifest IDs with their components and icons.
+const APP_METADATA: { [key: string]: { component: React.ComponentType<any>, icon: LucideIcon } } = {
+    [fileExplorerManifest.id]: { component: FileExplorerApp, icon: Folder },
+    [codeEditorManifest.id]: { component: CodeEditorApp, icon: Code },
+    [imageViewerManifest.id]: { component: ImageViewerApp, icon: Image },
+    [browserManifest.id]: { component: BrowserApp, icon: Globe },
+    [collaborationManifest.id]: { component: CollaborationApp, icon: MessagesSquare },
+    [peopleManifest.id]: { component: PeopleApp, icon: Users },
+    [agentConsoleManifest.id]: { component: AgentConsoleApp, icon: Bot },
+    [designStudioManifest.id]: { component: DesignStudioApp, icon: PenTool },
+    [pixelStreamerManifest.id]: { component: PixelStreamerApp, icon: Layers },
+    [vmTerminalManifest.id]: { component: VmTerminalApp, icon: Container },
+    [mailManifest.id]: { component: MailApp, icon: Mail },
+    [settingsManifest.id]: { component: SettingsApp, icon: Settings },
+    [billingManifest.id]: { component: BillingApp, icon: CreditCard },
 };
 
 const MANIFESTS: AppManifest[] = [
@@ -90,12 +94,19 @@ const MANIFESTS: AppManifest[] = [
 ];
 
 export const APPS: App[] = MANIFESTS.map(manifest => {
-    const iconName = manifest.id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('');
-    const IconComponent = ICONS[Object.keys(ICONS).find(key => key.toLowerCase() === iconName.replace(/-/g, '').toLowerCase()) || 'Code'];
-
+    const metadata = APP_METADATA[manifest.id];
+    if (!metadata) {
+        // Fallback for any manifests that might not be mapped
+        console.warn(`No metadata found for app with ID: ${manifest.id}`);
+        return {
+            manifest,
+            Icon: Settings, // Default icon
+            component: () => React.createElement('div', null, `App not found: ${manifest.name}`),
+        };
+    }
     return {
         manifest,
-        Icon: IconComponent,
-        component: COMPONENTS[manifest.id],
+        Icon: metadata.icon,
+        component: metadata.component,
     };
 });

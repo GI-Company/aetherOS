@@ -1,12 +1,21 @@
 
 {
-  "id": "design-studio",
+  "id": "system.design.studio",
   "name": "Design Studio",
   "version": "1.0.0",
   "developer": "AetherOS",
   "description": "Generate React components from a text prompt.",
-  "permissions": ["ai_access"],
-  "entry_point": "index.tsx",
+  "entry": "index.tsx",
+  "permissions": {
+    "ai_access": true
+  },
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
   "ui_hints": {
     "resizable": true,
     "theme": "glassmorphism",

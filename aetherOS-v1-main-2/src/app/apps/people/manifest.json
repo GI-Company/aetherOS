@@ -1,12 +1,21 @@
 
 {
-  "id": "people",
+  "id": "system.people",
   "name": "People",
   "version": "1.0.0",
   "developer": "AetherOS",
   "description": "View profiles of active users.",
-  "permissions": ["filesystem_read"],
-  "entry_point": "index.tsx",
+  "entry": "index.tsx",
+  "permissions": {
+    "filesystem_read": true
+  },
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
   "ui_hints": {
     "resizable": true,
     "theme": "glassmorphism",

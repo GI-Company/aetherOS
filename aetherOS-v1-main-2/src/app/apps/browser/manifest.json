@@ -1,12 +1,22 @@
 
 {
-  "id": "browser",
+  "id": "system.browser",
   "name": "Browser",
   "version": "1.0.0",
   "developer": "AetherOS",
   "description": "A generative web browser that synthesizes content on the fly.",
-  "permissions": ["ai_access", "network"],
-  "entry_point": "index.tsx",
+  "entry": "index.tsx",
+  "permissions": {
+    "ai_access": true,
+    "network": true
+  },
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
   "ui_hints": {
     "resizable": true,
     "theme": "glassmorphism",

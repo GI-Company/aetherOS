@@ -1,12 +1,21 @@
 
 {
-  "id": "billing",
+  "id": "system.billing",
   "name": "Billing",
   "version": "1.0.0",
   "developer": "AetherOS",
   "description": "Manage subscription plans and billing details.",
-  "permissions": ["stripe_integration"],
-  "entry_point": "index.tsx",
+  "entry": "index.tsx",
+  "permissions": {
+    "stripe_integration": true
+  },
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
   "ui_hints": {
     "resizable": true,
     "theme": "glassmorphism",

@@ -1,12 +1,22 @@
 
 {
-  "id": "pixel-streamer",
+  "id": "system.pixel.streamer",
   "name": "Pixel Streamer",
   "version": "1.0.0",
   "developer": "AetherOS",
   "description": "Generate images from text prompts using an AI model.",
-  "permissions": ["ai_access", "filesystem_write"],
-  "entry_point": "index.tsx",
+  "entry": "index.tsx",
+  "permissions": {
+    "ai_access": true,
+    "filesystem_write": true
+  },
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
   "ui_hints": {
     "resizable": true,
     "theme": "glassmorphism",

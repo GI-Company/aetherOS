@@ -1,12 +1,21 @@
 
 {
-  "id": "image-viewer",
+  "id": "system.image.viewer",
   "name": "Image Viewer",
   "version": "1.0.0",
   "developer": "AetherOS",
   "description": "A simple viewer for image files.",
-  "permissions": ["filesystem_read"],
-  "entry_point": "index.tsx",
+  "entry": "index.tsx",
+  "permissions": {
+    "filesystem_read": true
+  },
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
   "ui_hints": {
     "resizable": true,
     "theme": "glassmorphism",

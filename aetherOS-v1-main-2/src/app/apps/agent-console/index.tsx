@@ -3,28 +3,45 @@
 
 import { Bot, GitCommitHorizontal, History, List, Terminal, ChevronRight, Play, Square, RefreshCcw } from 'lucide-react';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAether } from '@/lib/aether_sdk_client'; // This app uses the global client for monitoring
+import { useAppAether } from '@/lib/use-app-aether';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { TaskGraph, TaskGraphEvent, TaskGraphPayload, TaskNode, TaskNodeStatus } from '@/lib/agent-types';
+import { TaskGraphEvent, TaskNodeStatus } from '@/lib/agent-types';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, orderBy } from 'firebase/firestore';
 
-interface FullTaskGraph extends TaskGraph {
-    status: 'pending' | 'running' | 'completed' | 'canceled' | 'failed';
-    nodesStatus: Record<string, TaskNodeStatus>;
+interface FullTaskGraph {
+  id: string;
+  nodes: any[];
+  createdAt: number;
+  status: 'pending' | 'running' | 'completed' | 'canceled' | 'failed';
+  nodeStates: Record<string, TaskNodeStatus>;
 }
 
 export default function AgentConsoleApp() {
-    const aether = useAether();
+    const { subscribe } = useAppAether();
+    const { firestore } = useFirebase();
     const [events, setEvents] = useState<TaskGraphEvent[]>([]);
-    const [taskGraphs, setTaskGraphs] = useState<Record<string, FullTaskGraph>>({});
     const [selectedGraphId, setSelectedGraphId] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (!aether) return;
+    const taskGraphsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, "taskGraphs"), orderBy("createdAt", "desc"));
+    }, [firestore]);
 
+    const { data: taskGraphs, isLoading: areGraphsLoading } = useCollection<FullTaskGraph>(taskGraphsQuery);
+    
+    useEffect(() => {
+        if (!selectedGraphId && taskGraphs && taskGraphs.length > 0) {
+            setSelectedGraphId(taskGraphs[0].id);
+        }
+    }, [taskGraphs, selectedGraphId]);
+
+
+    useEffect(() => {
         const topics = [
             "agent.taskgraph.created",
             "agent.taskgraph.started",
@@ -50,69 +67,18 @@ export default function AgentConsoleApp() {
                 payload: payload,
                 timestamp: envelope.createdAt,
             };
-
-             setEvents(prev => [...prev, newEvent]);
-
-             setTaskGraphs(prev => {
-                const newGraphs = {...prev};
-                
-                if (envelope.topic === 'agent.taskgraph.created') {
-                    const graphPayload = payload as TaskGraphPayload;
-                    const newGraph: FullTaskGraph = {
-                        ...graphPayload.taskGraph,
-                        status: 'pending',
-                        nodesStatus: graphPayload.taskGraph.nodes.reduce((acc, node) => {
-                            acc[node.id] = { nodeId: node.id, status: 'pending' };
-                            return acc;
-                        }, {} as Record<string, TaskNodeStatus>),
-                    };
-                    newGraphs[newGraph.id] = newGraph;
-                    if (!selectedGraphId) {
-                        setSelectedGraphId(newGraph.id);
-                    }
-                }
-
-                const graphId = payload.graphId || payload.taskGraph?.id;
-
-                if (graphId && newGraphs[graphId]) {
-                    if (envelope.topic === 'agent.taskgraph.started') newGraphs[graphId].status = 'running';
-                    if (envelope.topic === 'agent.taskgraph.completed') newGraphs[graphId].status = 'completed';
-                    if (envelope.topic === 'agent.taskgraph.canceled') newGraphs[graphId].status = 'canceled';
-                    if (envelope.topic === 'agent.taskgraph.failed') newGraphs[graphId].status = 'failed';
-                    
-                    const nodeId = payload.nodeId;
-                    if (nodeId && newGraphs[graphId].nodesStatus[nodeId]) {
-                         const nodeStatus = newGraphs[graphId].nodesStatus[nodeId];
-                        
-                        if (envelope.topic === 'agent.tasknode.started') {
-                            nodeStatus.status = 'running';
-                            nodeStatus.startedAt = Date.now();
-                        }
-                        if (envelope.topic === 'agent.tasknode.completed') {
-                            nodeStatus.status = 'completed';
-                            nodeStatus.finishedAt = Date.now();
-                        }
-                        if (envelope.topic === 'agent.tasknode.failed') {
-                            nodeStatus.status = 'failed';
-                            nodeStatus.error = payload.error || 'Unknown error';
-                             nodeStatus.finishedAt = Date.now();
-                        }
-                    }
-                }
-                
-                return newGraphs;
-             });
+            setEvents(prev => [...prev, newEvent]);
         };
         
-        const subscriptions = topics.map(topic => aether.subscribe(topic, handleEvent));
+        const subscriptions = topics.map(topic => subscribe(topic, handleEvent));
 
         return () => {
             subscriptions.forEach(unsubscribe => unsubscribe());
         };
 
-    }, [aether, selectedGraphId]);
+    }, [subscribe]);
 
-    const selectedGraph = selectedGraphId ? taskGraphs[selectedGraphId] : null;
+    const selectedGraph = selectedGraphId ? taskGraphs?.find(g => g.id === selectedGraphId) : null;
 
     const renderStatusBadge = (status: string) => {
         const color = {
@@ -125,11 +91,6 @@ export default function AgentConsoleApp() {
         return <Badge className={cn(color, "text-white")}>{status}</Badge>;
     }
     
-    const sortedGraphs = useMemo(() => {
-        return Object.values(taskGraphs).sort((a, b) => b.createdAt - a.createdAt);
-    }, [taskGraphs]);
-
-
   return (
     <div className="h-full bg-background flex flex-row text-foreground">
         <div className="w-[280px] border-r flex flex-col">
@@ -138,9 +99,11 @@ export default function AgentConsoleApp() {
                 <h3 className="font-headline text-lg">Task History</h3>
             </div>
             <ScrollArea className="flex-grow">
-                {sortedGraphs.length > 0 ? (
+                {areGraphsLoading ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">Loading tasks...</div>
+                ) : taskGraphs && taskGraphs.length > 0 ? (
                     <div className='p-2 space-y-1'>
-                    {sortedGraphs.map(graph => (
+                    {taskGraphs.map(graph => (
                         <button key={graph.id} onClick={() => setSelectedGraphId(graph.id)}
                             className={cn("w-full text-left p-2 rounded-md", selectedGraphId === graph.id ? 'bg-muted' : 'hover:bg-muted/50')}>
                             <div className='flex justify-between items-center'>
@@ -179,7 +142,7 @@ export default function AgentConsoleApp() {
                 <ScrollArea className="flex-grow">
                     <div className='p-4 space-y-4'>
                         {selectedGraph.nodes.map(node => {
-                            const nodeStatus = selectedGraph.nodesStatus[node.id] || { status: 'pending' };
+                            const nodeStatus = selectedGraph.nodeStates[node.id] || { status: 'pending' };
                             return (
                                 <Card key={node.id} className={cn(nodeStatus.status === 'failed' && 'border-destructive')}>
                                     <CardHeader>
@@ -234,7 +197,7 @@ export default function AgentConsoleApp() {
                             Awaiting agent events...
                         </div>
                     ) : (
-                        events.map((event) => (
+                        [...events].reverse().map((event) => (
                            <div key={event.id} className="flex items-start gap-2 mb-2">
                                 <ChevronRight className="h-3 w-3 mt-0.5 flex-shrink-0" />
                                 <div className="flex-grow">

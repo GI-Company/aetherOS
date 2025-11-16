@@ -31,9 +31,10 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         if(errorSub) errorSub();
     };
 
-    const handleSummaryResponse = (payload: any) => {
+    const handleSummaryResponse = (payload: any, envelope: any) => {
         if (payload.filePath === filePath && isMounted) {
             try {
+                // The summary is a JSON string inside the payload, e.g., '{"summary":"..."}'
                 const result = JSON.parse(payload.summary);
                 if (result.summary) {
                     setSummary(result.summary);
@@ -50,7 +51,8 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         }
     };
 
-    const handleErrorResponse = (payload: any) => {
+    const handleErrorResponse = (payload: any, envelope: any) => {
+        // This is a rough check. Correlation ID would be better.
         if (isMounted) {
             setError(payload.error || 'Summarization failed');
             setIsLoading(false);
@@ -102,3 +104,5 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 };
 
 export default CodePreview;
+
+    

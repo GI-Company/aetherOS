@@ -324,3 +324,5 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	log.Printf("AI Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
 }
+
+    

@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
-    "path/filepath"
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
@@ -39,19 +39,18 @@ func main() {
 	}
 	defer firestoreClient.Close()
 
-
 	// Initialize the central message broker
 	broker := aether.NewBroker()
 	go broker.Run()
-    
-    // Initialize Permission Manager
-    // This assumes the Go binary is run from the root of the `aetherOS-v1-main-2` directory.
-    // In a real production build, this path would be configured.
-    appsPath := filepath.Join("src", "app", "apps")
-    permissionManager, err := aether.NewPermissionManager(appsPath)
-    if err != nil {
-        log.Fatalf("failed to create permission manager: %v", err)
-    }
+
+	// Initialize Permission Manager
+	// This assumes the Go binary is run from the root of the `aetherOS-v1-main-2` directory.
+	// In a real production build, this path would be configured.
+	appsPath := filepath.Join("src", "app", "apps")
+	permissionManager := aether.NewPermissionManager(appsPath)
+	if err := permissionManager.LoadManifests(); err != nil {
+		log.Fatalf("failed to perform initial manifest load: %v", err)
+	}
 
 	// Initialize VFS Module (backed by Firebase Storage)
 	vfsModule, err := aether.NewVFSModule(app)
@@ -76,7 +75,6 @@ func main() {
 		}
 	}()
 
-
 	// Initialize Services
 	aiService := services.NewAIService(broker, aiModule, permissionManager)
 	go aiService.Run()
@@ -92,7 +90,7 @@ func main() {
 
 	taskExecutorService := services.NewTaskExecutorService(broker, vfsModule, aiModule, permissionManager)
 	go taskExecutorService.Run()
-	
+
 	telemetryService := services.NewTelemetryService(broker)
 	go telemetryService.Run()
 
@@ -107,8 +105,8 @@ func main() {
 	port := "8080"
 	log.Printf("Starting Aether Kernel on :%s", port)
 	if os.Getenv("GEMINI_API_KEY") == "" {
-        log.Println("WARNING: GEMINI_API_KEY environment variable is not set.")
-    }
+		log.Println("WARNING: GEMINI_API_KEY environment variable is not set.")
+	}
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: r,

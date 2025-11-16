@@ -39,8 +39,8 @@ func (s *InstallService) Run() {
 
 func (s *InstallService) handleRequest(env *aether.Envelope) {
 	var payloadData struct {
-		Manifest    aether.AppManifest `json:"manifest"`
-		WasmBase64  string             `json:"wasmBase64"`
+		Manifest   aether.AppManifest `json:"manifest"`
+		WasmBase64 string             `json:"wasmBase64"`
 	}
 	if err := json.Unmarshal(env.Payload, &payloadData); err != nil {
 		s.publishError(env, "Invalid payload for app installation: "+err.Error())
@@ -55,12 +55,12 @@ func (s *InstallService) handleRequest(env *aether.Envelope) {
 		s.publishError(env, "Manifest validation failed: "+err.Error())
 		return
 	}
-	
+
 	// --- 2. Verify Signature (Placeholder) ---
 	log.Printf("Install Service: Signature verification for app '%s' would happen here.", manifest.ID)
 
 	// --- 3. Install Files (Placeholder) ---
-	log.Printf("Install Service: Installing app '%s' to the system.", manifest.ID)
+	log.Printf("Install Service: Simulating installation of app '%s' to the system.", manifest.ID)
 	// In a real implementation, we would:
 	// - Create a directory for the app, e.g., /system/apps/{appId}
 	// - Write the manifest.json to that directory.
@@ -68,9 +68,12 @@ func (s *InstallService) handleRequest(env *aether.Envelope) {
 	// - Write any other assets.
 
 	// --- 4. Notify System of New App ---
-	// This would trigger a reload of the permission manager and potentially the frontend.
-	log.Printf("Install Service: App '%s' installed successfully. A system refresh would be triggered.", manifest.ID)
-
+	// This triggers a reload of the permission manager.
+	log.Printf("Install Service: App '%s' installed. Triggering permission manager reload.", manifest.ID)
+	if err := s.permissions.LoadManifests(); err != nil {
+		s.publishError(env, "Failed to reload permissions after installation: "+err.Error())
+		return
+	}
 
 	s.publishResponse(env, "system:install:app:result", map[string]interface{}{
 		"appId":   manifest.ID,

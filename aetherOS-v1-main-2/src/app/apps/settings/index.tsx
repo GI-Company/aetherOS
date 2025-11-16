@@ -172,7 +172,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
   };
 
   const openBillingApp = () => {
-    const billingApp = APPS.find(app => app.manifest.id === 'billing');
+    const billingApp = APPS.find(app => app.manifest.id === 'system.billing');
     if (billingApp && onOpenApp) {
       onOpenApp(billingApp);
     }
@@ -366,7 +366,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
             <p className="text-sm text-muted-foreground mb-4">
               View plans, check your current tier, and manage billing details.
             </p>
-            <Button onClick={() => onOpenApp && onOpenApp(APPS.find(app => app.manifest.id === 'billing')!)}>Open Billing App</Button>
+            <Button onClick={() => onOpenApp && onOpenApp(APPS.find(app => app.manifest.id === 'system.billing')!)}>Open Billing App</Button>
           </div>
         </TabsContent>
         <TabsContent value="security" className="mt-4 flex-grow overflow-y-auto pr-4 -mr-4">

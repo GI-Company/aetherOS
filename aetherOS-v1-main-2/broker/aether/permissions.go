@@ -37,25 +37,27 @@ type AppManifest struct {
 type PermissionManager struct {
 	mu        sync.RWMutex
 	manifests map[string]*AppManifest
+	appsPath  string
 }
 
-// NewPermissionManager creates a new PermissionManager and loads all manifests.
-func NewPermissionManager(appsPath string) (*PermissionManager, error) {
-	pm := &PermissionManager{
+// NewPermissionManager creates a new PermissionManager.
+func NewPermissionManager(appsPath string) *PermissionManager {
+	return &PermissionManager{
 		manifests: make(map[string]*AppManifest),
+		appsPath:  appsPath,
 	}
-	if err := pm.loadManifests(appsPath); err != nil {
-		return nil, fmt.Errorf("failed to load app manifests: %w", err)
-	}
-	return pm, nil
 }
 
-// loadManifests walks the given directory and loads all manifest.json files.
-func (pm *PermissionManager) loadManifests(root string) error {
+// LoadManifests walks the apps directory and loads all manifest.json files.
+// It is now public to allow for reloading.
+func (pm *PermissionManager) LoadManifests() error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	// Clear existing manifests to ensure a fresh load
+	pm.manifests = make(map[string]*AppManifest)
+
+	return filepath.Walk(pm.appsPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

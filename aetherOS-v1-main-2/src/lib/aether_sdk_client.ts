@@ -19,7 +19,7 @@ export interface Envelope {
     payload: any;
     contentType: string;
     createdAt: string;
-    meta?: Record<string, string>;
+    meta?: Record<string, any>;
 }
 
 export class AetherClient {
@@ -104,7 +104,7 @@ export class AetherClient {
   }
 
   async publish(topic: string, payload: any, appId?: string): Promise<void> {
-    const fullEnvelope = {
+    const fullEnvelope: Envelope = {
         id: crypto.randomUUID(),
         topic: topic,
         contentType: 'application/json',

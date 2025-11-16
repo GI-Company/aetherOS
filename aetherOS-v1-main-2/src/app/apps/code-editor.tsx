@@ -9,8 +9,8 @@ import FileTree from "@/components/aether-os/code-editor/file-tree";
 import EditorTabs, { type EditorFile } from "@/components/aether-os/code-editor/editor-tabs";
 import AiPanel from "@/components/aether-os/code-editor/ai-panel";
 import { Button } from "@/components/ui/button";
-import { useAether } from "@/lib/aether_sdk_client";
 import { useUser } from "@/firebase";
+import { useAppAether } from "@/lib/use-app-aether";
 
 interface CodeEditorAppProps {
   filePath?: string; // Can be used to open a project folder
@@ -30,7 +30,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   
   const { toast } = useToast();
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
 
   const handleSetProject = (path: string) => {
     setProjectPath(path);
@@ -39,7 +39,6 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   };
   
   const handleOpenFile = useCallback((filePath: string, fileContent?: string) => {
-    if (!aether) return;
     // Check if file is already open
     const existingFile = openFiles.find(f => f.path === filePath);
     if (existingFile) {
@@ -53,15 +52,13 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
     if (typeof fileContent === 'undefined') {
         toast({ title: "Opening File...", description: `Loading content for ${filePath}` });
         
-        aether.publish('vfs:read', { path: filePath });
-
-        let readSub: (() => void) | undefined, errorSub: (() => void) | undefined;
+        let sub: (() => void) | undefined, errSub: (() => void) | undefined;
         
         const cleanup = () => {
-            if (readSub) readSub();
-            if (errorSub) errorSub();
+          if (sub) sub();
+          if (errSub) errSub();
         };
-        
+
         const handleReadResult = (payload: any) => {
           if (payload.path === filePath) {
             const newFile: EditorFile = {
@@ -78,13 +75,14 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
         };
 
         const handleReadError = (payload: any) => {
-              console.error("Error opening file:", payload.error);
-              toast({ title: "Error", description: `Could not load file: ${payload.error}`, variant: "destructive" });
-              cleanup();
+          console.error("Error opening file:", payload.error);
+          toast({ title: "Error", description: `Could not load file: ${payload.error}`, variant: "destructive" });
+          cleanup();
         };
 
-        readSub = aether.subscribe('vfs:read:result', handleReadResult);
-        errorSub = aether.subscribe('vfs:read:error', handleReadError);
+        sub = subscribe('vfs:read:result', handleReadResult);
+        errSub = subscribe('vfs:read:error', handleReadError);
+        publish('vfs:read', { path: filePath });
 
     } else {
        const newFile: EditorFile = {
@@ -98,7 +96,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
       setOpenFiles(prev => [...prev, newFile]);
       setActiveFileId(fileId);
     }
-  }, [openFiles, toast, aether]);
+  }, [openFiles, toast, publish, subscribe]);
 
   useEffect(() => {
     if (fileToOpen) {
@@ -173,10 +171,6 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   };
 
   const activeFile = openFiles.find(f => f.id === activeFileId) || null;
-
-  if (!aether) {
-    return <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
-  }
   
   if (!projectPath) {
     return <WelcomeScreen onSelectProject={handleSetProject} />;

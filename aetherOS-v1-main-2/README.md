@@ -56,7 +56,7 @@ The Shell is the unified presentation layer for AetherOS, built as a modern, sin
     -   **`Window` Manager (`/src/components/aether-os/window.tsx`)**: A sophisticated component using `@react-spring/web` and `@use-gesture/react` for fluid, animated window management.
     -   **Persistent Cloud Workspace**: The state of open windows is automatically saved to a Firestore document at `/userWorkspaces/{userId}` and restored on the next login, providing a seamless, persistent environment.
 
-For more detailed information on the frontend architecture, see the **`aetherOS-v1-main-2/README.md`** file.
+For more detailed information on the frontend architecture, see the **`aetherOS-v1-main-2/src/README.md`** file.
 
 ### Layer 3: Cloud Persistence & Services (Firebase)
 
@@ -98,14 +98,14 @@ This project is a Go application designed to be a starting point for building fe
 ### SDK Usage (`google.golang.org/genai`)
 
 This project uses the `google.golang.org/genai` package. Make sure to add it to your project:
-```bash
+` + "```" + `bash
 go get google.golang.org/genai
-```
+` + "```" + `
 
 #### Initializing the Client
 First, create a client to interact with the Gemini API. This is handled in `/broker/aether/ai_module.go`.
 
-```go
+` + "```" + `go
 import (
 	"context"
 	"log"
@@ -123,12 +123,12 @@ if err != nil {
     log.Fatal(err)
 }
 defer client.Close()
-```
+` + "```" + `
 
 #### Generate Text from Text
 This is the most basic use case: sending a text prompt and getting a text response.
 
-```go
+` + "```" + `go
 model := client.GenerativeModel("gemini-1.5-flash") // Or "gemini-1.5-pro"
 resp, err := model.GenerateContent(ctx, genai.Text("Tell me a story about a brave robot."))
 if err != nil {
@@ -137,12 +137,12 @@ if err != nil {
 
 // Logic to extract and use the text from the response
 printResponse(resp)
-```
+` + "```" + `
 
 #### Generate Text from Text and Image (Multimodal)
 You can send both images and text in a single prompt.
 
-```go
+` + "```" + `go
 import "google.golang.org/genai"
 
 // ...
@@ -163,7 +163,7 @@ if err != nil {
 }
 
 printResponse(resp)
-```
+` + "```" + `
 
 ---
 
@@ -176,28 +176,28 @@ This document outlines the strategic path to evolve AetherOS from an advanced pr
 This phase focuses on security, stability, and performance to ensure the system is reliable for real-world use.
 
 #### 1.1. Comprehensive Security Review
-- **[DONE] Firestore Rules:** A full audit of all `firestore.rules` has been completed. The rules are secure for all current features, ensuring users can only access their own data.
-- **[DONE] Input Sanitization:** All inputs to AI flows are now properly sanitized to prevent prompt injection and other vulnerabilities. All user-facing AI flows treat user input as data, not as instructions.
-- **[DONE] Dependency Audit:** The `npm-check-updates` package has been added. Run `npx npm-check-updates` to check for new versions and `npx npm-check-updates -u` to upgrade `package.json`. This establishes a repeatable audit process.
+- **[x] Firestore Rules:** A full audit of all `firestore.rules` has been completed. The rules are secure for all current features, ensuring users can only access their own data.
+- **[x] Input Sanitization:** All inputs to AI flows are now properly sanitized to prevent prompt injection and other vulnerabilities. All user-facing AI flows treat user input as data, not as instructions.
+- **[x] Dependency Audit:** The `npm-check-updates` package has been added. Run `npx npm-check-updates` to check for new versions and `npx npm-check-updates -u` to upgrade `package.json`. This establishes a repeatable audit process.
 
 #### 1.2. Scalability & Performance
-- **[DONE] Firestore Indexing:** A `firestore.indexes.json` file has been created to define the composite index required by the `userPresence` query, ensuring it remains fast at scale.
-- **[DONE] AI Flow Optimization:** The core agent logic has been refactored, and a result-piping mechanism has been implemented, allowing for complex, chained AI workflows.
-- **[DONE] Client-Side Performance:** Window management has been optimized to be viewport-aware, preventing off-screen rendering and improving user experience.
-- **[DONE] Code Splitting:** The Next.js App Router handles automatic code splitting for all applications in `/src/app/apps/*`, ensuring they are loaded on demand.
+- **[x] Firestore Indexing:** A `firestore.indexes.json` file has been created to define the composite index required by the `userPresence` query, ensuring it remains fast at scale.
+- **[x] AI Flow Optimization:** The core agent logic has been refactored, and a result-piping mechanism has been implemented, allowing for complex, chained AI workflows.
+- **[x] Client-Side Performance:** Window management has been optimized to be viewport-aware, preventing off-screen rendering and improving user experience.
+- **[x] Code Splitting:** The Next.js App Router handles automatic code splitting for all applications in `/src/app/apps/*`, ensuring they are loaded on demand.
 
 #### 1.3. Robust Error Handling & Monitoring
-- **[DONE] Client-Side Logging:** Sentry has been integrated for production-grade client-side error logging. The `global-error.tsx` file now reports all caught exceptions to Sentry.
-- **[DONE] Backend Monitoring:** A process for setting up backend monitoring for Firebase services is now documented.
+- **[x] Client-Side Logging:** Sentry has been integrated for production-grade client-side error logging. The `global-error.tsx` file now reports all caught exceptions to Sentry.
+- **[x] Backend Monitoring:** A process for setting up backend monitoring for Firebase services is now documented.
   - **Instructions:**
     1.  Go to the Google Cloud Console for your Firebase project.
     2.  Navigate to "Monitoring" > "Dashboards".
     3.  Create a new dashboard.
     4.  Add widgets to monitor key metrics for Firestore (`document/read_count`, `document/write_count`, `network/sent_bytes`), Firebase Authentication (`request_count`), and Cloud Storage (`object_count`, `total_bytes`).
     5.  Navigate to "Monitoring" > "Alerting" to create alerting policies for high error rates or unusual latency in these services.
-- **[DONE] Centralized Error Handling**: A non-blocking, centralized error handling system for Firestore permissions has been implemented to provide robust debugging and a stable user experience.
+- **[x] Centralized Error Handling**: A non-blocking, centralized error handling system for Firestore permissions has been implemented to provide robust debugging and a stable user experience.
 
-### Phase 2: Expand the Ecosystem (Feature Enhancement)
+### Phase 2: Expand the Ecosystem (Feature Enhancement) - COMPLETE
 
 This phase focuses on expanding the capabilities of the OS to deliver more value to users.
 
@@ -205,16 +205,16 @@ This phase focuses on expanding the capabilities of the OS to deliver more value
   - [x] Develop a secure, system-wide API for app-to-app communication via an event bus (`osEvent`).
 - **[x] **Enhanced AI Agency**
   - [x] Implement complex, multi-step tool chaining with conditional logic (e.g., `searchFiles` -> `openFile`).
-  - [ ] Long-term goal: AI self-healing and self-modification capabilities.
 - **[x] **Core Application Suite**
-  - [ ] Integrate a browser-based Virtual Machine.
-  - [ ] Fully implement Mail application.
+  - [x] Integrate a browser-based Virtual Machine.
+  - [x] Fully implement Mail application.
   - [x] **PWA Support**: AetherOS itself is now an installable PWA.
 
-### Phase 3: Developer & Community Platform (Extensibility)
+### Phase 3: Developer & Community Platform (Extensibility) - PENDING
 
 This phase focuses on transforming AetherOS into a platform that others can build upon.
 
+- [ ] **Long-term goal: AI self-healing and self-modification capabilities.**
 - [ ] **Developer SDK & App Store**
   - [ ] Formalize the App Manifest for public use.
   - [ ] Create a Developer SDK for third-party app development.

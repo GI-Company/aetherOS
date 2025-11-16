@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Skeleton } from '../ui/skeleton';
 import { AlertTriangle, Code2 } from 'lucide-react';
-import { useAether } from '@/lib/aether_sdk_client';
+import { useAppAether } from '@/lib/use-app-aether';
 
 interface CodePreviewProps {
   filePath: string;
@@ -14,13 +14,13 @@ interface CodePreviewProps {
 const summaryCache = new Map<string, string>();
 
 const CodePreview = ({ filePath }: CodePreviewProps) => {
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
   const [summary, setSummary] = useState<string | null>(summaryCache.get(filePath) || null);
   const [isLoading, setIsLoading] = useState(!summary);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (summary || !filePath || !aether) return;
+    if (summary || !filePath) return;
 
     let isMounted = true;
     let summarySub: (() => void) | undefined;
@@ -52,17 +52,17 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         }
     };
     
-    summarySub = aether.subscribe('vfs:summarize:code:result', handleSummaryResponse);
-    errorSub = aether.subscribe('vfs:summarize:code:error', handleErrorResponse);
+    summarySub = subscribe('vfs:summarize:code:result', handleSummaryResponse);
+    errorSub = subscribe('vfs:summarize:code:error', handleErrorResponse);
 
     setIsLoading(true);
-    aether.publish('vfs:summarize:code', { filePath });
+    publish('vfs:summarize:code', { filePath });
 
     return () => {
       isMounted = false;
       cleanup();
     };
-  }, [filePath, summary, aether]);
+  }, [filePath, summary, publish, subscribe]);
 
   if (isLoading) {
     return <Skeleton className="w-full h-full p-2 space-y-1">

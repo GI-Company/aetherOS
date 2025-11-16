@@ -62,8 +62,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 	var responsePayload interface{}
 	var err error
 
-	// The payload from the client is now nested. We need to unmarshal the outer envelope
-	// to get to the actual payload data.
 	var innerEnv aether.Envelope
 	if err := json.Unmarshal(env.Payload, &innerEnv); err != nil {
 		s.publishError(env, "Invalid envelope structure")
@@ -74,17 +72,34 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 	// Route based on topic
 	switch env.Topic {
 	case "agent:execute:node":
-		var payloadData map[string]interface{}
+		var payloadData struct {
+			GraphID string `json:"graphId"`
+			NodeID  string `json:"nodeId"`
+			Tool    string `json:"tool"`
+		}
 		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
 			s.publishError(env, "Invalid payload for agent:execute:node")
 			return
 		}
-		// In a real implementation, this would dispatch to a tool executor.
-		// For now, we simulate success.
-		log.Printf("Simulating execution for tool: %v", payloadData["tool"])
-		s.publishResponse(env, "agent.tasknode.started", payloadData)
+
+		// This is a simplified tool executor. In a real system, this would
+		// dispatch to different services (VFS, Compute, etc.) based on the tool.
+		log.Printf("Simulating execution for tool: %s (Node: %s)", payloadData.Tool, payloadData.NodeID)
+
+		// Publish 'started' event
+		s.publishResponse(env, "agent.tasknode.started", map[string]string{
+			"graphId": payloadData.GraphID,
+			"nodeId":  payloadData.NodeID,
+		})
+
 		time.Sleep(2 * time.Second) // Simulate work
-		s.publishResponse(env, "agent.tasknode.completed", payloadData)
+
+		// Publish 'completed' event
+		s.publishResponse(env, "agent.tasknode.completed", map[string]interface{}{
+			"graphId": payloadData.GraphID,
+			"nodeId":  payloadData.NodeID,
+			"result":  map[string]string{"output": "Simulated result for " + payloadData.Tool},
+		})
 		return // Exit early as we have handled the full lifecycle here
 
 	case "ai:generate:image":
@@ -111,12 +126,10 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			s.publishError(env, "Invalid payload for file search")
 			return
 		}
-		// The Go module now returns a JSON string, which is what we want to send back
 		jsonString, searchErr := s.aiModule.SemanticFileSearch(payloadData.Query, payloadData.AvailableFiles)
 		if searchErr != nil {
 			err = searchErr
 		} else {
-			// Unmarshal and then re-marshal to ensure it's a valid JSON object payload
 			var temp interface{}
 			if unmarshalErr := json.Unmarshal([]byte(jsonString), &temp); unmarshalErr != nil {
 				err = unmarshalErr
@@ -170,7 +183,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			if unmarshalErr := json.Unmarshal([]byte(graphJSON), &temp); unmarshalErr != nil {
 				err = unmarshalErr
 			} else {
-				// Publish the created graph to the agent.taskgraph.created topic
 				s.publishResponse(env, "agent.taskgraph.created", temp)
 			}
 		}
@@ -179,7 +191,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 	default: // Handle all other text-based generation topics
 		var payloadData map[string]string
 		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
-			// Fallback for simple string payload which is how the terminal sends it
 			var promptStr string
 			if errStr := json.Unmarshal(rawPayload, &promptStr); errStr == nil {
 				payloadData = map[string]string{"prompt": promptStr}
@@ -189,7 +200,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			}
 		}
 
-		// Extract prompt from various possible keys
 		prompt, ok := payloadData["prompt"]
 		if !ok {
 			if p, ok := payloadData["topic"]; ok {
@@ -228,7 +238,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		return
 	}
 
-	// For agent topic, response is published separately.
 	if env.Topic != "ai:agent" {
 		responseTopicName := env.Topic + ":resp"
 		s.publishResponse(env, responseTopicName, responsePayload)
@@ -238,7 +247,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 func (s *AIService) publishResponse(originalEnv *aether.Envelope, topicName string, payload interface{}) {
 	responseTopic := s.broker.GetTopic(topicName)
 
-	// The payload is already a Go struct/map, json.Marshal will handle it.
 	responsePayloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Failed to marshal response payload: %v", err)
@@ -251,7 +259,7 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, topicName stri
 		Topic:       topicName,
 		Type:        "ai_response",
 		ContentType: "application/json",
-		Payload:     responsePayloadBytes, // Already marshaled
+		Payload:     responsePayloadBytes,
 		CreatedAt:   time.Now(),
 		Meta:        []byte(`{"correlationId": "` + originalEnv.ID + `"}`),
 	}
@@ -280,7 +288,6 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	errorTopic.Publish(errorEnv)
 }
 
-// Helper to check if a string is likely base64
 func isBase64(s string) bool {
 	_, err := base64.StdEncoding.DecodeString(s)
 	return err == nil

@@ -74,18 +74,23 @@ export default function AgentConsoleApp() {
                 }
                 
                 if (envelope.topic.startsWith('agent.tasknode.')) {
-                    const { graphId, nodeId, status, error, logs } = payload;
-                    if (graphId && newGraphs[graphId] && nodeId) {
-                        const nodeStatus = newGraphs[graphId].nodesStatus[nodeId] || { nodeId, status: 'pending' };
-                        if (status) nodeStatus.status = status;
-                        if (error) nodeStatus.error = error;
-                        if (logs) nodeStatus.logs = [...(nodeStatus.logs || []), ...logs];
+                    // Assuming the payload has a structure like { graphId: '...', nodeId: '...', ... }
+                    // The actual payload for task node events will come from the backend service.
+                    // For now, we'll need to parse it based on what `agent:execute:node` response gives.
+                    const taskGraphId = payload.graphId || Object.keys(newGraphs).find(gid => newGraphs[gid].nodes.some(n => n.id === payload.nodeId));
+                    const nodeId = payload.nodeId;
+
+                    if (taskGraphId && newGraphs[taskGraphId] && nodeId) {
+                        const nodeStatus = newGraphs[taskGraphId].nodesStatus[nodeId] || { nodeId, status: 'pending' };
                         
                         if (envelope.topic === 'agent.tasknode.started') nodeStatus.status = 'running';
                         if (envelope.topic === 'agent.tasknode.completed') nodeStatus.status = 'completed';
-                        if (envelope.topic === 'agent.tasknode.failed') nodeStatus.status = 'failed';
+                        if (envelope.topic === 'agent.tasknode.failed') {
+                            nodeStatus.status = 'failed';
+                            nodeStatus.error = payload.error || 'Unknown error';
+                        }
                         
-                        newGraphs[graphId].nodesStatus[nodeId] = nodeStatus;
+                        newGraphs[taskGraphId].nodesStatus[nodeId] = nodeStatus;
                     }
                 }
                 
@@ -106,16 +111,25 @@ export default function AgentConsoleApp() {
     const executeGraph = useCallback(() => {
         if (!selectedGraph || !aether) return;
         
-        // In a real implementation, you'd have an orchestrator service.
-        // For now, we'll just execute the first node.
-        const firstNode = selectedGraph.nodes.find(n => n.dependsOn.length === 0);
-        if(firstNode) {
+        const nodesToRun = selectedGraph.nodes.filter(
+            (node) =>
+                selectedGraph.nodesStatus[node.id]?.status === 'pending' &&
+                (node.dependsOn.length === 0 ||
+                    node.dependsOn.every(
+                        (depId) => selectedGraph.nodesStatus[depId]?.status === 'completed'
+                    ))
+        );
+
+        if (nodesToRun.length > 0) {
+            const nodeToRun = nodesToRun[0]; // Just run the first available one for now
             aether.publish('agent:execute:node', { 
                 graphId: selectedGraph.id,
-                nodeId: firstNode.id,
-                tool: firstNode.tool,
-                input: firstNode.input 
+                nodeId: nodeToRun.id,
+                tool: nodeToRun.tool,
+                input: nodeToRun.input 
             });
+        } else {
+             console.log("No nodes to run or graph is complete.");
         }
     }, [selectedGraph, aether]);
 
@@ -176,8 +190,8 @@ export default function AgentConsoleApp() {
                  {selectedGraph && (
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={executeGraph}><Play className="h-4 w-4 mr-2" /> Execute</Button>
-                        <Button variant="outline" size="sm"><Square className="h-4 w-4 mr-2" /> Cancel</Button>
-                        <Button variant="outline" size="sm"><RefreshCcw className="h-4 w-4 mr-2" /> Re-run</Button>
+                        <Button variant="outline" size="sm" disabled><Square className="h-4 w-4 mr-2" /> Cancel</Button>
+                        <Button variant="outline" size="sm" disabled><RefreshCcw className="h-4 w-4 mr-2" /> Re-run</Button>
                     </div>
                 )}
             </div>

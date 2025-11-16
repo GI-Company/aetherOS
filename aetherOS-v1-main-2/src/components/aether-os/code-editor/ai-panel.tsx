@@ -38,6 +38,8 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
     setIsLoading("generate");
 
     aether.publish('ai:generate', { prompt: `Given the existing code:\n\n${activeFile.content}\n\nGenerate new code based on this request: ${prompt}` });
+    
+    let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
 
     const handleResponse = (payload: any) => {
       const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
@@ -59,8 +61,8 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
       if (errSub) errSub();
     };
     
-    const resSub = aether.subscribe('ai:generate:resp', handleResponse);
-    const errSub = aether.subscribe('ai:generate:error', handleError);
+    resSub = aether.subscribe('ai:generate:resp', handleResponse);
+    errSub = aether.subscribe('ai:generate:error', handleError);
   };
   
   const handleRefactorCode = () => {
@@ -73,6 +75,8 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
     const refactorPrompt = `Refactor this code to improve its structure, readability, and performance. Keep the functionality the same.\n\nCode:\n${activeFile.content}`;
     
     aether.publish('ai:generate', { prompt: refactorPrompt });
+    
+    let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
 
     const handleResponse = (payload: any) => {
       const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
@@ -94,8 +98,8 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
       if (errSub) errSub();
     };
     
-    const resSub = aether.subscribe('ai:generate:resp', handleResponse);
-    const errSub = aether.subscribe('ai:generate:error', handleError);
+    resSub = aether.subscribe('ai:generate:resp', handleResponse);
+    errSub = aether.subscribe('ai:generate:error', handleError);
   };
 
   return (

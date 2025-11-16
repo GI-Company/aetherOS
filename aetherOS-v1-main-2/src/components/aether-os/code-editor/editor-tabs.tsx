@@ -57,8 +57,8 @@ export default function EditorTabs({
         setIsSaving(true);
         toast({ title: "Saving...", description: `Saving ${activeFile.name}` });
 
-        aether.publish('vfs:write', { path: activeFile.path, content: activeFile.content });
-
+        let sub: (() => void) | undefined, errSub: (() => void) | undefined;
+        
         const handleResult = (payload: any) => {
             if (payload.path === activeFile.path) {
                 toast({ title: "File Saved!", description: `${activeFile.name} has been saved.` });
@@ -76,8 +76,10 @@ export default function EditorTabs({
             if (errSub) errSub();
         };
         
-        const sub = aether.subscribe('vfs:write:result', handleResult);
-        const errSub = aether.subscribe('vfs:write:error', handleError);
+        sub = aether.subscribe('vfs:write:result', handleResult);
+        errSub = aether.subscribe('vfs:write:error', handleError);
+        
+        aether.publish('vfs:write', { path: activeFile.path, content: activeFile.content });
     };
 
     return (

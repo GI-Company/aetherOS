@@ -26,6 +26,11 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
     let summarySub: (() => void) | undefined;
     let errorSub: (() => void) | undefined;
     
+    const cleanup = () => {
+        if(summarySub) summarySub();
+        if(errorSub) errorSub();
+    };
+
     const handleSummaryResponse = (payload: any) => {
         if (payload.filePath === filePath && isMounted) {
             try {
@@ -40,8 +45,7 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
                  setError("Failed to parse summary.");
             } finally {
                 setIsLoading(false);
-                if(summarySub) summarySub();
-                if(errorSub) errorSub();
+                cleanup();
             }
         }
     };
@@ -50,8 +54,7 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         if (isMounted) {
             setError(payload.error || 'Summarization failed');
             setIsLoading(false);
-            if(summarySub) summarySub();
-            if(errorSub) errorSub();
+            cleanup();
         }
     };
     
@@ -63,8 +66,7 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 
     return () => {
       isMounted = false;
-      if(summarySub) summarySub();
-      if(errorSub) errorSub();
+      cleanup();
     };
   }, [filePath, aether, summary]);
 
@@ -100,5 +102,3 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 };
 
 export default CodePreview;
-
-    

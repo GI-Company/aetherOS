@@ -90,6 +90,8 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
     useEffect(() => {
         if (!aether || !basePath) return;
 
+        let listSub: (() => void) | undefined;
+
         const handleFileList = (payload: any) => {
             if (payload.path === basePath) {
                 const fileTree = buildFileTree(payload.files, basePath);
@@ -98,7 +100,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
             }
         };
         
-        const listSub = aether.subscribe('vfs:list:result', handleFileList);
+        listSub = aether.subscribe('vfs:list:result', handleFileList);
         
         // Listen to global file system changes
         const handleFileSystemChange = () => fetchFiles(basePath);
@@ -117,6 +119,8 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
     const handleCreate = async (type: 'file' | 'folder', path: string, name: string) => {
         if (!aether || !name) return;
         
+        let sub: (() => void) | undefined, errSub: (() => void) | undefined;
+
         const handleResult = () => {
             toast({ title: `${type.charAt(0).toUpperCase() + type.slice(1)} Created`, description: name });
             osEvent.emit('file-system-change');
@@ -134,8 +138,8 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         const resultTopic = `${topic}:result`;
         const errorTopic = `${topic}:error`;
         
-        const sub = aether.subscribe(resultTopic, handleResult);
-        const errSub = aether.subscribe(errorTopic, handleError);
+        sub = aether.subscribe(resultTopic, handleResult);
+        errSub = aether.subscribe(errorTopic, handleError);
 
         aether.publish(topic, {path, name});
         toast({ title: `Creating ${type}...`, description: name });
@@ -145,6 +149,8 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
        if (!aether) return;
        const confirm = window.confirm(`Are you sure you want to delete ${item.name}?`);
        if (confirm) {
+           let sub: (() => void) | undefined, errSub: (() => void) | undefined;
+           
            const handleResult = () => {
                toast({ title: 'Deleted', description: item.name });
                osEvent.emit('file-system-change');
@@ -157,8 +163,8 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
                if (errSub) errSub();
             };
 
-           const sub = aether.subscribe('vfs:delete:result', handleResult);
-           const errSub = aether.subscribe('vfs:delete:error', handleError);
+           sub = aether.subscribe('vfs:delete:result', handleResult);
+           errSub = aether.subscribe('vfs:delete:error', handleError);
 
            aether.publish('vfs:delete', { path: item.path });
            toast({ title: `Deleting...`, description: item.name });
@@ -199,5 +205,3 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         </div>
     );
 }
-
-    

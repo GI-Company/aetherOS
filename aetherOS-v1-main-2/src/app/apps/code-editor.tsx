@@ -48,6 +48,8 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
         
         aether.publish('vfs:read', { path: filePath });
 
+        let readSub: (() => void) | undefined, errorSub: (() => void) | undefined;
+        
         const handleReadResult = (payload: any) => {
           if (payload.path === filePath) {
             const newFile: EditorFile = {
@@ -72,8 +74,8 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
           if (errorSub) errorSub();
         };
 
-        const readSub = aether.subscribe('vfs:read:result', handleReadResult);
-        const errorSub = aether.subscribe('vfs:read:error', handleReadError);
+        readSub = aether.subscribe('vfs:read:result', handleReadResult);
+        errorSub = aether.subscribe('vfs:read:error', handleReadError);
 
     } else {
        const newFile: EditorFile = {

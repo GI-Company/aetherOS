@@ -1,0 +1,24 @@
+
+{
+  "id": "system.app.store",
+  "name": "App Store",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "Discover and install new applications.",
+  "entry": "index.tsx",
+  "permissions": {
+    "system_install": true
+  },
+  "sandbox": {
+    "profile": "ui"
+  },
+  "signing": {
+    "publicKey": "",
+    "fingerprint": ""
+  },
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 800, "height": 600 }
+  }
+}

@@ -1,5 +1,5 @@
 
-import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Container, CreditCard, Image, MessagesSquare, Bot } from "lucide-react";
+import { Code, Folder, Globe, Mail, Settings, type LucideIcon, Workflow, PenTool, Layers, Users, Container, CreditCard, Image, MessagesSquare, Bot, ShoppingBasket } from "lucide-react";
 import React from "react";
 import FileExplorerApp from "@/app/apps/file-explorer";
 import CodeEditorApp from "@/app/apps/code-editor";
@@ -14,6 +14,7 @@ import VmTerminalApp from "@/app/apps/vm-terminal";
 import MailApp from "@/app/apps/mail";
 import SettingsApp from "@/app/apps/settings";
 import BillingApp from "@/app/apps/billing";
+import AppStoreApp from "@/app/apps/app-store";
 
 // Import manifests
 import fileExplorerManifest from '@/app/apps/file-explorer/manifest.json';
@@ -30,6 +31,7 @@ import mailManifest from '@/app/apps/mail/manifest.json';
 import settingsManifest from '@/app/apps/settings/manifest.json';
 import billingManifest from '@/app/apps/billing/manifest.json';
 import helloWorldManifest from '@/app/apps/hello-world/manifest.json';
+import appStoreManifest from '@/app/apps/app-store/manifest.json';
 
 
 export type AppManifest = {
@@ -76,6 +78,7 @@ const APP_METADATA: { [key: string]: { component: React.ComponentType<any>, icon
     [mailManifest.id]: { component: MailApp, icon: Mail },
     [settingsManifest.id]: { component: SettingsApp, icon: Settings },
     [billingManifest.id]: { component: BillingApp, icon: CreditCard },
+    [appStoreManifest.id]: { component: AppStoreApp, icon: ShoppingBasket },
     [helloWorldManifest.id]: { component: () => null, icon: Code }, // No UI component for wasm app
 };
 
@@ -93,6 +96,7 @@ const MANIFESTS: AppManifest[] = [
   mailManifest,
   settingsManifest,
   billingManifest,
+  appStoreManifest,
   helloWorldManifest
 ];
 

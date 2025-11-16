@@ -59,21 +59,24 @@ export default function EditorTabs({
 
         let sub: (() => void) | undefined, errSub: (() => void) | undefined;
         
+        const cleanup = () => {
+            if (sub) sub();
+            if (errSub) errSub();
+        };
+
         const handleResult = (payload: any) => {
             if (payload.path === activeFile.path) {
                 toast({ title: "File Saved!", description: `${activeFile.name} has been saved.` });
                 onSave(activeFile.id);
                 setIsSaving(false);
                 osEvent.emit('file-system-change');
-                if (sub) sub();
-                if (errSub) errSub();
+                cleanup();
             }
         };
         const handleError = (payload: any) => {
             toast({ title: "Save failed", description: payload.error, variant: 'destructive'});
             setIsSaving(false);
-            if (sub) sub();
-            if (errSub) errSub();
+            cleanup();
         };
         
         sub = aether.subscribe('vfs:write:result', handleResult);

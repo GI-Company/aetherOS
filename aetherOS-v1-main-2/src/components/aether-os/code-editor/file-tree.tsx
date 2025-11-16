@@ -120,18 +120,21 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         if (!aether || !name) return;
         
         let sub: (() => void) | undefined, errSub: (() => void) | undefined;
-
-        const handleResult = () => {
-            toast({ title: `${type.charAt(0).toUpperCase() + type.slice(1)} Created`, description: name });
-            osEvent.emit('file-system-change');
+        
+        const cleanup = () => {
             if (sub) sub();
             if (errSub) errSub();
         };
 
+        const handleResult = () => {
+            toast({ title: `${type.charAt(0).toUpperCase() + type.slice(1)} Created`, description: name });
+            osEvent.emit('file-system-change');
+            cleanup();
+        };
+
         const handleError = (payload: any) => {
             toast({ title: 'Creation failed', description: payload.error, variant: 'destructive'});
-            if (sub) sub();
-            if (errSub) errSub();
+            cleanup();
         };
         
         const topic = `vfs:create:${type}`;
@@ -151,16 +154,19 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
        if (confirm) {
            let sub: (() => void) | undefined, errSub: (() => void) | undefined;
            
+           const cleanup = () => {
+               if(sub) sub();
+               if(errSub) errSub();
+           };
+           
            const handleResult = () => {
                toast({ title: 'Deleted', description: item.name });
                osEvent.emit('file-system-change');
-               if (sub) sub();
-               if (errSub) errSub();
+               cleanup();
            };
             const handleError = (payload: any) => {
                toast({ title: 'Delete failed', description: payload.error, variant: 'destructive'});
-               if (sub) sub();
-               if (errSub) errSub();
+               cleanup();
             };
 
            sub = aether.subscribe('vfs:delete:result', handleResult);

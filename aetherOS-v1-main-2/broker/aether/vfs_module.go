@@ -76,16 +76,16 @@ func (vfs *VFSModule) List(path string) ([]*FileInfo, error) {
 		Delimiter: "/",
 	})
 
-	// Handle subdirectories
 	for {
 		attrs, err := it.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("error iterating prefixes: %w", err)
+			return nil, fmt.Errorf("error iterating objects/prefixes: %w", err)
 		}
-		// This gives us the subdirectories
+
+		// Handle subdirectories (prefixes)
 		if attrs.Prefix != "" {
 			dirName := strings.TrimSuffix(strings.TrimPrefix(attrs.Prefix, cleanPath), "/")
 			if dirName != "" {
@@ -96,25 +96,13 @@ func (vfs *VFSModule) List(path string) ([]*FileInfo, error) {
 					ModTime: time.Now(), // Storage doesn't have folder mod times
 				})
 			}
+			continue
 		}
-	}
-	
-	// Re-create iterator without delimiter to get files in the current directory
-	fileIt := vfs.client.Bucket(vfs.bucketName).Objects(ctx, &storage.Query{
-		Prefix: cleanPath,
-	})
-
-	for {
-		attrs, err := fileIt.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("error iterating objects: %w", err)
-		}
-
-		// Ensure it's a file directly in this directory, not a sub-directory's file, and not a placeholder
-        if !strings.Contains(strings.TrimPrefix(attrs.Name, cleanPath), "/") && !strings.HasSuffix(attrs.Name, "/.placeholder") {
+		
+		// Handle files in the current directory
+		// The object is a file if its name is not a prefix.
+		// We also need to filter out placeholder files for empty directories.
+		if !strings.HasSuffix(attrs.Name, "/.placeholder") && attrs.Name != cleanPath {
 			results = append(results, &FileInfo{
 				Name:    filepath.Base(attrs.Name),
 				Size:    attrs.Size,

@@ -275,8 +275,91 @@ func (m *AIModule) SummarizeCode(code string) (string, error) {
 	return resultText, nil
 }
 
+// GenerateTaskGraph generates a multi-step task plan from a user prompt.
+func (m *AIModule) GenerateTaskGraph(prompt string) (string, error) {
+	ctx := context.Background()
+	model := m.client.GenerativeModel("gemini-1.5-flash")
+	model.SystemInstruction = &genai.Content{
+		Parts: []genai.Part{
+			genai.Text(`You are an AI task planner for an operating system. Your job is to convert a user's request into a structured, multi-step plan called a Task Graph.
+
+- The user's request will be a natural language prompt.
+- The output MUST be a JSON object containing a 'taskGraph'.
+- The 'taskGraph' is a Directed Acyclic Graph (DAG) of 'nodes'.
+- Each node represents a single, atomic action (a 'tool' to be executed).
+- Nodes can depend on the output of other nodes. Use 'dependsOn' to specify dependencies.
+- You can reference the output of a previous step using the handlebars-style syntax '{{step_id.output}}'.
+
+Available Tools:
+- 'file.write': Writes content to a file.
+  - Input: { "path": string, "content": string }
+- 'web.search': Searches the web for information.
+  - Input: { "query": string }
+- 'file.read': Reads the content of a file.
+  - Input: { "path": string }
+- 'file.list': Lists the files in a directory.
+  - Input: { "path": string }
+
+Example User Prompt: "Research the latest news about WebAssembly and save it to a file called wasm_news.md"
+
+Example Output:
+{
+  "taskGraph": {
+    "id": "tg_1",
+    "nodes": [
+      {
+        "id": "step1",
+        "tool": "web.search",
+        "input": { "query": "latest news about WebAssembly" },
+        "dependsOn": []
+      },
+      {
+        "id": "step2",
+        "tool": "file.write",
+        "input": { "path": "/home/user/documents/wasm_news.md", "content": "{{step1.output}}" },
+        "dependsOn": ["step1"]
+      }
+    ]
+  }
+}
+Return only the raw JSON object.`),
+		},
+	}
+
+	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+
+	if err != nil {
+		return "", fmt.Errorf("error generating task graph: %w", err)
+	}
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no content found in task graph response")
+	}
+	var resultText string
+	for _, part := range resp.Candidates[0].Content.Parts {
+		if txt, ok := part.(genai.Text); ok {
+			resultText += string(txt)
+		}
+	}
+	
+	// Clean the response from markdown formatting
+    cleanedJSON := resultText
+	if strings.HasPrefix(cleanedJSON, "```json") {
+		cleanedJSON = strings.TrimPrefix(cleanedJSON, "```json")
+		cleanedJSON = strings.TrimSuffix(cleanedJSON, "```")
+	}
+	cleanedJSON = strings.TrimSpace(cleanedJSON)
+	
+	// Validate JSON
+	var temp interface{}
+	if err := json.Unmarshal([]byte(cleanedJSON), &temp); err != nil {
+		return "", fmt.Errorf("model returned invalid JSON for task graph: %w. Response: %s", err, cleanedJSON)
+	}
+
+	return cleanedJSON, nil
+}
+
+
 // GenerateImage generates an image from a text prompt.
-// This function needs to be implemented. For now, it returns a placeholder.
 func (m *AIModule) GenerateImage(prompt string) (string, error) {
 	// In a real implementation, this would call a text-to-image model.
 	// For now, we return a placeholder data URI.

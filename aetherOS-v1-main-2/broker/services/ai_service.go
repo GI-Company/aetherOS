@@ -139,11 +139,27 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		}
 
 	case "ai:agent":
-		// This is the placeholder for the new multi-step agent logic.
-		// For now, we'll just acknowledge the request.
-		log.Printf("Agent request received. Payload: %s", string(rawPayload))
-		// In the future, this will trigger planning and execution of a task graph.
-		responsePayload = map[string]string{"status": "Agent request acknowledged. Planning not yet implemented."}
+		var payloadData struct {
+			Prompt string `json:"prompt"`
+		}
+		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
+			s.publishError(env, "Invalid payload for agent request")
+			return
+		}
+
+		graphJSON, graphErr := s.aiModule.GenerateTaskGraph(payloadData.Prompt)
+		if graphErr != nil {
+			err = graphErr
+		} else {
+			var temp interface{}
+			if unmarshalErr := json.Unmarshal([]byte(graphJSON), &temp); unmarshalErr != nil {
+				err = unmarshalErr
+			} else {
+				// Publish the created graph to the agent.taskgraph.created topic
+				s.publishResponse(env, temp)
+			}
+		}
+
 
 	default: // Handle all other text-based generation topics
 		var payloadData map[string]string
@@ -196,12 +212,21 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		s.publishError(env, err.Error())
 		return
 	}
-
-	s.publishResponse(env, responsePayload)
+    
+    // For agent topic, response is published separately.
+    if env.Topic != "ai:agent" {
+	    s.publishResponse(env, responsePayload)
+    }
 }
 
 func (s *AIService) publishResponse(originalEnv *aether.Envelope, payload interface{}) {
-	responseTopicName := originalEnv.Topic + ":resp"
+	var responseTopicName string
+	if originalEnv.Topic == "ai:agent" {
+		responseTopicName = "agent.taskgraph.created"
+	} else {
+		responseTopicName = originalEnv.Topic + ":resp"
+	}
+
 	responseTopic := s.broker.GetTopic(responseTopicName)
 
 	// The payload is already a Go struct/map, json.Marshal will handle it.
@@ -251,3 +276,5 @@ func isBase64(s string) bool {
 	_, err := base64.StdEncoding.DecodeString(s)
 	return err == nil
 }
+
+    

@@ -382,8 +382,3 @@ func (s *AgentService) publish(originalEnv *aether.Envelope, topicName string, p
 
 	responseTopic.Publish(responseEnv)
 }
-
-
-    
-
-    

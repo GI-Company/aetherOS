@@ -35,6 +35,12 @@ export default function AgentConsoleApp() {
             "agent.tasknode.completed",
             "agent.tasknode.failed",
             "agent.tasknode.logs",
+            "vm:started",
+            "vm:stdout",
+            "vm:stderr",
+            "vm:exited",
+            "vm:killed",
+            "vm:crashed",
         ];
 
         const handleEvent = (payload: any, envelope: any) => {

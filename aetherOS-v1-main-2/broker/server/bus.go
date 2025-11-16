@@ -85,12 +85,14 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("vfs:read:error").Subscribe(client)
 	s.Broker.GetTopic("vfs:write:result").Subscribe(client)
 	s.Broker.GetTopic("vfs:write:error").Subscribe(client)
-	s.Broker.GetTopic("vm.started").Subscribe(client)
-	s.Broker.GetTopic("vm.stdout").Subscribe(client)
-	s.Broker.GetTopic("vm.stderr").Subscribe(client)
-	s.Broker.GetTopic("vm.exited").Subscribe(client)
-	s.Broker.GetTopic("vm.killed").Subscribe(client)
-	s.Broker.GetTopic("vm.crashed").Subscribe(client)
+	
+	s.Broker.GetTopic("vm:started").Subscribe(client)
+	s.Broker.GetTopic("vm:stdout").Subscribe(client)
+	s.Broker.GetTopic("vm:stderr").Subscribe(client)
+	s.Broker.GetTopic("vm:exited").Subscribe(client)
+	s.Broker.GetTopic("vm:killed").Subscribe(client)
+	s.Broker.GetTopic("vm:crashed").Subscribe(client)
+	
 	s.Broker.GetTopic("agent.taskgraph.created").Subscribe(client)
 	s.Broker.GetTopic("agent.taskgraph.started").Subscribe(client)
 	s.Broker.GetTopic("agent.taskgraph.completed").Subscribe(client)
@@ -101,6 +103,7 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("agent.tasknode.failed").Subscribe(client)
 	s.Broker.GetTopic("agent.tasknode.logs").Subscribe(client)
 	s.Broker.GetTopic("agent:execute:node").Subscribe(client)
+	
 	s.Broker.GetTopic("telemetry:vfs").Subscribe(client)
 
 	busTopic.Subscribe(client)

@@ -120,17 +120,17 @@ func (s *ComputeService) createInstance(originalEnv *aether.Envelope, wasmBase64
 	instance := compute.NewWazeroInstance(instanceCtx, mod, stdinWriter, stdoutReader, stderrReader, cancel)
 	s.runtime.Register(instanceID, instance)
 
-	s.publishResponse(originalEnv, "vm.started", map[string]string{"instanceId": instanceID})
+	s.publishResponse(originalEnv, "vm:started", map[string]string{"instanceId": instanceID})
 
 	// Goroutines to stream stdout and stderr
-	go s.streamPipe(instanceID, instance.Stdout(), "vm.stdout")
-	go s.streamPipe(instanceID, instance.Stderr(), "vm.stderr")
+	go s.streamPipe(instanceID, instance.Stdout(), "vm:stdout")
+	go s.streamPipe(instanceID, instance.Stderr(), "vm:stderr")
 
 	// Goroutine to wait for the instance to finish
 	go func() {
 		<-instanceCtx.Done() // Wait for context cancellation or module close
 		s.runtime.Unregister(instanceID)
-		s.publishResponse(originalEnv, "vm.exited", map[string]string{"instanceId": instanceID})
+		s.publishResponse(originalEnv, "vm:exited", map[string]string{"instanceId": instanceID})
 		instance.Kill() // Ensure cleanup
 	}()
 }
@@ -143,7 +143,7 @@ func (s *ComputeService) killInstance(originalEnv *aether.Envelope, instanceID s
 	}
 	instance.Kill()
 	s.runtime.Unregister(instanceID)
-	s.publishResponse(originalEnv, "vm.killed", map[string]string{"instanceId": instanceID})
+	s.publishResponse(originalEnv, "vm:killed", map[string]string{"instanceId": instanceID})
 }
 
 func (s *ComputeService) writeToStdin(originalEnv *aether.Envelope, instanceID string, data string) {
@@ -201,7 +201,7 @@ func (s *ComputeService) publishError(originalEnv *aether.Envelope, errorMsg str
 	if originalEnv != nil {
 		errorTopicName = originalEnv.Topic + ":error"
 	} else {
-		errorTopicName = "vm.crashed"
+		errorTopicName = "vm:crashed"
 	}
 
 	errorTopic := s.broker.GetTopic(errorTopicName)

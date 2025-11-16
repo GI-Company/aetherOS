@@ -15,14 +15,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import Dropzone from "@/components/aether-os/dropzone";
 import FileRow from "@/components/aether-os/file-row";
 import Breadcrumbs from "@/components/aether-os/breadcrumbs";
-import { useAether } from "@/lib/aether_sdk_client";
 import { useUser } from "@/firebase";
+import { useAppAether } from "@/lib/use-app-aether";
 
 
 interface FileExplorerAppProps {
   onOpenFile?: (filePath: string, content?: string) => void;
   searchQuery?: string;
-  filePath?: string; // For opening a specific folder
+  filePath?: string;
 }
 
 
@@ -53,7 +53,7 @@ const NewItemRow = ({
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (type === 'file') {
       const dotIndex = e.target.value.lastIndexOf('.');
-      if (dotIndex > 0) { // check > 0 to not select if it's the first char
+      if (dotIndex > 0) {
         e.target.setSelectionRange(0, dotIndex);
       } else {
         e.target.select();
@@ -95,7 +95,7 @@ const NewItemRow = ({
 
 export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearchQuery, filePath: initialPath }: FileExplorerAppProps) {
   const { user } = useUser();
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
   const basePath = useMemo(() => user ? `users/${user.uid}` : '', [user]);
   const [currentPath, setCurrentPath] = useState(initialPath || basePath);
   
@@ -123,10 +123,10 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }, [basePath, currentPath])
 
   const refresh = useCallback(() => {
-    if (!aether || !currentPath) return;
+    if (!currentPath) return;
     setIsLoading(true);
-    aether.publish('vfs:list', { path: currentPath });
-  }, [aether, currentPath]);
+    publish('vfs:list', { path: currentPath });
+  }, [currentPath, publish]);
 
 
   useEffect(() => {
@@ -136,8 +136,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }, [allFiles, searchQuery]);
   
   useEffect(() => {
-    if (!aether) return;
-
     let listSub: (() => void) | undefined, telemetrySub: (() => void) | undefined;
 
     const handleFileList = (payload: any, envelope: any) => {
@@ -148,18 +146,15 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         }
     };
     
-    // This handles local mutations and direct refreshes
-    listSub = aether.subscribe('vfs:list:result', handleFileList);
+    listSub = subscribe('vfs:list:result', handleFileList);
     
-    // This handles global file system changes from other apps
     const handleVFSTelemetry = (payload: any, envelope: any) => {
-        // A VFS operation happened somewhere. If it's in our current path, refresh.
         const eventPath = payload.payload?.path;
         if (eventPath && (eventPath.startsWith(currentPath) || currentPath.startsWith(eventPath))) {
             refresh();
         }
     };
-    telemetrySub = aether.subscribe('telemetry:vfs', handleVFSTelemetry);
+    telemetrySub = subscribe('telemetry:vfs', handleVFSTelemetry);
     
     refresh();
 
@@ -167,12 +162,12 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       if(listSub) listSub();
       if(telemetrySub) telemetrySub();
     };
-  }, [aether, currentPath, refresh]);
+  }, [currentPath, refresh, subscribe]);
 
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    if (!query || !aether) {
+    if (!query) {
       setDisplayedFiles(allFiles);
       return;
     }
@@ -210,12 +205,12 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         cleanup();
     };
 
-    resSub = aether.subscribe('vfs:search:result', handleResponse);
-    errSub = aether.subscribe('vfs:search:error', handleError);
+    resSub = subscribe('vfs:search:result', handleResponse);
+    errSub = subscribe('vfs:search:error', handleError);
     
-    aether.publish('vfs:search', { query, availableFiles: allFiles.map(f => f.path) });
+    publish('vfs:search', { query, availableFiles: allFiles.map(f => f.path) });
 
-  }, [allFiles, toast, aether]);
+  }, [allFiles, toast, publish, subscribe]);
 
 
   useEffect(() => {
@@ -245,7 +240,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }
 
   const handleUpload = async (files: File[]) => {
-    if (!files || files.length === 0 || !user || !aether) return;
+    if (!files || files.length === 0 || !user) return;
     setIsUploading(true);
     setUploadProgress(0);
     
@@ -257,13 +252,12 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       const base64Content = reader.result?.toString().split(',')[1];
       if (base64Content) {
         let sub: (() => void) | undefined;
-        sub = aether.subscribe('vfs:write:result', () => {
+        sub = subscribe('vfs:write:result', () => {
           toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
           setIsUploading(false);
-          // Telemetry event will trigger the refresh now
           if (sub) sub();
         });
-        aether.publish('vfs:write', { path: `${currentPath}/${file.name}`, content: base64Content, encoding: 'base64' });
+        publish('vfs:write', { path: `${currentPath}/${file.name}`, content: base64Content, encoding: 'base64' });
 
       }
     };
@@ -274,33 +268,31 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }
 
   const handleCreate = async (name: string) => {
-      if (!name || !user || !creatingItemType || !aether) return;
+      if (!name || !user || !creatingItemType) return;
       const topic = `vfs:create:${creatingItemType}`;
       
       let sub: (() => void) | undefined;
-      sub = aether.subscribe(`${topic}:result`, () => {
+      sub = subscribe(`${topic}:result`, () => {
         setCreatingItemType(null);
-        // Telemetry will handle the refresh
         if (sub) sub();
       });
-      aether.publish(topic, {path: currentPath, name});
+      publish(topic, {path: currentPath, name});
   }
 
   const confirmDelete = () => {
-    if (!itemToDelete || !aether) return;
+    if (!itemToDelete) return;
     setIsDeleting(true);
 
     let sub: (() => void) | undefined;
-    sub = aether.subscribe('vfs:delete:result', (payload) => {
+    sub = subscribe('vfs:delete:result', (payload) => {
         if(payload.path === itemToDelete.path) {
           setIsDeleting(false);
           setItemToDelete(null);
-          // Telemetry will handle the refresh
           if (sub) sub();
         }
     });
 
-    aether.publish('vfs:delete', { path: itemToDelete.path });
+    publish('vfs:delete', { path: itemToDelete.path });
   };
   
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {

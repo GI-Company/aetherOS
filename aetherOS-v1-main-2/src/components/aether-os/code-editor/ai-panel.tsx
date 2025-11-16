@@ -7,8 +7,8 @@ import { useState } from "react";
 import { Wand2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { useAether } from "@/lib/aether_sdk_client";
 import type { EditorFile } from "./editor-tabs";
+import { useAppAether } from "@/lib/use-app-aether";
 
 interface AiPanelProps {
     activeFile: EditorFile | null;
@@ -19,7 +19,7 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState<"generate" | "refactor" | null>(null);
   const { toast } = useToast();
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
 
   const handleGenerateCode = () => {
     if (!prompt) {
@@ -30,14 +30,14 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
       });
       return;
     }
-    if (!aether || !activeFile) {
-      toast({ title: "No active file or Aether client not available", variant: "destructive" });
+    if (!activeFile) {
+      toast({ title: "No active file", variant: "destructive" });
       return;
     }
     
     setIsLoading("generate");
 
-    aether.publish('ai:generate', { prompt: `Given the existing code:\n\n${activeFile.content}\n\nGenerate new code based on this request: ${prompt}` });
+    publish('ai:generate', { prompt: `Given the existing code:\n\n${activeFile.content}\n\nGenerate new code based on this request: ${prompt}` });
     
     let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
     
@@ -64,20 +64,20 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
       cleanup();
     };
     
-    resSub = aether.subscribe('ai:generate:resp', handleResponse);
-    errSub = aether.subscribe('ai:generate:error', handleError);
+    resSub = subscribe('ai:generate:resp', handleResponse);
+    errSub = subscribe('ai:generate:error', handleError);
   };
   
   const handleRefactorCode = () => {
-    if (!activeFile || !aether) {
-      toast({ title: "No active file or Aether client not available", variant: "destructive" });
+    if (!activeFile) {
+      toast({ title: "No active file", variant: "destructive" });
       return;
     }
     setIsLoading("refactor");
     
     const refactorPrompt = `Refactor this code to improve its structure, readability, and performance. Keep the functionality the same.\n\nCode:\n${activeFile.content}`;
     
-    aether.publish('ai:generate', { prompt: refactorPrompt });
+    publish('ai:generate', { prompt: refactorPrompt });
     
     let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
 
@@ -104,8 +104,8 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
       cleanup();
     };
     
-    resSub = aether.subscribe('ai:generate:resp', handleResponse);
-    errSub = aether.subscribe('ai:generate:error', handleError);
+    resSub = subscribe('ai:generate:resp', handleResponse);
+    errSub = subscribe('ai:generate:error', handleError);
   };
 
   return (

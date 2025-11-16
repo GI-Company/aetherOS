@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Globe, RefreshCw, ArrowLeft, ArrowRight, Home, Loader2 } from "lucide-react";
 import BrowserWelcomePage from "@/components/aether-os/browser-welcome-page";
-import { useAether } from '@/lib/aether_sdk_client';
+import { useAppAether } from '@/lib/use-app-aether';
 
 const DEFAULT_URL = "aether://welcome";
 
@@ -22,7 +22,7 @@ export default function BrowserApp() {
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
   const [inputValue, setInputValue] = useState(DEFAULT_URL);
   const [pageCache, setPageCache] = useState<PageCache>({});
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
 
   const currentUrl = history[currentUrlIndex];
   const currentPageState = pageCache[currentUrl];
@@ -31,10 +31,9 @@ export default function BrowserApp() {
   const canGoForward = currentUrlIndex < history.length - 1;
   
   const fetchPageContent = useCallback((url: string) => {
-    if (!aether) return;
     setPageCache(prev => ({ ...prev, [url]: { isLoading: true, content: null, error: null } }));
     
-    aether.publish('ai:generate:page', { topic: url });
+    publish('ai:generate:page', { topic: url });
         
     const handlePageContent = (payload: any, envelope: any) => {
         setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: payload, error: null } }));
@@ -46,14 +45,14 @@ export default function BrowserApp() {
         // Unsubscribe handled in cleanup
     };
 
-    const sub = aether.subscribe('ai:generate:page:resp', handlePageContent);
-    const errSub = aether.subscribe('ai:generate:page:error', handleError);
+    const sub = subscribe('ai:generate:page:resp', handlePageContent);
+    const errSub = subscribe('ai:generate:page:error', handleError);
 
     return () => {
         sub();
         errSub();
     }
-  }, [aether]);
+  }, [publish, subscribe]);
 
   useEffect(() => {
     if (currentUrl !== DEFAULT_URL && !pageCache[currentUrl]) {

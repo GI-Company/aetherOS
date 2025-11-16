@@ -21,6 +21,5 @@ type Envelope struct {
 
 // Bytes returns the envelope as a JSON byte slice.
 func (e *Envelope) Bytes() ([]byte, error) {
-	// Re-marshal the struct to send, which now correctly includes the raw payload
 	return json.Marshal(e)
 }

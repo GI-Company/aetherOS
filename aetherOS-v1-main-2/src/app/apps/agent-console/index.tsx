@@ -3,7 +3,7 @@
 
 import { Bot, GitCommitHorizontal, History, List, Terminal, ChevronRight, Play, Square, RefreshCcw } from 'lucide-react';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useAether } from '@/lib/aether_sdk_client';
+import { useAether } from '@/lib/aether_sdk_client'; // This app uses the global client for monitoring
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -81,8 +81,8 @@ export default function AgentConsoleApp() {
                     if (envelope.topic === 'agent.taskgraph.failed') newGraphs[graphId].status = 'failed';
                     
                     const nodeId = payload.nodeId;
-                    if (nodeId) {
-                         const nodeStatus = newGraphs[graphId].nodesStatus[nodeId] || { nodeId, status: 'pending' };
+                    if (nodeId && newGraphs[graphId].nodesStatus[nodeId]) {
+                         const nodeStatus = newGraphs[graphId].nodesStatus[nodeId];
                         
                         if (envelope.topic === 'agent.tasknode.started') {
                             nodeStatus.status = 'running';
@@ -97,8 +97,6 @@ export default function AgentConsoleApp() {
                             nodeStatus.error = payload.error || 'Unknown error';
                              nodeStatus.finishedAt = Date.now();
                         }
-                        
-                        newGraphs[graphId].nodesStatus[nodeId] = nodeStatus;
                     }
                 }
                 

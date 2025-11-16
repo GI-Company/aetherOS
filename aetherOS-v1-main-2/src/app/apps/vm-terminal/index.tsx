@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useAether } from '@/lib/aether_sdk_client';
+import { useAppAether } from '@/lib/use-app-aether';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { TaskGraphEvent } from '@/lib/agent-types';
@@ -13,7 +13,7 @@ type HistoryItem = {
 };
 
 export default function VmTerminalApp() {
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<HistoryItem[]>(() => [
     { type: 'response', content: 'AetherOS Natural Language Shell [Version 1.0.0]' },
@@ -35,10 +35,7 @@ export default function VmTerminalApp() {
     inputRef.current?.focus();
   }, []);
 
-  // Listen for agent events to provide real-time feedback
   useEffect(() => {
-    if (!aether) return;
-
     const agentTopics = [
       "agent.taskgraph.created", "agent.taskgraph.started",
       "agent.taskgraph.completed", "agent.taskgraph.failed",
@@ -64,13 +61,14 @@ export default function VmTerminalApp() {
                 setIsLoading(false);
                 break;
             case 'agent.tasknode.started':
-                message = `[Node: ${typedEnvelope.payload.nodeId}] Running tool: ${typedEnvelope.payload.tool}...`;
+                const tool = payload.tool || 'unknown tool';
+                message = `[Node: ${payload.nodeId}] Running ${tool}...`;
                 break;
             case 'agent.tasknode.completed':
-                message = `[Node: ${typedEnvelope.payload.nodeId}] Completed.`;
+                message = `[Node: ${payload.nodeId}] Completed.`;
                 break;
             case 'agent.tasknode.failed':
-                message = `[Node: ${typedEnvelope.payload.nodeId}] Failed: ${typedEnvelope.payload.error}`;
+                message = `[Node: ${payload.nodeId}] Failed: ${payload.error}`;
                 break;
         }
         if (message) {
@@ -78,16 +76,16 @@ export default function VmTerminalApp() {
         }
     };
 
-    const subscriptions = agentTopics.map(topic => aether.subscribe(topic, handleAgentEvent));
+    const subscriptions = agentTopics.map(topic => subscribe(topic, handleAgentEvent));
 
     return () => {
         subscriptions.forEach(unsubscribe => unsubscribe());
     };
-  }, [aether]);
+  }, [subscribe]);
 
   const handleCommand = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!input.trim() || !aether) return;
+    if (!input.trim()) return;
 
     const command = input.trim();
     const newHistory: HistoryItem[] = [
@@ -98,8 +96,7 @@ export default function VmTerminalApp() {
     setInput('');
     setIsLoading(true);
 
-    // Publish to the agent topic to trigger a TaskGraph
-    aether.publish('ai:agent', { prompt: command });
+    publish('ai:agent', { prompt: command });
   };
   
   const handleTerminalClick = () => {

@@ -8,15 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Layers, Loader2, Wand2, Save } from "lucide-react";
-import { useAether } from '@/lib/aether_sdk_client';
 import { useUser } from "@/firebase";
+import { useAppAether } from "@/lib/use-app-aether";
 
 export default function PixelStreamerApp() {
   const [prompt, setPrompt] = useState("");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<"generate" | "save" | null>(null);
   const { toast } = useToast();
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
   const { user } = useUser();
 
   const handleGenerate = () => {
@@ -28,11 +28,10 @@ export default function PixelStreamerApp() {
       });
       return;
     }
-    if (!aether) return;
     setIsLoading("generate");
     setGeneratedImage(null);
     
-    aether.publish('ai:generate:image', { prompt });
+    publish('ai:generate:image', { prompt });
 
     let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
     
@@ -62,13 +61,13 @@ export default function PixelStreamerApp() {
       cleanup();
     };
 
-    resSub = aether.subscribe('ai:generate:image:resp', handleResponse);
-    errSub = aether.subscribe('ai:generate:image:error', handleError);
+    resSub = subscribe('ai:generate:image:resp', handleResponse);
+    errSub = subscribe('ai:generate:image:error', handleError);
   };
 
   const handleSaveImage = () => {
-    if (!generatedImage || !aether || !user) {
-      toast({ title: "No image to save or Aether client/user not available.", variant: "destructive" });
+    if (!generatedImage || !user) {
+      toast({ title: "No image to save or user not available.", variant: "destructive" });
       return;
     }
 
@@ -85,7 +84,7 @@ export default function PixelStreamerApp() {
     
     const base64Content = generatedImage.split(',')[1];
     
-    aether.publish('vfs:write', { path: filePath, content: base64Content, encoding: 'base64' });
+    publish('vfs:write', { path: filePath, content: base64Content, encoding: 'base64' });
 
     let saveSub: (() => void) | undefined, errSub: (() => void) | undefined;
 
@@ -115,8 +114,8 @@ export default function PixelStreamerApp() {
       cleanup();
     };
 
-    saveSub = aether.subscribe('vfs:write:result', handleSaveResponse);
-    errSub = aether.subscribe('vfs:write:error', handleSaveError);
+    saveSub = subscribe('vfs:write:result', handleSaveResponse);
+    errSub = subscribe('vfs:write:error', handleSaveError);
   };
 
 

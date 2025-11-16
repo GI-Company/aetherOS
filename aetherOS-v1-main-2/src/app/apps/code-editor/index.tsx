@@ -9,8 +9,8 @@ import FileTree from "@/components/aether-os/code-editor/file-tree";
 import EditorTabs, { type EditorFile } from "@/components/aether-os/code-editor/editor-tabs";
 import AiPanel from "@/components/aether-os/code-editor/ai-panel";
 import { Button } from "@/components/ui/button";
-import { useAether } from "@/lib/aether_sdk_client";
 import { useUser } from "@/firebase";
+import { useAppAether } from "@/lib/use-app-aether";
 
 interface CodeEditorAppProps {
   filePath?: string; // Can be used to open a project folder
@@ -30,7 +30,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   
   const { toast } = useToast();
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
 
   const handleSetProject = (path: string) => {
     setProjectPath(path);
@@ -39,7 +39,6 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   };
   
   const handleOpenFile = useCallback((filePath: string, fileContent?: string) => {
-    if (!aether) return;
     // Check if file is already open
     const existingFile = openFiles.find(f => f.path === filePath);
     if (existingFile) {
@@ -81,9 +80,9 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
           cleanup();
         };
 
-        sub = aether.subscribe('vfs:read:result', handleReadResult);
-        errSub = aether.subscribe('vfs:read:error', handleReadError);
-        aether.publish('vfs:read', { path: filePath });
+        sub = subscribe('vfs:read:result', handleReadResult);
+        errSub = subscribe('vfs:read:error', handleReadError);
+        publish('vfs:read', { path: filePath });
 
     } else {
        const newFile: EditorFile = {
@@ -97,7 +96,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
       setOpenFiles(prev => [...prev, newFile]);
       setActiveFileId(fileId);
     }
-  }, [openFiles, toast, aether]);
+  }, [openFiles, toast, publish, subscribe]);
 
   useEffect(() => {
     if (fileToOpen) {
@@ -121,15 +120,12 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
         setIsDirty(false);
       }
 
-      // If the closed file was the active one, select a new active file
       if (activeFileId === fileId) {
         if (updatedFiles.length === 0) {
           setActiveFileId(null);
         } else if (fileToCloseIndex > 0) {
-          // Select previous tab
           setActiveFileId(updatedFiles[fileToCloseIndex - 1].id);
         } else {
-          // Select next tab
           setActiveFileId(updatedFiles[0].id);
         }
       }
@@ -176,17 +172,12 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
 
   const activeFile = openFiles.find(f => f.id === activeFileId) || null;
 
-  if (!aether) {
-    return <div className="flex h-full w-full items-center justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
-  }
-  
   if (!projectPath) {
     return <WelcomeScreen onSelectProject={handleSetProject} />;
   }
 
   return (
     <div className="flex h-full bg-background flex-row">
-      {/* File Tree Panel */}
       <div className="w-[250px] bg-card/50 border-r flex flex-col">
         <div className="p-2 border-b">
            <Button variant="ghost" size="sm" className="w-full justify-start text-left" onClick={() => setProjectPath(null)}>
@@ -200,7 +191,6 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
         />
       </div>
 
-      {/* Editor and AI Panel */}
       <div className="flex-grow flex flex-col md:w-2/3">
         <div className="flex-grow w-full h-full flex">
           <div className="flex-grow w-2/3 h-full">

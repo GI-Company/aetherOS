@@ -13,8 +13,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 // after the user logs in.
 const FAKE_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcm9udGVuZC11c2VyIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjE3NjcyMzkwMjJ9.C6F5_5Jrg9A3p6h4Yl-4I0n-bYd28Y9bJmJgYzRzZDA";
 
-interface Envelope {
+export interface Envelope {
     id: string;
+    from?: string; // App ID
     topic: string;
     payload: any;
     contentType: string;
@@ -22,7 +23,7 @@ interface Envelope {
     meta?: Record<string, string>;
 }
 
-class AetherClient {
+export class AetherClient {
   private baseUrl: string;
   private ws: WebSocket | null;
   private subscriptions: Map<string, Array<(payload: any, envelope: Envelope) => void>>;
@@ -67,8 +68,6 @@ class AetherClient {
             try {
                 const envelope: Envelope = JSON.parse(event.data);
                 if (this.subscriptions.has(envelope.topic)) {
-                    // The Go payload is already a marshaled JSON string or object.
-                    // We pass the raw payload and the full envelope for flexibility.
                     this.subscriptions.get(envelope.topic)?.forEach(callback => {
                         callback(envelope.payload, envelope);
                     });
@@ -105,12 +104,13 @@ class AetherClient {
     }, delay);
   }
 
-  async publish(topic: string, payload: any): Promise<void> {
-    const fullEnvelope = {
+  async publish(topic: string, payload: any, appId?: string): Promise<void> {
+    const fullEnvelope: Envelope = {
         id: crypto.randomUUID(),
+        from: appId,
         topic: topic,
         contentType: 'application/json',
-        payload: payload, // The payload is now the direct data.
+        payload: payload,
         createdAt: new Date().toISOString(),
     };
 
@@ -133,7 +133,6 @@ class AetherClient {
     const callbacks = this.subscriptions.get(topic)!;
     callbacks.push(callback);
     
-    // Return an unsubscribe function
     return () => {
         const currentCallbacks = this.subscriptions.get(topic);
         if (currentCallbacks) {
@@ -149,14 +148,12 @@ class AetherClient {
   }
 }
 
-// React Context for the Aether Client
 const AetherContext = createContext<AetherClient | null>(null);
 
 export const AetherProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [client, setClient] = useState<AetherClient | null>(null);
 
     useEffect(() => {
-        // Use environment variables for configuration if available, otherwise default.
         const wsHost = process.env.NEXT_PUBLIC_WS_HOST || 'localhost';
         const wsPort = process.env.NEXT_PUBLIC_WS_PORT || '8080';
         const wsPath = process.env.NEXT_PUBLIC_WS_PATH || '/v1/bus/ws';

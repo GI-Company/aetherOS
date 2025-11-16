@@ -31,7 +31,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { doc } from 'firebase/firestore';
 import { setDocumentNonBlocking } from '@/firebase';
-import { useAether } from '@/lib/aether_sdk_client';
+import { useAppAether } from '@/lib/use-app-aether';
 
 
 interface SettingsAppProps {
@@ -48,7 +48,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
   const {toast} = useToast();
   const {applyTheme, setScheme} = useTheme();
   const {user, firestore} = useFirebase();
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
   const auth = getAuth();
 
   const userPreferencesRef = useMemoFirebase(() => {
@@ -69,13 +69,9 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
       });
       return;
     }
-     if (!aether) {
-      toast({ title: "Aether client not available", variant: "destructive" });
-      return;
-    }
     setIsLoading('theme');
 
-    aether.publish('ai:generate:palette', { contentDescription: themePrompt });
+    publish('ai:generate:palette', { contentDescription: themePrompt });
 
     const handleResponse = (payload: any) => {
       try {
@@ -106,8 +102,8 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
         if (errSub) errSub();
     }
     
-    const resSub = aether.subscribe('ai:generate:palette:resp', handleResponse);
-    const errSub = aether.subscribe('ai:generate:palette:error', handleError);
+    const resSub = subscribe('ai:generate:palette:resp', handleResponse);
+    const errSub = subscribe('ai:generate:palette:error', handleError);
   };
 
   const handleGenerateAccent = () => {
@@ -119,13 +115,9 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
       });
       return;
     }
-    if (!aether) {
-      toast({ title: "Aether client not available", variant: "destructive" });
-      return;
-    }
     setIsLoading('accent');
 
-    aether.publish('ai:generate:accent', { description: accentPrompt });
+    publish('ai:generate:accent', { description: accentPrompt });
 
     const handleResponse = (payload: any) => {
         try {
@@ -166,8 +158,8 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
         if (errSub) errSub();
     }
 
-    const resSub = aether.subscribe('ai:generate:accent:resp', handleResponse);
-    const errSub = aether.subscribe('ai:generate:accent:error', handleError);
+    const resSub = subscribe('ai:generate:accent:resp', handleResponse);
+    const errSub = subscribe('ai:generate:accent:error', handleError);
   };
 
   const onAccountLinked = () => {

@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useAether } from '@/lib/aether_sdk_client';
+import { useAppAether } from '@/lib/use-app-aether';
 import { useToast } from "@/hooks/use-toast";
 import { Wand2, Loader2, Copy } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,7 +14,7 @@ export default function DesignStudioApp() {
   const [prompt, setPrompt] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
   const { toast } = useToast();
 
   const handleGenerate = () => {
@@ -26,15 +26,11 @@ export default function DesignStudioApp() {
       });
       return;
     }
-    if (!aether) {
-      toast({ title: "Aether client not available", variant: "destructive" });
-      return;
-    }
     
     setIsLoading(true);
     setGeneratedCode("");
 
-    aether.publish('ai:design:component', { description: prompt });
+    publish('ai:design:component', { description: prompt });
 
     const handleResponse = (payload: any) => {
       const cleanedCode = payload.replace(/```.*\n/g, '').replace(/```/g, '').trim();
@@ -56,8 +52,8 @@ export default function DesignStudioApp() {
       if (errSub) errSub();
     };
     
-    const resSub = aether.subscribe('ai:design:component:resp', handleResponse);
-    const errSub = aether.subscribe('ai:design:component:error', handleError);
+    const resSub = subscribe('ai:design:component:resp', handleResponse);
+    const errSub = subscribe('ai:design:component:error', handleError);
   };
   
   const copyToClipboard = () => {

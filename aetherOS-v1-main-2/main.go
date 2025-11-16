@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"github.com/gorilla/mux"
 	"github.com/tetratelabs/wazero"
@@ -29,6 +30,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("error initializing app: %v\n", err)
 	}
+
+	// Initialize Firestore Client
+	firestoreClient, err := app.Firestore(ctx)
+	if err != nil {
+		log.Fatalf("failed to create firestore client: %v", err)
+	}
+	defer firestoreClient.Close()
+
 
 	// Initialize the central message broker
 	broker := aether.NewBroker()
@@ -59,16 +68,16 @@ func main() {
 
 
 	// Initialize Services
-	aiService := services.NewAIService(broker, aiModule, vfsModule)
+	aiService := services.NewAIService(broker, aiModule)
 	go aiService.Run()
 
-	vfsService := services.NewVfsService(broker, vfsModule)
+	vfsService := services.NewVfsService(broker, vfsModule, aiModule)
 	go vfsService.Run()
 
 	computeService := services.NewComputeService(broker, computeRuntime)
 	go computeService.Run()
 
-	agentService := services.NewAgentService(broker)
+	agentService := services.NewAgentService(broker, firestoreClient)
 	go agentService.Run()
 
 	taskExecutorService := services.NewTaskExecutorService(broker, vfsModule, aiModule)
@@ -113,3 +122,4 @@ func main() {
 
 	log.Println("Server exiting")
 }
+

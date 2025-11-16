@@ -13,6 +13,7 @@ import CollaborationApp from "@/app/apps/collaboration";
 import ImageViewerApp from "@/app/apps/image-viewer";
 import PeopleApp from "@/app/apps/people";
 import VmTerminalApp from "@/app/apps/vm-terminal";
+import MailApp from "@/app/apps/mail";
 
 
 export type App = {
@@ -24,7 +25,6 @@ export type App = {
   hideFromDock?: boolean;
 };
 
-const MailApp = () => React.createElement('div', { className: 'p-4' }, 'Mail App Content');
 const WorkflowStudioApp = () => React.createElement('div', { className: 'p-4 text-center' }, 'Workflow Studio Coming Soon');
 
 
@@ -112,7 +112,7 @@ export const APPS: App[] = [
     name: "Mail",
     Icon: Mail,
     component: MailApp,
-    defaultSize: { width: 800, height: 600 },
+    defaultSize: { width: 900, height: 700 },
   },
   {
     id: "settings",

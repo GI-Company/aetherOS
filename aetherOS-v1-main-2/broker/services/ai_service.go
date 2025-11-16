@@ -78,7 +78,7 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			return
 		}
 
-		s.publishResponse(env, "agent.tasknode.started", map[string]string{
+		s.publish(env, "agent.tasknode.started", map[string]string{
 			"graphId": payloadData.GraphID,
 			"nodeId":  payloadData.NodeID,
 		})
@@ -360,5 +360,3 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	log.Printf("AI Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
 }
-
-    

@@ -3,6 +3,7 @@ package aether
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -370,13 +371,35 @@ Return only the raw JSON object.`),
 	return cleanedJSON, nil
 }
 
-// GenerateImage generates an image from a text prompt.
+// GenerateImage generates an image from a text prompt and returns a data URI.
 func (m *AIModule) GenerateImage(prompt string) (string, error) {
-	// In a real implementation, this would call a text-to-image model.
-	// For now, we return a placeholder data URI.
-	// This is a 1x1 transparent GIF.
-	return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", nil
+	ctx := context.Background()
+	// Use a model that supports image generation.
+	model := m.client.GenerativeModel("gemini-1.5-pro")
+
+	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	if err != nil {
+		return "", fmt.Errorf("error generating image content: %w", err)
+	}
+
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("no content found in image response")
+	}
+
+	// Find the first image data part in the response.
+	for _, part := range resp.Candidates[0].Content.Parts {
+		if img, ok := part.(genai.ImageData); ok {
+			// Encode the raw image bytes as a Base64 string.
+			encodedString := base64.StdEncoding.EncodeToString(img.Data)
+			// Format as a data URI.
+			dataURI := fmt.Sprintf("data:%s;base64,%s", img.MIMEType, encodedString)
+			return dataURI, nil
+		}
+	}
+
+	return "", fmt.Errorf("no image data found in response parts")
 }
+
 
 // Close releases resources used by the AI module.
 func (m *AIModule) Close() {
@@ -384,5 +407,3 @@ func (m *AIModule) Close() {
 		m.client.Close()
 	}
 }
-
-    

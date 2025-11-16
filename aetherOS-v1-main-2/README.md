@@ -223,8 +223,8 @@ This phase focuses on expanding the capabilities of the OS to deliver more value
 
 - **[x] **Inter-App Communication & Workflow**
   - [x] Develop a secure, system-wide API for app-to-app communication via an event bus (`osEvent`).
-- **[x] **Enhanced AI Agency**
-  - [ ] Implement complex, multi-step tool chaining with conditional logic (e.g., `searchFiles` -> `openFile`).
+- **[IN PROGRESS] **Enhanced AI Agency**
+  - [x] Implement complex, multi-step tool chaining with conditional logic (e.g., `searchFiles` -> `openFile`).
   - [ ] Long-term goal: AI self-healing and self-modification capabilities.
 - **[x] **Core Application Suite**
   - [ ] Integrate a browser-based Virtual Machine.

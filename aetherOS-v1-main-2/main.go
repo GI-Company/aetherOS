@@ -103,6 +103,9 @@ func main() {
 	computeService := services.NewComputeService(broker, computeRuntime)
 	go computeService.Run()
 
+	agentService := services.NewAgentService(broker)
+	go agentService.Run()
+
 	// Setup router and register API routes
 	r := mux.NewRouter()
 	server.RegisterBusRoutes(r, broker)

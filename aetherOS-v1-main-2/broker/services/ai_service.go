@@ -5,7 +5,6 @@ import (
 	"aether/broker/aether"
 	"encoding/json"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +14,7 @@ import (
 type AIService struct {
 	broker   *aether.Broker
 	aiModule *aether.AIModule
-	vfs      *aether.VFSModule // Add VFS module to read file contents
+	vfs      *aether.VFSModule // Still needed for summarization
 }
 
 // NewAIService creates a new AI service.
@@ -39,7 +38,6 @@ func (s *AIService) Run() {
 		"ai:generate:accent",
 		"ai:summarize:code",
 		"ai:generate:image",
-		"agent:execute:node",
 	}
 
 	for _, topicName := range aiTopics {
@@ -60,97 +58,9 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 
 	var responsePayload interface{}
 	var err error
-
-	// The envelope is now clean, so env.Payload is the direct data we need.
 	rawPayload := env.Payload
 
-	// Route based on topic
 	switch env.Topic {
-	case "agent:execute:node":
-		var payloadData struct {
-			GraphID string         `json:"graphId"`
-			NodeID  string         `json:"nodeId"`
-			Tool    string         `json:"tool"`
-			Input   map[string]any `json:"input"`
-		}
-		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
-			s.publishError(env, "Invalid payload for agent:execute:node")
-			return
-		}
-
-		s.publish(env, "agent.tasknode.started", map[string]string{
-			"graphId": payloadData.GraphID,
-			"nodeId":  payloadData.NodeID,
-		})
-
-		var toolResult map[string]any
-		var toolErr string = ""
-
-		switch payloadData.Tool {
-		case "vm:run":
-			if wasm, ok := payloadData.Input["wasmBase64"].(string); ok {
-				// Delegate to the ComputeService by publishing a message
-				s.publish(env, "vm:create", map[string]any{"wasmBase64": wasm})
-				// The result of this tool would be handled by listening to vm.exited/vm.stdout events.
-				// For now, we'll optimistically complete the node.
-				toolResult = map[string]any{"output": "WASM execution started."}
-			} else {
-				toolErr = "Invalid input for vm:run: wasmBase64 must be a string."
-			}
-
-		case "vfs:read":
-			if path, ok := payloadData.Input["path"].(string); ok {
-				content, readErr := s.vfs.Read(path)
-				if readErr != nil {
-					toolErr = readErr.Error()
-				} else {
-					toolResult = map[string]any{"output": content}
-				}
-			}
-		case "vfs:write":
-			path, pathOk := payloadData.Input["path"].(string)
-			content, contentOk := payloadData.Input["content"].(string)
-			if pathOk && contentOk {
-				writeErr := s.vfs.Write(path, []byte(content))
-				if writeErr != nil {
-					toolErr = writeErr.Error()
-				} else {
-					toolResult = map[string]any{"output": "File written successfully."}
-				}
-			}
-		case "ai:summarize:code":
-			if path, ok := payloadData.Input["filePath"].(string); ok {
-				fileContent, readErr := s.vfs.Read(path)
-				if readErr != nil {
-					toolErr = readErr.Error()
-				} else {
-					summaryJSON, sumErr := s.aiModule.SummarizeCode(fileContent)
-					if sumErr != nil {
-						toolErr = sumErr.Error()
-					} else {
-						toolResult = map[string]any{"output": summaryJSON}
-					}
-				}
-			}
-		default:
-			toolErr = "Unknown tool: " + payloadData.Tool
-		}
-
-		if toolErr != "" {
-			s.publishResponse(env, "agent.tasknode.failed", map[string]string{
-				"graphId": payloadData.GraphID,
-				"nodeId":  payloadData.NodeID,
-				"error":   toolErr,
-			})
-		} else {
-			s.publishResponse(env, "agent.tasknode.completed", map[string]interface{}{
-				"graphId": payloadData.GraphID,
-				"nodeId":  payloadData.NodeID,
-				"result":  toolResult,
-			})
-		}
-		return // Exit early as we have handled the full lifecycle here
-
 	case "ai:generate:image":
 		var payloadData struct {
 			Prompt string `json:"prompt"`
@@ -161,10 +71,10 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		}
 		generatedImageURI, genErr := s.aiModule.GenerateImage(payloadData.Prompt)
 		if genErr != nil {
-			s.publishError(env, genErr.Error())
-			return
+			err = genErr
+		} else {
+			responsePayload = map[string]string{"imageUrl": generatedImageURI}
 		}
-		responsePayload = map[string]string{"imageUrl": generatedImageURI}
 
 	case "ai:search:files":
 		var payloadData struct {
@@ -197,16 +107,22 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		}
 		fileContent, readErr := s.vfs.Read(payloadData.FilePath)
 		if readErr != nil {
-			s.publishError(env, "Could not read file for summarization")
+			s.publishError(env, "Could not read file for summarization: "+readErr.Error())
 			return
 		}
 		summaryJSON, sumErr := s.aiModule.SummarizeCode(fileContent)
 		if sumErr != nil {
 			err = sumErr
 		} else {
-			responsePayload = map[string]interface{}{
-				"summary":  summaryJSON,
-				"filePath": payloadData.FilePath,
+			// The summary is already a JSON string `{"summary":"..."}`
+			var summaryMap map[string]string
+			if jsonErr := json.Unmarshal([]byte(summaryJSON), &summaryMap); jsonErr != nil {
+				err = jsonErr
+			} else {
+				responsePayload = map[string]interface{}{
+					"summary":  summaryMap["summary"],
+					"filePath": payloadData.FilePath,
+				}
 			}
 		}
 
@@ -227,10 +143,12 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			if unmarshalErr := json.Unmarshal([]byte(graphJSON), &temp); unmarshalErr != nil {
 				err = unmarshalErr
 			} else {
+				// The AI service's only job is to create the graph.
+				// The AgentService will handle orchestration.
 				s.publishResponse(env, "agent.taskgraph.created", temp)
 			}
 		}
-		return // Exit early, response is published separately by the agent service.
+		return // Exit early, response is published separately
 
 	default: // Handle all other text-based generation topics
 		var payloadData map[string]string
@@ -282,7 +200,7 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		return
 	}
 
-	if env.Topic != "ai:agent" && env.Topic != "agent:execute:node" {
+	if env.Topic != "ai:agent" {
 		responseTopicName := env.Topic + ":resp"
 		s.publishResponse(env, responseTopicName, responsePayload)
 	}
@@ -313,31 +231,6 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, topicName stri
 	log.Printf("AI Service publishing response to topic: %s", topicName)
 	responseTopic.Publish(responseEnv)
 }
-
-// publish is a helper to send messages to the bus.
-func (s *AIService) publish(originalEnv *aether.Envelope, topicName string, payload interface{}) {
-	responseTopic := s.broker.GetTopic(topicName)
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("AI Service: Failed to marshal payload for topic %s: %v", topicName, err)
-		return
-	}
-
-	responseEnv := &aether.Envelope{
-		ID:          uuid.New().String(),
-		Topic:       topicName,
-		Type:        "agent_event",
-		ContentType: "application/json",
-		Payload:     payloadBytes,
-		CreatedAt:   time.Now(),
-	}
-	if originalEnv != nil {
-		responseEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
-	}
-
-	responseTopic.Publish(responseEnv)
-}
-
 
 func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) {
 	errorTopicName := originalEnv.Topic + ":error"

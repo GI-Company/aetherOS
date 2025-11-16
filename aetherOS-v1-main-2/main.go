@@ -107,6 +107,9 @@ func main() {
 	agentService := services.NewAgentService(broker)
 	go agentService.Run()
 
+	taskExecutorService := services.NewTaskExecutorService(broker, vfsModule, aiModule)
+	go taskExecutorService.Run()
+
 	// Setup router and register API routes
 	r := mux.NewRouter()
 	server.RegisterBusRoutes(r, broker)

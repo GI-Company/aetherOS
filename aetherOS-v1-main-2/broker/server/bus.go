@@ -53,49 +53,34 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	busTopic := s.Broker.GetTopic("bus")
 	client := aether.NewClient(conn, busTopic)
 
-	// Subscribe this client to all topics that might send responses.
-	// This makes the gateway a general-purpose connection to the bus.
-	s.Broker.GetTopic("ai:generate:resp").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:error").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:page:resp").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:page:error").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:image:resp").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:image:error").Subscribe(client)
-	s.Broker.GetTopic("ai:design:component:resp").Subscribe(client)
-	s.Broker.GetTopic("ai:design:component:error").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:palette:resp").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:palette:error").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:accent:resp").Subscribe(client)
-	s.Broker.GetTopic("ai:generate:accent:error").Subscribe(client)
+	// List of all topics the frontend might need to subscribe to
+	topicsToSubscribe := []string{
+		"ai:generate:resp", "ai:generate:error",
+		"ai:generate:page:resp", "ai:generate:page:error",
+		"ai:generate:image:resp", "ai:generate:image:error",
+		"ai:design:component:resp", "ai:design:component:error",
+		"ai:generate:palette:resp", "ai:generate:palette:error",
+		"ai:generate:accent:resp", "ai:generate:accent:error",
+		"vfs:search:result", "vfs:search:error",
+		"vfs:summarize:code:result", "vfs:summarize:code:error",
+		"vfs:list:result", "vfs:list:error",
+		"vfs:delete:result", "vfs:delete:error",
+		"vfs:create:file:result", "vfs:create:file:error",
+		"vfs:create:folder:result", "vfs:create:folder:error",
+		"vfs:read:result", "vfs:read:error",
+		"vfs:write:result", "vfs:write:error",
+		"vm:started", "vm:stdout", "vm:stderr", "vm:exited",
+		"vm:killed", "vm:crashed", "vm:create:error", "vm:kill:error", "vm:stdin:error",
+		"telemetry:vfs",
+		"system:install:app:result", "system:install:app:error",
+		"agent.taskgraph.created", "agent.taskgraph.started",
+		"agent.taskgraph.completed", "agent.taskgraph.failed",
+		"agent.tasknode.started", "agent.tasknode.completed", "agent.tasknode.failed",
+	}
 
-	s.Broker.GetTopic("vfs:search:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:search:error").Subscribe(client)
-	s.Broker.GetTopic("vfs:summarize:code:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:summarize:code:error").Subscribe(client)
-
-	s.Broker.GetTopic("vfs:list:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:list:error").Subscribe(client)
-	s.Broker.GetTopic("vfs:delete:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:delete:error").Subscribe(client)
-	s.Broker.GetTopic("vfs:create:file:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:create:file:error").Subscribe(client)
-	s.Broker.GetTopic("vfs:create:folder:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:create:folder:error").Subscribe(client)
-	s.Broker.GetTopic("vfs:read:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:read:error").Subscribe(client)
-	s.Broker.GetTopic("vfs:write:result").Subscribe(client)
-	s.Broker.GetTopic("vfs:write:error").Subscribe(client)
-	
-	s.Broker.GetTopic("vm:started").Subscribe(client)
-	s.Broker.GetTopic("vm:stdout").Subscribe(client)
-	s.Broker.GetTopic("vm:stderr").Subscribe(client)
-	s.Broker.GetTopic("vm:exited").Subscribe(client)
-	s.Broker.GetTopic("vm:killed").Subscribe(client)
-	s.Broker.GetTopic("vm:crashed").Subscribe(client)
-
-	s.Broker.GetTopic("telemetry:vfs").Subscribe(client)
-	s.Broker.GetTopic("system:install:app:result").Subscribe(client)
-	s.Broker.GetTopic("system:install:app:error").Subscribe(client)
+	for _, topicName := range topicsToSubscribe {
+		s.Broker.GetTopic(topicName).Subscribe(client)
+	}
 
 	busTopic.Subscribe(client)
 

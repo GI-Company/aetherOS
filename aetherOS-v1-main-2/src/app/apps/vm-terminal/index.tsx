@@ -5,10 +5,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAppAether } from '@/lib/use-app-aether';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
-import { TaskGraphEvent } from '@/lib/agent-types';
 
 type HistoryItem = {
-  type: 'command' | 'response' | 'system' | 'agent';
+  type: 'command' | 'response' | 'system' | 'agent' | 'stdout' | 'stderr' | 'error';
   content: string;
 };
 
@@ -16,12 +15,13 @@ export default function VmTerminalApp() {
   const { publish, subscribe } = useAppAether();
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<HistoryItem[]>(() => [
-    { type: 'response', content: 'AetherOS Natural Language Shell [Version 1.0.0]' },
-    { type: 'response', content: 'Use natural language to interact with the OS. Try "Summarize my main layout file and save it to summary.md"' },
+    { type: 'response', content: 'AetherOS Natural Language & VM Shell [Version 1.0.0]' },
+    { type: 'response', content: 'Use natural language, or type `help` for a list of VM commands.' },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const endOfHistoryRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [activeInstances, setActiveInstances] = useState<Record<string, boolean>>({});
 
   const username = 'user';
   const hostname = 'aether-ai';
@@ -36,47 +36,82 @@ export default function VmTerminalApp() {
   }, []);
 
   useEffect(() => {
-    const agentTopics = [
+    const topics = [
       "agent.taskgraph.created", "agent.taskgraph.started",
       "agent.taskgraph.completed", "agent.taskgraph.failed",
-      "agent.tasknode.started", "agent.tasknode.completed", "agent.tasknode.failed"
+      "agent.tasknode.started", "agent.tasknode.completed", "agent.tasknode.failed",
+      "vm:started", "vm:stdout", "vm:stderr", "vm:exited", "vm:killed", "vm:crashed"
     ];
 
-    const handleAgentEvent = (payload: any, envelope: any) => {
+    const handleEvent = (payload: any, envelope: any) => {
         let message = '';
-        const typedEnvelope = envelope as TaskGraphEvent;
-        switch(typedEnvelope.topic) {
+        let type: HistoryItem['type'] = 'system';
+        switch(envelope.topic) {
             case 'agent.taskgraph.created':
                 message = `[Agent] Task graph created. Starting execution...`;
-                break;
-            case 'agent.taskgraph.started':
-                message = `[Agent] Executing ${typedEnvelope.payload.graphId}...`;
+                type = 'agent';
                 break;
             case 'agent.taskgraph.completed':
                 message = `[Agent] Task completed successfully.`;
                 setIsLoading(false);
+                type = 'agent';
                 break;
             case 'agent.taskgraph.failed':
-                message = `[Agent] Task failed: ${typedEnvelope.payload.error}`;
+                message = `[Agent] Task failed: ${payload.error}`;
                 setIsLoading(false);
+                type = 'agent';
                 break;
             case 'agent.tasknode.started':
-                const tool = payload.tool || 'unknown tool';
-                message = `[Node: ${payload.nodeId}] Running ${tool}...`;
+                message = `[Node: ${payload.nodeId}] Running ${payload.tool}...`;
+                type = 'agent';
                 break;
             case 'agent.tasknode.completed':
                 message = `[Node: ${payload.nodeId}] Completed.`;
+                type = 'agent';
                 break;
             case 'agent.tasknode.failed':
                 message = `[Node: ${payload.nodeId}] Failed: ${payload.error}`;
+                type = 'agent';
+                break;
+            case 'vm:started':
+                message = `[VM] Instance started with ID: ${payload.instanceId}`;
+                setActiveInstances(prev => ({...prev, [payload.instanceId]: true}));
+                break;
+            case 'vm:stdout':
+                message = payload.data;
+                type = 'stdout';
+                break;
+            case 'vm:stderr':
+                message = `[stderr] ${payload.data}`;
+                type = 'stderr';
+                break;
+            case 'vm:exited':
+                message = `[VM] Instance ${payload.instanceId} exited.`;
+                setActiveInstances(prev => {
+                    const newState = {...prev};
+                    delete newState[payload.instanceId];
+                    return newState;
+                });
+                break;
+            case 'vm:killed':
+                 message = `[VM] Instance ${payload.instanceId} killed.`;
+                setActiveInstances(prev => {
+                    const newState = {...prev};
+                    delete newState[payload.instanceId];
+                    return newState;
+                });
+                 break;
+            case 'vm:crashed':
+                message = `[VM] Error: ${payload.error}`;
+                type = 'error';
                 break;
         }
         if (message) {
-            setHistory(prev => [...prev, { type: 'agent', content: message }]);
+            setHistory(prev => [...prev, { type, content: message }]);
         }
     };
 
-    const subscriptions = agentTopics.map(topic => subscribe(topic, handleAgentEvent));
+    const subscriptions = topics.map(topic => subscribe(topic, handleEvent));
 
     return () => {
         subscriptions.forEach(unsubscribe => unsubscribe());
@@ -85,18 +120,61 @@ export default function VmTerminalApp() {
 
   const handleCommand = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!input.trim()) return;
-
     const command = input.trim();
-    const newHistory: HistoryItem[] = [
-      ...history,
-      { type: 'command', content: `${prompt} ${command}` },
-    ];
-    setHistory(newHistory);
-    setInput('');
-    setIsLoading(true);
+    if (!command) return;
 
-    publish('ai:agent', { prompt: command });
+    setHistory(prev => [...prev, { type: 'command', content: `${prompt} ${command}` }]);
+    setInput('');
+    
+    const parts = command.split(' ');
+    const cmd = parts[0];
+    const args = parts.slice(1);
+
+    switch(cmd) {
+        case 'help':
+            setHistory(prev => [...prev, 
+                { type: 'response', content: 'Available VM Commands:'},
+                { type: 'response', content: '  run <base64_wasm> - Runs a WASM binary.'},
+                { type: 'response', content: '  stdin <instanceId> <data> - Sends data to a running VM.'},
+                { type: 'response', content: '  kill <instanceId> - Stops a running VM.'},
+                { type: 'response', content: '  ps - Lists running VM instances.'},
+                { type: 'response', content: 'Any other input is treated as a natural language prompt for the AI Agent.'},
+            ]);
+            break;
+        case 'ps':
+            const instanceIds = Object.keys(activeInstances);
+            if (instanceIds.length === 0) {
+                 setHistory(prev => [...prev, { type: 'response', content: 'No active VM instances.'}]);
+            } else {
+                 setHistory(prev => [...prev, { type: 'response', content: 'Active VM Instances:'}, ...instanceIds.map(id => ({ type: 'response', content: `  - ${id}` } as HistoryItem))]);
+            }
+            break;
+        case 'run':
+            if (args.length < 1) {
+                setHistory(prev => [...prev, { type: 'error', content: 'Usage: run <base64_wasm>'}]);
+            } else {
+                publish('vm:create', { wasmBase64: args[0] });
+            }
+            break;
+        case 'stdin':
+            if (args.length < 2) {
+                setHistory(prev => [...prev, { type: 'error', content: 'Usage: stdin <instanceId> <data>'}]);
+            } else {
+                publish('vm:stdin', { instanceId: args[0], data: args.slice(1).join(' ') + '\n' });
+            }
+            break;
+        case 'kill':
+            if (args.length < 1) {
+                setHistory(prev => [...prev, { type: 'error', content: 'Usage: kill <instanceId>'}]);
+            } else {
+                publish('vm:kill', { instanceId: args[0] });
+            }
+            break;
+        default:
+            setIsLoading(true);
+            publish('ai:agent', { prompt: command });
+            break;
+    }
   };
   
   const handleTerminalClick = () => {
@@ -113,6 +191,8 @@ export default function VmTerminalApp() {
             'text-green-400': item.type === 'command',
             'text-cyan-400': item.type === 'system',
             'text-yellow-400': item.type === 'agent',
+            'text-red-400': item.type === 'stderr' || item.type === 'error',
+            'text-gray-300': item.type === 'stdout'
         })}>
           {item.content}
         </div>

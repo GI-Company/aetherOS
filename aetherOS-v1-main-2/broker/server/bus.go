@@ -77,10 +77,11 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("vfs:create:folder:result").Subscribe(client)
 	s.Broker.GetTopic("vfs:read:result").Subscribe(client)
 	s.Broker.GetTopic("vfs:write:result").Subscribe(client)
+	s.Broker.GetTopic("vm.started").Subscribe(client)
+	s.Broker.GetTopic("vm.stdout").Subscribe(client)
+	s.Broker.GetTopic("vm.stderr").Subscribe(client)
+	s.Broker.GetTopic("vm.exited").Subscribe(client)
+	s.Broker.GetTopic("vm.killed").Subscribe(client)
+	s.Broker.GetTopic("vm.crashed").Subscribe(client)
 
 
-	busTopic.Subscribe(client)
-
-	go client.WritePump()
-	go client.ReadPump()
-}

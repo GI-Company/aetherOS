@@ -1,17 +1,21 @@
-
 package main
 
 import (
 	"aether/broker/aether"
+	"aether/broker/compute"
 	"aether/broker/server"
 	"aether/broker/services"
 	"context"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	firebase "firebase.google.com/go/v4"
 	"github.com/gorilla/mux"
+	"github.com/tetratelabs/wazero"
 	"google.golang.org/api/option"
 )
 
@@ -79,15 +83,25 @@ func main() {
 	}
 	defer aiModule.Close()
 
-	// Initialize AI Service (now with VFS access)
+	// Initialize Wazero Runtime for Compute Service
+	wazeroRuntime := wazero.NewRuntime(ctx)
+	computeRuntime := compute.NewWazeroRuntime(wazeroRuntime)
+	defer func() {
+		if err := computeRuntime.Shutdown(ctx); err != nil {
+			log.Printf("Error shutting down wazero runtime: %v", err)
+		}
+	}()
+
+
+	// Initialize Services
 	aiService := services.NewAIService(broker, aiModule, vfsModule)
 	go aiService.Run()
 
-
-	// Initialize VFS Service
 	vfsService := services.NewVfsService(broker, vfsModule)
 	go vfsService.Run()
 
+	computeService := services.NewComputeService(broker, computeRuntime)
+	go computeService.Run()
 
 	// Setup router and register API routes
 	r := mux.NewRouter()
@@ -107,9 +121,29 @@ func main() {
 	if os.Getenv("GEMINI_API_KEY") == "" {
         log.Println("WARNING: GEMINI_API_KEY environment variable is not set.")
     }
-	if err := http.ListenAndServe(":"+port, r); err != nil {
-		log.Fatalf("ListenAndServe error: %v", err)
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: r,
 	}
-}
 
-    
+	go func() {
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe error: %v", err)
+		}
+	}()
+
+	// Graceful shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+
+	log.Println("Shutting down server...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exiting")
+}

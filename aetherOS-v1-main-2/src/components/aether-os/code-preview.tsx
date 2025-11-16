@@ -33,21 +33,14 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 
     const handleSummaryResponse = (payload: any, envelope: any) => {
         if (payload.filePath === filePath && isMounted) {
-            try {
-                // The summary is a JSON string inside the payload, e.g., '{"summary":"..."}'
-                const result = JSON.parse(payload.summary);
-                if (result.summary) {
-                    setSummary(result.summary);
-                    summaryCache.set(filePath, result.summary);
-                } else {
-                     setError("Invalid summary format received.");
-                }
-            } catch (e) {
-                 setError("Failed to parse summary.");
-            } finally {
-                setIsLoading(false);
-                cleanup();
+            if (payload.summary) {
+                setSummary(payload.summary);
+                summaryCache.set(filePath, payload.summary);
+            } else {
+                 setError("Invalid summary format received.");
             }
+            setIsLoading(false);
+            cleanup();
         }
     };
 
@@ -60,11 +53,11 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
         }
     };
     
-    summarySub = aether.subscribe('ai:summarize:code:resp', handleSummaryResponse);
-    errorSub = aether.subscribe('ai:summarize:code:error', handleErrorResponse);
+    summarySub = aether.subscribe('vfs:summarize:code:result', handleSummaryResponse);
+    errorSub = aether.subscribe('vfs:summarize:code:error', handleErrorResponse);
 
     setIsLoading(true);
-    aether.publish('ai:summarize:code', { filePath });
+    aether.publish('vfs:summarize:code', { filePath });
 
     return () => {
       isMounted = false;
@@ -105,4 +98,3 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 
 export default CodePreview;
 
-    

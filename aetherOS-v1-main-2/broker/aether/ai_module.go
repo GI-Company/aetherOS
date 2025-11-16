@@ -308,7 +308,7 @@ Available Tools:
   - Input: { "path": string }
 - 'vfs:list': Lists the files in a directory.
   - Input: { "path": string }
-- 'ai:summarize:code': Summarizes a code file.
+- 'vfs:summarize:code': Summarizes a code file.
   - Input: { "filePath": string }
 - 'vm:run': Executes a WASM binary.
   - Input: { "wasmBase64": string }
@@ -407,3 +407,4 @@ func (m *AIModule) Close() {
 		m.client.Close()
 	}
 }
+

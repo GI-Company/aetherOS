@@ -14,7 +14,7 @@ import (
 type AIService struct {
 	broker   *aether.Broker
 	aiModule *aether.AIModule
-	vfs      *aether.VFSModule // Still needed for summarization
+	vfs      *aether.VFSModule // No longer needed here
 }
 
 // NewAIService creates a new AI service.
@@ -33,10 +33,8 @@ func (s *AIService) Run() {
 		"ai:generate:page",
 		"ai:design:component",
 		"ai:agent",
-		"ai:search:files",
 		"ai:generate:palette",
 		"ai:generate:accent",
-		"ai:summarize:code",
 		"ai:generate:image",
 	}
 
@@ -76,56 +74,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			responsePayload = map[string]string{"imageUrl": generatedImageURI}
 		}
 
-	case "ai:search:files":
-		var payloadData struct {
-			Query          string   `json:"query"`
-			AvailableFiles []string `json:"availableFiles"`
-		}
-		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
-			s.publishError(env, "Invalid payload for file search")
-			return
-		}
-		jsonString, searchErr := s.aiModule.SemanticFileSearch(payloadData.Query, payloadData.AvailableFiles)
-		if searchErr != nil {
-			err = searchErr
-		} else {
-			var temp interface{}
-			if unmarshalErr := json.Unmarshal([]byte(jsonString), &temp); unmarshalErr != nil {
-				err = unmarshalErr
-			} else {
-				responsePayload = temp
-			}
-		}
-
-	case "ai:summarize:code":
-		var payloadData struct {
-			FilePath string `json:"filePath"`
-		}
-		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
-			s.publishError(env, "Invalid payload for code summarization")
-			return
-		}
-		fileContent, readErr := s.vfs.Read(payloadData.FilePath)
-		if readErr != nil {
-			s.publishError(env, "Could not read file for summarization: "+readErr.Error())
-			return
-		}
-		summaryJSON, sumErr := s.aiModule.SummarizeCode(fileContent)
-		if sumErr != nil {
-			err = sumErr
-		} else {
-			// The summary is already a JSON string `{"summary":"..."}`
-			var summaryMap map[string]string
-			if jsonErr := json.Unmarshal([]byte(summaryJSON), &summaryMap); jsonErr != nil {
-				err = jsonErr
-			} else {
-				responsePayload = map[string]interface{}{
-					"summary":  summaryMap["summary"],
-					"filePath": payloadData.FilePath,
-				}
-			}
-		}
-
 	case "ai:agent":
 		var payloadData struct {
 			Prompt string `json:"prompt"`
@@ -143,8 +91,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			if unmarshalErr := json.Unmarshal([]byte(graphJSON), &temp); unmarshalErr != nil {
 				err = unmarshalErr
 			} else {
-				// The AI service's only job is to create the graph.
-				// The AgentService will handle orchestration.
 				s.publishResponse(env, "agent.taskgraph.created", temp)
 			}
 		}
@@ -157,14 +103,13 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			return
 		}
 
-		prompt, ok := payloadData["prompt"]
-		if !ok {
-			if p, ok := payloadData["topic"]; ok {
-				prompt = p
-			} else if p, ok := payloadData["description"]; ok {
-				prompt = p
-			} else if p, ok := payloadData["contentDescription"]; ok {
-				prompt = p
+		var prompt string
+		var ok bool
+		if prompt, ok = payloadData["prompt"]; !ok {
+			if prompt, ok = payloadData["topic"]; !ok {
+				if prompt, ok = payloadData["description"]; !ok {
+					prompt, _ = payloadData["contentDescription"]
+				}
 			}
 		}
 
@@ -185,7 +130,7 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		case "ai:generate:accent":
 			responsePayload, err = s.aiModule.GenerateAccentColor(prompt)
 		default:
-			responsePayload, err = s.aiModule.GenerateText(prompt)
+			err = fmt.Errorf("unknown AI topic: %s", env.Topic)
 		}
 	}
 
@@ -248,3 +193,4 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	log.Printf("AI Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
 }
+

@@ -13,15 +13,17 @@ import (
 
 // VfsService handles file system-related requests from the message bus.
 type VfsService struct {
-	broker *aether.Broker
-	vfs    *aether.VFSModule
+	broker   *aether.Broker
+	vfs      *aether.VFSModule
+	aiModule *aether.AIModule
 }
 
 // NewVfsService creates a new VFS service.
-func NewVfsService(broker *aether.Broker, vfs *aether.VFSModule) *VfsService {
+func NewVfsService(broker *aether.Broker, vfs *aether.VFSModule, aiModule *aether.AIModule) *VfsService {
 	return &VfsService{
-		broker: broker,
-		vfs:    vfs,
+		broker:   broker,
+		vfs:      vfs,
+		aiModule: aiModule,
 	}
 }
 
@@ -34,6 +36,8 @@ func (s *VfsService) Run() {
 		"vfs:create:folder",
 		"vfs:read",
 		"vfs:write",
+		"vfs:search",
+		"vfs:summarize:code",
 	}
 
 	for _, topicName := range vfsTopics {
@@ -135,6 +139,48 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 			return
 		}
 		s.publishResponse(env, "vfs:write:result", map[string]interface{}{"success": true, "path": path})
+
+	case "vfs:search":
+		query, _ := payloadData["query"].(string)
+		availableFilesData, _ := payloadData["availableFiles"].([]interface{})
+		availableFiles := make([]string, len(availableFilesData))
+		for i, v := range availableFilesData {
+			availableFiles[i] = v.(string)
+		}
+		jsonString, err := s.aiModule.SemanticFileSearch(query, availableFiles)
+		if err != nil {
+			s.publishError(env, err.Error())
+			return
+		}
+		var temp interface{}
+		if err := json.Unmarshal([]byte(jsonString), &temp); err != nil {
+			s.publishError(env, "Failed to unmarshal search results")
+			return
+		}
+		s.publishResponse(env, "vfs:search:result", temp)
+
+	case "vfs:summarize:code":
+		filePath, _ := payloadData["filePath"].(string)
+		fileContent, err := s.vfs.Read(filePath)
+		if err != nil {
+			s.publishError(env, "Could not read file for summarization: "+err.Error())
+			return
+		}
+		summaryJSON, err := s.aiModule.SummarizeCode(fileContent)
+		if err != nil {
+			s.publishError(env, err.Error())
+			return
+		}
+		var summaryMap map[string]string
+		if err := json.Unmarshal([]byte(summaryJSON), &summaryMap); err != nil {
+			s.publishError(env, "Failed to parse summary JSON")
+			return
+		}
+		s.publishResponse(env, "vfs:summarize:code:result", map[string]interface{}{
+			"summary":  summaryMap["summary"],
+			"filePath": filePath,
+		})
+
 	default:
 		s.publishError(env, "Unknown VFS topic: "+env.Topic)
 	}
@@ -216,3 +262,4 @@ func (s *VfsService) publishError(originalEnv *aether.Envelope, errorMsg string)
 	log.Printf("VFS Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
 }
+

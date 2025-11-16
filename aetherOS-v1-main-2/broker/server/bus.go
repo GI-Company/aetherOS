@@ -63,14 +63,16 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("ai:generate:image:error").Subscribe(client)
 	s.Broker.GetTopic("ai:design:component:resp").Subscribe(client)
 	s.Broker.GetTopic("ai:design:component:error").Subscribe(client)
-	s.Broker.GetTopic("ai:search:files:resp").Subscribe(client)
-	s.Broker.GetTopic("ai:search:files:error").Subscribe(client)
 	s.Broker.GetTopic("ai:generate:palette:resp").Subscribe(client)
 	s.Broker.GetTopic("ai:generate:palette:error").Subscribe(client)
 	s.Broker.GetTopic("ai:generate:accent:resp").Subscribe(client)
 	s.Broker.GetTopic("ai:generate:accent:error").Subscribe(client)
-	s.Broker.GetTopic("ai:summarize:code:resp").Subscribe(client)
-	s.Broker.GetTopic("ai:summarize:code:error").Subscribe(client)
+
+	s.Broker.GetTopic("vfs:search:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:search:error").Subscribe(client)
+	s.Broker.GetTopic("vfs:summarize:code:result").Subscribe(client)
+	s.Broker.GetTopic("vfs:summarize:code:error").Subscribe(client)
+
 	s.Broker.GetTopic("vfs:list:result").Subscribe(client)
 	s.Broker.GetTopic("vfs:list:error").Subscribe(client)
 	s.Broker.GetTopic("vfs:delete:result").Subscribe(client)
@@ -106,3 +108,4 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	go client.WritePump()
 	go client.ReadPump()
 }
+

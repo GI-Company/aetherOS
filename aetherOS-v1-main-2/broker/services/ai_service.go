@@ -138,6 +138,13 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			}
 		}
 
+	case "ai:agent":
+		// This is the placeholder for the new multi-step agent logic.
+		// For now, we'll just acknowledge the request.
+		log.Printf("Agent request received. Payload: %s", string(rawPayload))
+		// In the future, this will trigger planning and execution of a task graph.
+		responsePayload = map[string]string{"status": "Agent request acknowledged. Planning not yet implemented."}
+
 	default: // Handle all other text-based generation topics
 		var payloadData map[string]string
 		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {

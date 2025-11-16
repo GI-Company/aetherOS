@@ -137,7 +137,7 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 		}
 		s.publishResponse(env, "vfs:write:result", map[string]interface{}{"success": true, "path": path})
 	default:
-		s.publishError(env, "Unknown VFS topic")
+		s.publishError(env, "Unknown VFS topic: "+env.Topic)
 	}
 }
 

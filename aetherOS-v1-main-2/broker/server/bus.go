@@ -83,6 +83,14 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("vm.exited").Subscribe(client)
 	s.Broker.GetTopic("vm.killed").Subscribe(client)
 	s.Broker.GetTopic("vm.crashed").Subscribe(client)
+	s.Broker.GetTopic("agent.taskgraph.created").Subscribe(client)
+	s.Broker.GetTopic("agent.taskgraph.started").Subscribe(client)
+	s.Broker.GetTopic("agent.taskgraph.completed").Subscribe(client)
+	s.Broker.GetTopic("agent.taskgraph.canceled").Subscribe(client)
+	s.Broker.GetTopic("agent.tasknode.started").Subscribe(client)
+	s.Broker.GetTopic("agent.tasknode.completed").Subscribe(client)
+	s.Broker.GetTopic("agent.tasknode.failed").Subscribe(client)
+	s.Broker.GetTopic("agent.tasknode.logs").Subscribe(client)
 
 
 	busTopic.Subscribe(client)

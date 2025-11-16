@@ -65,12 +65,11 @@ class AetherClient {
 
         this.ws.onmessage = (event) => {
             try {
-                // The Go backend sends the full envelope as the message data
                 const envelope: Envelope = JSON.parse(event.data);
                 if (this.subscriptions.has(envelope.topic)) {
+                    // The Go payload is already a marshaled JSON string or object.
+                    // We pass the raw payload and the full envelope for flexibility.
                     this.subscriptions.get(envelope.topic)?.forEach(callback => {
-                        // The Go payload is already a marshaled JSON string or object.
-                        // We pass the raw payload and the full envelope for flexibility.
                         callback(envelope.payload, envelope);
                     });
                 }
@@ -111,9 +110,7 @@ class AetherClient {
         id: crypto.randomUUID(),
         topic: topic,
         contentType: 'application/json',
-        // This is the critical change: the Go backend expects the payload
-        // to be nested inside another payload object.
-        payload: payload,
+        payload: payload, // The payload is now the direct data.
         createdAt: new Date().toISOString(),
     };
 
@@ -133,13 +130,14 @@ class AetherClient {
     if (!this.subscriptions.has(topic)) {
       this.subscriptions.set(topic, []);
     }
-    this.subscriptions.get(topic)!.push(callback);
+    const callbacks = this.subscriptions.get(topic)!;
+    callbacks.push(callback);
     
     // Return an unsubscribe function
     return () => {
-        const callbacks = this.subscriptions.get(topic);
-        if (callbacks) {
-            this.subscriptions.set(topic, callbacks.filter(cb => cb !== callback));
+        const currentCallbacks = this.subscriptions.get(topic);
+        if (currentCallbacks) {
+            this.subscriptions.set(topic, currentCallbacks.filter(cb => cb !== callback));
         }
     }
   }

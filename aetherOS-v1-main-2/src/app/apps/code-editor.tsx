@@ -30,7 +30,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
     setActiveFileId(null);
   };
   
-  const handleOpenFile = useCallback(async (filePath: string, fileContent?: string) => {
+  const handleOpenFile = useCallback((filePath: string, fileContent?: string) => {
     if (!aether) return;
     // Check if file is already open
     const existingFile = openFiles.find(f => f.path === filePath);

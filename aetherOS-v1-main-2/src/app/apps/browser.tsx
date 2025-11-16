@@ -30,33 +30,35 @@ export default function BrowserApp() {
   const canGoBack = currentUrlIndex > 0;
   const canGoForward = currentUrlIndex < history.length - 1;
   
-  const fetchPageContent = useCallback(async (url: string) => {
+  const fetchPageContent = useCallback((url: string) => {
     if (!aether) return;
     setPageCache(prev => ({ ...prev, [url]: { isLoading: true, content: null, error: null } }));
     
     aether.publish('ai:generate:page', { topic: url });
         
-    const handlePageContent = (payload: any) => {
+    const handlePageContent = (payload: any, envelope: any) => {
         setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: payload, error: null } }));
-        // Unsubscribe immediately after receiving the response.
-        if (sub) sub();
-        if (errSub) errSub();
+        // Unsubscribe handled in cleanup
     };
 
-    const handleError = (payload: any) => {
+    const handleError = (payload: any, envelope: any) => {
         setPageCache(prev => ({ ...prev, [url]: { isLoading: false, content: null, error: payload.error || 'An unknown error occurred.' } }));
-        // Unsubscribe immediately after receiving the response.
-        if (sub) sub();
-        if (errSub) errSub();
+        // Unsubscribe handled in cleanup
     };
 
     const sub = aether.subscribe('ai:generate:page:resp', handlePageContent);
     const errSub = aether.subscribe('ai:generate:page:error', handleError);
+
+    return () => {
+        sub();
+        errSub();
+    }
   }, [aether]);
 
   useEffect(() => {
     if (currentUrl !== DEFAULT_URL && !pageCache[currentUrl]) {
-      fetchPageContent(currentUrl);
+      const cleanup = fetchPageContent(currentUrl);
+      return cleanup;
     }
   }, [currentUrl, pageCache, fetchPageContent]);
 

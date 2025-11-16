@@ -17,7 +17,7 @@ export default function DesignStudioApp() {
   const aether = useAether();
   const { toast } = useToast();
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!prompt) {
       toast({
         title: "Prompt is empty",

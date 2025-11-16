@@ -35,7 +35,7 @@ export default function VmTerminalApp() {
     inputRef.current?.focus();
   }, []);
 
-  const handleCommand = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCommand = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || !aether) return;
 

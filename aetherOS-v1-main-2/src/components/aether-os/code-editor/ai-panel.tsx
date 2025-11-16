@@ -21,7 +21,7 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
   const { toast } = useToast();
   const aether = useAether();
 
-  const handleGenerateCode = async () => {
+  const handleGenerateCode = () => {
     if (!prompt) {
       toast({
         title: "Prompt is empty",
@@ -63,7 +63,7 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
     const errSub = aether.subscribe('ai:generate:error', handleError);
   };
   
-  const handleRefactorCode = async () => {
+  const handleRefactorCode = () => {
     if (!activeFile || !aether) {
       toast({ title: "No active file or Aether client not available", variant: "destructive" });
       return;

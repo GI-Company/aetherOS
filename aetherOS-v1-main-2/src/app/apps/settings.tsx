@@ -18,11 +18,11 @@ import {
   ShieldCheck,
   Timer,
 } from 'lucide-react';
-import {Separator} from '@/components/ui/separator';
+import {Separator}from '@/components/ui/separator';
 import {useTheme}from '@/hooks/use-theme';
 import {useFirebase, useDoc, useMemoFirebase}from '@/firebase';
 import AuthForm from '@/firebase/auth/auth-form';
-import {App, APPS} from '@/lib/apps';
+import {App, APPS}from '@/lib/apps';
 import {Input}from '@/components/ui/input';
 import {
   getAuth,
@@ -60,7 +60,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
   
   const autoSignOutMinutes = (userPreferences as any)?.security?.autoSignOutMinutes ?? 0;
 
-  const handleGenerateTheme = async () => {
+  const handleGenerateTheme = () => {
     if (!themePrompt) {
       toast({
         title: 'Error',
@@ -110,7 +110,7 @@ export default function SettingsApp({onOpenApp, defaultTab}: SettingsAppProps) {
     const errSub = aether.subscribe('ai:generate:palette:error', handleError);
   };
 
-  const handleGenerateAccent = async () => {
+  const handleGenerateAccent = () => {
     if (!accentPrompt) {
       toast({
         title: 'Error',

@@ -51,14 +51,7 @@ func (s *VfsService) Run() {
 
 func (s *VfsService) handleRequest(env *aether.Envelope) {
 	log.Printf("VFS Service processing message ID %s on topic %s", env.ID, env.Topic)
-
-	// Extract the nested payload from the envelope
-	var innerEnv aether.Envelope
-	if err := json.Unmarshal(env.Payload, &innerEnv); err != nil {
-		s.publishError(env, "Invalid envelope structure")
-		return
-	}
-	rawPayload := innerEnv.Payload
+	rawPayload := env.Payload
 
 	var payloadData map[string]interface{}
 	if err := json.Unmarshal(rawPayload, &payloadData); err != nil {

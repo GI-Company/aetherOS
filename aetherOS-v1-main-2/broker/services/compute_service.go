@@ -49,12 +49,7 @@ func (s *ComputeService) Run() {
 
 func (s *ComputeService) handleRequest(env *aether.Envelope) {
 	log.Printf("Compute Service processing message ID %s on topic %s", env.ID, env.Topic)
-	var innerEnv aether.Envelope
-	if err := json.Unmarshal(env.Payload, &innerEnv); err != nil {
-		s.publishError(env, "Invalid envelope structure")
-		return
-	}
-	rawPayload := innerEnv.Payload
+	rawPayload := env.Payload
 
 	switch env.Topic {
 	case "vm:create":

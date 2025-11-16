@@ -19,7 +19,7 @@ export default function PixelStreamerApp() {
   const aether = useAether();
   const { user } = useUser();
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!prompt) {
       toast({
         title: "Prompt is empty",
@@ -61,7 +61,7 @@ export default function PixelStreamerApp() {
     const errSub = aether.subscribe('ai:generate:image:error', handleError);
   };
 
-  const handleSaveImage = async () => {
+  const handleSaveImage = () => {
     if (!generatedImage || !aether || !user) {
       toast({ title: "No image to save or Aether client/user not available.", variant: "destructive" });
       return;

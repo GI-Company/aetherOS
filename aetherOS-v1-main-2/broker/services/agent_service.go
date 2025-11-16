@@ -107,16 +107,10 @@ func (s *AgentService) handleGraphCreated(env *aether.Envelope) {
 }
 
 func (s *AgentService) handleGraphExecute(env *aether.Envelope) {
-	var innerEnv aether.Envelope
-	if err := json.Unmarshal(env.Payload, &innerEnv); err != nil {
-		log.Printf("Agent Service: invalid envelope for graph execute: %v", err)
-		return
-	}
-
 	var payload struct {
 		GraphID string `json:"graphId"`
 	}
-	if err := json.Unmarshal(innerEnv.Payload, &payload); err != nil {
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		log.Printf("Agent Service: failed to unmarshal graph execute payload: %v", err)
 		return
 	}

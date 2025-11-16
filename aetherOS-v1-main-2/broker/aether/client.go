@@ -58,8 +58,7 @@ func (c *Client) ReadPump() {
 			log.Printf("invalid envelope: %v", err)
 			continue
 		}
-		// The payload is the raw message itself, which contains the nested payload from the client.
-		env.Payload = message
+		// The client now sends a clean envelope, so env.Payload is what we need.
 
 		// Dynamic Topic Publishing: Get the topic from the envelope and publish.
 		targetTopic := c.hub.broker.GetTopic(env.Topic)
@@ -105,7 +104,7 @@ func (c *Client) WritePump() {
 				return
 			}
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.now().Add(writeWait))
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}

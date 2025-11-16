@@ -61,12 +61,8 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 	var responsePayload interface{}
 	var err error
 
-	var innerEnv aether.Envelope
-	if err := json.Unmarshal(env.Payload, &innerEnv); err != nil {
-		s.publishError(env, "Invalid envelope structure")
-		return
-	}
-	rawPayload := innerEnv.Payload
+	// The envelope is now clean, so env.Payload is the direct data we need.
+	rawPayload := env.Payload
 
 	// Route based on topic
 	switch env.Topic {
@@ -88,7 +84,7 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		})
 
 		var toolResult map[string]any
-		toolErr := "Unknown tool: " + payloadData.Tool
+		var toolErr string = ""
 
 		switch payloadData.Tool {
 		case "vfs:read":
@@ -98,7 +94,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 					toolErr = readErr.Error()
 				} else {
 					toolResult = map[string]any{"output": content}
-					toolErr = ""
 				}
 			}
 		case "vfs:write":
@@ -110,7 +105,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 					toolErr = writeErr.Error()
 				} else {
 					toolResult = map[string]any{"output": "File written successfully."}
-					toolErr = ""
 				}
 			}
 		case "ai:summarize:code":
@@ -124,10 +118,11 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 						toolErr = sumErr.Error()
 					} else {
 						toolResult = map[string]any{"output": summaryJSON}
-						toolErr = ""
 					}
 				}
 			}
+		default:
+			toolErr = "Unknown tool: " + payloadData.Tool
 		}
 
 		if toolErr != "" {
@@ -329,5 +324,3 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	log.Printf("AI Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
 }
-
-    

@@ -140,7 +140,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     const handleFileList = (payload: any) => {
         const { path, files: receivedFiles } = payload;
         if (path === currentPath) {
-            setAllFiles(receivedFiles || []);
+            setAllFiles(receivedFiles.map((f: any) => ({...f, modTime: new Date(f.modTime)})) || []);
             setIsLoading(false);
         }
     };
@@ -167,7 +167,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }, [aether, currentPath, refresh]);
 
 
-  const handleSearch = useCallback(async (query: string) => {
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     if (!query || !aether) {
       setDisplayedFiles(allFiles);

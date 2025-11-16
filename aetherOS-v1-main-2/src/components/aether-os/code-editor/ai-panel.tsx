@@ -40,13 +40,17 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
     aether.publish('ai:generate', { prompt: `Given the existing code:\n\n${activeFile.content}\n\nGenerate new code based on this request: ${prompt}` });
     
     let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
+    
+    const cleanup = () => {
+        if (resSub) resSub();
+        if (errSub) errSub();
+    };
 
     const handleResponse = (payload: any) => {
       const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
       onCodeUpdate(cleanedCode);
       setIsLoading(null);
-      if (resSub) resSub();
-      if (errSub) errSub();
+      cleanup();
     };
 
     const handleError = (payload: any) => {
@@ -57,8 +61,7 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
         variant: "destructive"
       });
       setIsLoading(null);
-      if (resSub) resSub();
-      if (errSub) errSub();
+      cleanup();
     };
     
     resSub = aether.subscribe('ai:generate:resp', handleResponse);
@@ -78,12 +81,16 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
     
     let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
 
+    const cleanup = () => {
+        if (resSub) resSub();
+        if (errSub) errSub();
+    };
+
     const handleResponse = (payload: any) => {
       const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
       onCodeUpdate(cleanedCode);
       setIsLoading(null);
-      if (resSub) resSub();
-      if (errSub) errSub();
+      cleanup();
     };
 
     const handleError = (payload: any) => {
@@ -94,8 +101,7 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
         variant: "destructive"
       });
       setIsLoading(null);
-      if (resSub) resSub();
-      if (errSub) errSub();
+      cleanup();
     };
     
     resSub = aether.subscribe('ai:generate:resp', handleResponse);

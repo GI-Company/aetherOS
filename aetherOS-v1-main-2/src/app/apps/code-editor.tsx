@@ -10,6 +10,7 @@ import EditorTabs, { type EditorFile } from "@/components/aether-os/code-editor/
 import AiPanel from "@/components/aether-os/code-editor/ai-panel";
 import { Button } from "@/components/ui/button";
 import { useAether } from "@/lib/aether_sdk_client";
+import { useUser } from "@/firebase";
 
 interface CodeEditorAppProps {
   filePath?: string; // Can be used to open a project folder
@@ -17,7 +18,12 @@ interface CodeEditorAppProps {
 }
 
 export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen }: CodeEditorAppProps) {
-  const [projectPath, setProjectPath] = useState<string | null>(initialProjectPath || null);
+  const { user } = useUser();
+  const [projectPath, setProjectPath] = useState<string | null>(() => {
+      if (initialProjectPath) return initialProjectPath;
+      if (user) return `users/${user.uid}`;
+      return null;
+  });
   const [openFiles, setOpenFiles] = useState<EditorFile[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   
@@ -40,15 +46,19 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
     }
 
     const fileId = `file_${Date.now()}`;
-    let content = fileContent;
 
     // If content is not provided, fetch it
-    if (typeof content === 'undefined') {
+    if (typeof fileContent === 'undefined') {
         toast({ title: "Opening File...", description: `Loading content for ${filePath}` });
         
         aether.publish('vfs:read', { path: filePath });
 
         let readSub: (() => void) | undefined, errorSub: (() => void) | undefined;
+        
+        const cleanup = () => {
+            if (readSub) readSub();
+            if (errorSub) errorSub();
+        };
         
         const handleReadResult = (payload: any) => {
           if (payload.path === filePath) {
@@ -61,17 +71,16 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
             };
             setOpenFiles(prev => [...prev, newFile]);
             setActiveFileId(fileId);
-            // Unsubscribe after getting the result
-            if (readSub) readSub();
-            if (errorSub) errorSub();
+            cleanup();
           }
         };
 
         const handleReadError = (payload: any) => {
-          console.error("Error opening file:", payload.error);
-          toast({ title: "Error", description: `Could not load file: ${payload.error}`, variant: "destructive" });
-          if (readSub) readSub();
-          if (errorSub) errorSub();
+          if (payload.path === filePath) {
+              console.error("Error opening file:", payload.error);
+              toast({ title: "Error", description: `Could not load file: ${payload.error}`, variant: "destructive" });
+              cleanup();
+          }
         };
 
         readSub = aether.subscribe('vfs:read:result', handleReadResult);
@@ -82,7 +91,7 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
         id: fileId,
         name: filePath.split('/').pop() || 'untitled',
         path: filePath,
-        content: content || '',
+        content: fileContent || '',
         isDirty: false,
       };
       

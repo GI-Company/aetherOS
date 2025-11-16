@@ -25,7 +25,7 @@ const FileRow = ({ file, onDoubleClick, onDelete }: FileRowProps) => {
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
 
   const isImage = !file.isDir && /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-  const isCode = !file.isDir && /\.(ts|tsx|js|jsx|json|css|md)$/i.test(file.name);
+  const isCode = !file.isDir && /\.(ts|tsx|js|jsx|json|css|md|go|py)$/i.test(file.name);
 
   useEffect(() => {
     let isMounted = true;
@@ -80,7 +80,7 @@ const FileRow = ({ file, onDoubleClick, onDelete }: FileRowProps) => {
         <span>{file.name}</span>
       </TableCell>
       <TableCell>{!file.isDir ? formatBytes(file.size) : '--'}</TableCell>
-      <TableCell className="hidden md:table-cell">{format(file.modTime, "PPp")}</TableCell>
+      <TableCell className="hidden md:table-cell">{format(new Date(file.modTime), "PPp")}</TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -101,5 +101,3 @@ const FileRow = ({ file, onDoubleClick, onDelete }: FileRowProps) => {
 }
 
 export default FileRow;
-
-    

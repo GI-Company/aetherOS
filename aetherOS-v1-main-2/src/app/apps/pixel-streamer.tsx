@@ -34,6 +34,13 @@ export default function PixelStreamerApp() {
     
     aether.publish('ai:generate:image', { prompt });
 
+    let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
+    
+    const cleanup = () => {
+        if (resSub) resSub();
+        if (errSub) errSub();
+    };
+
     const handleResponse = (payload: any) => {
       setGeneratedImage(payload.imageUrl);
       toast({
@@ -41,8 +48,7 @@ export default function PixelStreamerApp() {
         description: "The Pixel Streamer engine has rendered your prompt."
       });
       setIsLoading(null);
-      if (resSub) resSub();
-      if (errSub) errSub();
+      cleanup();
     };
 
     const handleError = (payload: any) => {
@@ -53,12 +59,11 @@ export default function PixelStreamerApp() {
         variant: "destructive"
       });
       setIsLoading(null);
-      if (resSub) resSub();
-      if (errSub) errSub();
+      cleanup();
     };
 
-    const resSub = aether.subscribe('ai:generate:image:resp', handleResponse);
-    const errSub = aether.subscribe('ai:generate:image:error', handleError);
+    resSub = aether.subscribe('ai:generate:image:resp', handleResponse);
+    errSub = aether.subscribe('ai:generate:image:error', handleError);
   };
 
   const handleSaveImage = () => {
@@ -82,14 +87,22 @@ export default function PixelStreamerApp() {
     
     aether.publish('vfs:write', { path: filePath, content: base64Content, encoding: 'base64' });
 
+    let saveSub: (() => void) | undefined, errSub: (() => void) | undefined;
+
+    const cleanup = () => {
+        if (saveSub) saveSub();
+        if (errSub) errSub();
+    };
+
     const handleSaveResponse = (payload: any) => {
-      toast({
-        title: "Image Saved!",
-        description: `${fileName} has been saved.`
-      });
-      setIsLoading(null);
-      if (saveSub) saveSub();
-      if (errSub) errSub();
+      if (payload.path === filePath) {
+        toast({
+          title: "Image Saved!",
+          description: `${fileName} has been saved.`
+        });
+        setIsLoading(null);
+        cleanup();
+      }
     };
     
     const handleSaveError = (payload: any) => {
@@ -99,12 +112,11 @@ export default function PixelStreamerApp() {
         variant: "destructive"
       });
       setIsLoading(null);
-      if (saveSub) saveSub();
-      if (errSub) errSub();
+      cleanup();
     };
 
-    const saveSub = aether.subscribe('vfs:write:result', handleSaveResponse);
-    const errSub = aether.subscribe('vfs:write:error', handleSaveError);
+    saveSub = aether.subscribe('vfs:write:result', handleSaveResponse);
+    errSub = aether.subscribe('vfs:write:error', handleSaveError);
   };
 
 

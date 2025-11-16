@@ -7,5 +7,3 @@ export type FileItem = {
   modTime: Date; 
   path: string;
 };
-
-    

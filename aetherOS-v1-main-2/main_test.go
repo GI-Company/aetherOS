@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -98,3 +99,4 @@ func TestBrokerPubSub(t *testing.T) {
 		t.Fatal("timed out waiting for message")
 	}
 }
+

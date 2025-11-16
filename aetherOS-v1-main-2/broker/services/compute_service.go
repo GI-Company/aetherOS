@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+    "encoding/base64"
 )
 
 // ComputeService handles WASM execution requests from the message bus.
@@ -104,9 +105,9 @@ func (s *ComputeService) createInstance(originalEnv *aether.Envelope, wasmBase64
 		WithSysNanotime().
 		WithSysWalltime()
 
-	wasmBytes, err := s.broker.DecodeBase64(wasmBase64)
+	wasmBytes, err := base64.StdEncoding.DecodeString(wasmBase64)
 	if err != nil {
-		s.publishError(originalEnv, "Failed to decode wasm binary")
+		s.publishError(originalEnv, "Failed to decode wasm binary: " + err.Error())
 		cancel()
 		return
 	}
@@ -226,9 +227,4 @@ func (s *ComputeService) publishError(originalEnv *aether.Envelope, errorMsg str
 	}
 	log.Printf("Compute Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
-}
-
-// Helper to decode base64, as it's used here specifically
-func (b *aether.Broker) DecodeBase64(s string) ([]byte, error) {
-	return json.Marshal(s)
 }

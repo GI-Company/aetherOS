@@ -137,6 +137,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   useEffect(() => {
     if (!aether) return;
 
+    let listSub: (() => void) | undefined, telemetrySub: (() => void) | undefined;
+
     const handleFileList = (payload: any, envelope: any) => {
         const { path, files: receivedFiles } = payload;
         if (path === currentPath) {
@@ -146,7 +148,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     };
     
     // This handles local mutations and direct refreshes
-    const listSub = aether.subscribe('vfs:list:result', handleFileList);
+    listSub = aether.subscribe('vfs:list:result', handleFileList);
     
     // This handles global file system changes from other apps
     const handleVFSTelemetry = (payload: any, envelope: any) => {
@@ -156,13 +158,13 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             refresh();
         }
     };
-    const telemetrySub = aether.subscribe('telemetry:vfs', handleVFSTelemetry);
+    telemetrySub = aether.subscribe('telemetry:vfs', handleVFSTelemetry);
     
     refresh();
 
     return () => {
-      listSub();
-      telemetrySub();
+      if(listSub) listSub();
+      if(telemetrySub) telemetrySub();
     };
   }, [aether, currentPath, refresh]);
 
@@ -176,10 +178,13 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsSearching(true);
     setCreatingItemType(null);
     
-    aether.publish('vfs:search', { query, availableFiles: allFiles.map(f => f.path) });
-    
     let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
     
+    const cleanup = () => {
+      if (resSub) resSub();
+      if (errSub) errSub();
+    };
+
     const handleResponse = (payload: any, envelope: any) => {
         const results = payload.results || [];
         
@@ -195,19 +200,19 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             description: `Found ${searchResultItems.length} matching item(s).`
         });
         setIsSearching(false);
-        if (resSub) resSub();
-        if (errSub) errSub();
+        cleanup();
     };
 
     const handleError = (payload: any, envelope: any) => {
         toast({ title: "Search Failed", description: payload.error, variant: "destructive" });
         setIsSearching(false);
-        if (resSub) resSub();
-        if (errSub) errSub();
+        cleanup();
     };
 
     resSub = aether.subscribe('vfs:search:result', handleResponse);
     errSub = aether.subscribe('vfs:search:error', handleError);
+    
+    aether.publish('vfs:search', { query, availableFiles: allFiles.map(f => f.path) });
 
   }, [allFiles, toast, aether]);
 
@@ -285,11 +290,13 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsDeleting(true);
 
     let sub: (() => void) | undefined;
-    sub = aether.subscribe('vfs:delete:result', () => {
-        setIsDeleting(false);
-        setItemToDelete(null);
-        // Telemetry will handle the refresh
-        if (sub) sub();
+    sub = aether.subscribe('vfs:delete:result', (payload) => {
+        if(payload.path === itemToDelete.path) {
+          setIsDeleting(false);
+          setItemToDelete(null);
+          // Telemetry will handle the refresh
+          if (sub) sub();
+        }
     });
 
     aether.publish('vfs:delete', { path: itemToDelete.path });
@@ -441,3 +448,4 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   );
 }
 
+    

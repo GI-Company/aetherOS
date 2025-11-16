@@ -24,7 +24,7 @@ The Quorium stack is designed around three core principles:
 
 ## 3. System Blueprint: The Quorium Stack
 
-The AetherOS architecture is composed of two primary macro-components: the **Aether Kernel (Go Backend)** and the **Aether Shell (React Frontend)**, connected by a persistent WebSocket message bus.
+The AetherOS architecture is composed of two primary macro-components: the **Aether Kernel (Go Backend)** and the **Aether Shell (Next.js Frontend)**, connected by a persistent WebSocket message bus.
 
 ### Layer 1: The Aether Kernel (Go Backend)
 
@@ -45,37 +45,18 @@ The Kernel is the heart and brain of AetherOS. It is a lightweight, high-perform
         -   **Subscriptions**: Subscribes to all `vfs:*` topics (e.g., `vfs:list`, `vfs:read`, `vfs:write`, `vfs:delete`).
         -   **Functionality**: When it receives a request (e.g., a file list request from the File Explorer), it uses the **`VFSModule`** (`/broker/aether/vfs_module.go`), which integrates the Firebase Admin SDK for Go, to perform the requested operation against the user's sandboxed folder in Firebase Cloud Storage. It then publishes the result (file list, content, or success confirmation) back to the bus on a `:result` topic (e.g., `vfs:list:result`).
 
-### Layer 2: The Aether Shell (React Frontend)
+### Layer 2: The Aether Shell (Next.js Frontend)
 
-The Shell is the presentation layer of the OS. It is a sophisticated, single-page application responsible for rendering the entire user experience, from the desktop to the individual applications.
+The Shell is the unified presentation layer for AetherOS, built as a modern, single-page application. It renders the entire user experience, from the desktop and window manager to all individual applications, and communicates with the Go kernel in real-time.
 
--   **Technology**: Next.js, React, Vite, Tailwind CSS.
+-   **Technology**: Next.js, React, TypeScript, Tailwind CSS, ShadCN UI.
 -   **Core Components**:
-    -   **`AetherClient` (`/frontend/src/lib/aether_sdk.js`)**: The frontend's connection to the kernel. This lightweight SDK manages the WebSocket connection, handles message serialization (envelopes), and provides a simple `publish()` and `subscribe()` API for all other components and applications.
-    -   **`Desktop` (`/frontend/src/components/Desktop.jsx`)**: The top-level component that manages the state of all open windows, the dock, and the overall workspace. It is responsible for orchestrating window focus, z-index stacking, and lifecycle.
-    -   **`Window` Manager (`/frontend/src/components/Window.jsx`)**: A sophisticated component using `@react-spring/web` and `@use-gesture/react` for fluid, animated window management.
+    -   **`AetherClient` (`/src/lib/aether_sdk_client.ts`)**: The frontend's connection to the kernel. This lightweight SDK manages the WebSocket connection, handles message serialization (`Envelope`), and provides a simple `publish()` and `subscribe()` API for all other components and applications.
+    -   **`Desktop` (`/src/app/apps/desktop.tsx`)**: The top-level component that manages the state of all open windows, the dock, and the overall workspace.
+    -   **`Window` Manager (`/src/components/aether-os/window.tsx`)**: A sophisticated component using `@react-spring/web` and `@use-gesture/react` for fluid, animated window management.
     -   **Persistent Cloud Workspace**: The state of open windows is automatically saved to a Firestore document at `/userWorkspaces/{userId}` and restored on the next login, providing a seamless, persistent environment.
 
--   **Applications (`/frontend/src/apps/`)**: These are not traditional monolithic applications but rather React components that act as user interfaces for the kernel's services. They are designed to be "dumb" clients that offload all heavy lifting to the Go kernel.
-    -   **File Explorer**:
-        -   **Action**: User double-clicks a folder.
-        -   **Logic**: Calls `aether.publish('vfs:list', { path: '/path/to/folder' })`.
-        -   **Update**: Subscribes to `vfs:list:result`, receives the file list from the Go kernel, and re-renders the view.
-        -   **Semantic Search**: Utilizes the `AIService` to understand the *meaning* of a search query, not just keywords.
-        -   **Intelligent Previews**: Displays image thumbnails and AI-generated, one-sentence summaries for code files by calling the `ai:summarize:code` topic.
-    -   **Code Editor**:
-        -   **Action**: User saves a file.
-        -   **Logic**: Calls `aether.publish('vfs:write', { path: '...', content: '...' })`.
-        -   **Update**: Subscribes to `vfs:write:result` to receive confirmation.
-        -   **Intelligent Refactoring**: Uses the `AIService` to improve existing code.
-    -   **Generative Browser**:
-        -   **Action**: User types a topic like "The history of AI" into the address bar.
-        -   **Logic**: Calls `aether.publish('ai:generate:page', { topic: '...' })`.
-        -   **Update**: Subscribes to `ai:generate:page:resp` and renders the AI-generated HTML content it receives from the Go kernel.
-    -   **Pixel Streamer**:
-        -   **Action**: User types a prompt "a city on Mars" and clicks Generate.
-        -   **Logic**: Calls `aether.publish('ai:generate:image', { prompt: '...' })`.
-        -   **Update**: Subscribes to `ai:generate:image:resp` and displays the image data URI it receives from the Go kernel.
+For more detailed information on the frontend architecture, see the **`/src/README.md`** file.
 
 ### Layer 3: Cloud Persistence & Services (Firebase)
 

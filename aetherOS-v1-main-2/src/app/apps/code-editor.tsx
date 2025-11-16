@@ -15,9 +15,11 @@ import { useUser } from "@/firebase";
 interface CodeEditorAppProps {
   filePath?: string; // Can be used to open a project folder
   fileToOpen?: string;
+  isDirty: boolean;
+  setIsDirty: (isDirty: boolean) => void;
 }
 
-export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen }: CodeEditorAppProps) {
+export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen, isDirty, setIsDirty }: CodeEditorAppProps) {
   const { user } = useUser();
   const [projectPath, setProjectPath] = useState<string | null>(() => {
       if (initialProjectPath) return initialProjectPath;
@@ -51,15 +53,13 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
     if (typeof fileContent === 'undefined') {
         toast({ title: "Opening File...", description: `Loading content for ${filePath}` });
         
-        aether.publish('vfs:read', { path: filePath });
-
-        let readSub: (() => void) | undefined, errorSub: (() => void) | undefined;
+        let sub: (() => void) | undefined, errSub: (() => void) | undefined;
         
         const cleanup = () => {
-            if (readSub) readSub();
-            if (errorSub) errorSub();
+          if (sub) sub();
+          if (errSub) errSub();
         };
-        
+
         const handleReadResult = (payload: any) => {
           if (payload.path === filePath) {
             const newFile: EditorFile = {
@@ -76,15 +76,14 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
         };
 
         const handleReadError = (payload: any) => {
-          if (payload.path === filePath) {
-              console.error("Error opening file:", payload.error);
-              toast({ title: "Error", description: `Could not load file: ${payload.error}`, variant: "destructive" });
-              cleanup();
-          }
+          console.error("Error opening file:", payload.error);
+          toast({ title: "Error", description: `Could not load file: ${payload.error}`, variant: "destructive" });
+          cleanup();
         };
 
-        readSub = aether.subscribe('vfs:read:result', handleReadResult);
-        errorSub = aether.subscribe('vfs:read:error', handleReadError);
+        sub = aether.subscribe('vfs:read:result', handleReadResult);
+        errSub = aether.subscribe('vfs:read:error', handleReadError);
+        aether.publish('vfs:read', { path: filePath });
 
     } else {
        const newFile: EditorFile = {
@@ -118,6 +117,9 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
       }
 
       const updatedFiles = prev.filter(f => f.id !== fileId);
+      if (updatedFiles.length === 0) {
+        setIsDirty(false);
+      }
 
       // If the closed file was the active one, select a new active file
       if (activeFileId === fileId) {
@@ -136,9 +138,15 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   };
 
   const updateFileContent = (fileId: string, newContent: string) => {
-    setOpenFiles(prev => prev.map(f =>
-      f.id === fileId ? { ...f, content: newContent, isDirty: true } : f
-    ));
+    let fileChanged = false;
+    setOpenFiles(prev => prev.map(f => {
+      if (f.id === fileId && f.content !== newContent) {
+        fileChanged = true;
+        return { ...f, content: newContent, isDirty: true }
+      }
+      return f;
+    }));
+    if(fileChanged) setIsDirty(true);
   };
   
   const updateActiveFileContent = (newContent: string) => {
@@ -148,9 +156,22 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
   }
 
   const markFileAsSaved = (fileId: string) => {
-    setOpenFiles(prev => prev.map(f =>
-      f.id === fileId ? { ...f, isDirty: false } : f
-    ));
+    let wasDirty = false;
+    setOpenFiles(prev => {
+      const newFiles = prev.map(f => {
+        if (f.id === fileId) {
+          if (f.isDirty) wasDirty = true;
+          return { ...f, isDirty: false };
+        }
+        return f;
+      });
+
+      if (wasDirty) {
+        const anyDirty = newFiles.some(f => f.isDirty);
+        if(!anyDirty) setIsDirty(false);
+      }
+      return newFiles;
+    });
   };
 
   const activeFile = openFiles.find(f => f.id === activeFileId) || null;
@@ -203,3 +224,5 @@ export default function CodeEditorApp({ filePath: initialProjectPath, fileToOpen
     </div>
   );
 }
+
+    

@@ -1,8 +1,8 @@
 
 export type FileItem = {
   name: string;
-  type: "folder" | "file";
+  isDir: boolean; 
   size: number;
-  modified: Date;
+  modTime: Date; 
   path: string;
 };

@@ -137,37 +137,37 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   useEffect(() => {
     if (!aether) return;
 
-    const handleFileList = (env: any) => {
-        const { path, files: receivedFiles } = env.payload;
+    const handleFileList = (payload: any, envelope: any) => {
+        const { path, files: receivedFiles } = payload;
         if (path === currentPath) {
-            setAllFiles(receivedFiles || []);
+            setAllFiles(receivedFiles.map((f: any) => ({...f, modTime: new Date(f.modTime)})) || []);
             setIsLoading(false);
         }
     };
     
-    const handleMutationResult = () => {
-        setIsDeleting(false);
-        setItemToDelete(null);
-        setCreatingItemType(null);
-        refresh();
+    // This handles local mutations and direct refreshes
+    const listSub = aether.subscribe('vfs:list:result', handleFileList);
+    
+    // This handles global file system changes from other apps
+    const handleVFSTelemetry = (payload: any, envelope: any) => {
+        // A VFS operation happened somewhere. If it's in our current path, refresh.
+        const eventPath = payload.payload?.path;
+        if (eventPath && (eventPath.startsWith(currentPath) || currentPath.startsWith(eventPath))) {
+            refresh();
+        }
     };
-
-    const subs = [
-      aether.subscribe('vfs:list:result', handleFileList),
-      aether.subscribe('vfs:delete:result', handleMutationResult),
-      aether.subscribe('vfs:create:file:result', handleMutationResult),
-      aethersubscribe('vfs:create:folder:result', handleMutationResult),
-    ];
+    const telemetrySub = aether.subscribe('telemetry:vfs', handleVFSTelemetry);
     
     refresh();
 
     return () => {
-      subs.forEach(sub => sub && sub());
+      listSub();
+      telemetrySub();
     };
   }, [aether, currentPath, refresh]);
 
 
-  const handleSearch = useCallback(async (query: string) => {
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
     if (!query || !aether) {
       setDisplayedFiles(allFiles);
@@ -175,42 +175,40 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     }
     setIsSearching(true);
     setCreatingItemType(null);
-    try {
-        aether.publish('ai:search:files', { query, availableFiles: allFiles.map(f => f.path) });
+    
+    aether.publish('vfs:search', { query, availableFiles: allFiles.map(f => f.path) });
+    
+    let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
+    
+    const handleResponse = (payload: any, envelope: any) => {
+        const results = payload.results || [];
         
-        const handleResponse = async (env: any) => {
-            const searchResultsJson = JSON.parse(env.payload);
-            const results = searchResultsJson.results || [];
-            
-            const searchResultItems = results.map((result: any) => {
-              const foundFile = allFiles.find(f => f.path === result.path);
-              return foundFile || { name: result.path.split('/').pop()!, type: result.type, path: result.path, size: 0, modified: new Date() };
-            }) as FileItem[];
+        const searchResultItems = results.map((result: any) => {
+          const foundFile = allFiles.find(f => f.path === result.path);
+          return foundFile || { name: result.path.split('/').pop()!, isDir: result.type === 'folder', path: result.path, size: 0, modTime: new Date() };
+        }) as FileItem[];
 
-            setDisplayedFiles(searchResultItems);
+        setDisplayedFiles(searchResultItems);
 
-            toast({
-                title: "Search Complete",
-                description: `Found ${searchResultItems.length} matching item(s).`
-            });
-            setIsSearching(false);
-            aether.subscribe('ai:search:files:resp', handleResponse)(); // Unsubscribe
-        };
-
-        const handleError = (env: any) => {
-            toast({ title: "Search Failed", description: env.payload.error, variant: "destructive" });
-            setIsSearching(false);
-            aether.subscribe('ai:search:files:error', handleError)(); // Unsubscribe
-        };
-
-        aether.subscribe('ai:search:files:resp', handleResponse);
-        aether.subscribe('ai:search:files:error', handleError);
-
-    } catch (err: any) {
-        console.error("Search failed:", err);
-        toast({ title: "Search Failed", description: err.message, variant: "destructive" });
+        toast({
+            title: "Search Complete",
+            description: `Found ${searchResultItems.length} matching item(s).`
+        });
         setIsSearching(false);
-    }
+        if (resSub) resSub();
+        if (errSub) errSub();
+    };
+
+    const handleError = (payload: any, envelope: any) => {
+        toast({ title: "Search Failed", description: payload.error, variant: "destructive" });
+        setIsSearching(false);
+        if (resSub) resSub();
+        if (errSub) errSub();
+    };
+
+    resSub = aether.subscribe('vfs:search:result', handleResponse);
+    errSub = aether.subscribe('vfs:search:error', handleError);
+
   }, [allFiles, toast, aether]);
 
 
@@ -227,9 +225,9 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }
   
   const handleDoubleClick = (file: FileItem) => {
-    if (file.type === 'folder') {
+    if (file.isDir) {
         navigateToPath(file.path);
-    } else if (file.type === 'file' && onOpenFile) {
+    } else if (onOpenFile) {
       onOpenFile(file.path);
     }
   }
@@ -245,7 +243,6 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     setIsUploading(true);
     setUploadProgress(0);
     
-    // For simplicity, we'll handle one file at a time.
     const file = files[0];
     
     const reader = new FileReader();
@@ -253,14 +250,15 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     reader.onload = () => {
       const base64Content = reader.result?.toString().split(',')[1];
       if (base64Content) {
-        aether.publish('vfs:write', { path: `${currentPath}/${file.name}`, content: base64Content, encoding: 'base64' });
-
-        const sub = aether.subscribe('vfs:write:result', () => {
+        let sub: (() => void) | undefined;
+        sub = aether.subscribe('vfs:write:result', () => {
           toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
           setIsUploading(false);
-          refresh();
-          sub();
+          // Telemetry event will trigger the refresh now
+          if (sub) sub();
         });
+        aether.publish('vfs:write', { path: `${currentPath}/${file.name}`, content: base64Content, encoding: 'base64' });
+
       }
     };
     reader.onerror = () => {
@@ -272,13 +270,28 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   const handleCreate = async (name: string) => {
       if (!name || !user || !creatingItemType || !aether) return;
       const topic = `vfs:create:${creatingItemType}`;
+      
+      let sub: (() => void) | undefined;
+      sub = aether.subscribe(`${topic}:result`, () => {
+        setCreatingItemType(null);
+        // Telemetry will handle the refresh
+        if (sub) sub();
+      });
       aether.publish(topic, {path: currentPath, name});
-      setCreatingItemType(null);
   }
 
   const confirmDelete = () => {
     if (!itemToDelete || !aether) return;
     setIsDeleting(true);
+
+    let sub: (() => void) | undefined;
+    sub = aether.subscribe('vfs:delete:result', () => {
+        setIsDeleting(false);
+        setItemToDelete(null);
+        // Telemetry will handle the refresh
+        if (sub) sub();
+    });
+
     aether.publish('vfs:delete', { path: itemToDelete.path });
   };
   
@@ -316,7 +329,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the {itemToDelete?.type} "{itemToDelete?.name}" and all of its contents.
+                    This action cannot be undone. This will permanently delete the item "{itemToDelete?.name}" and all of its contents.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -58,8 +58,7 @@ func (c *Client) ReadPump() {
 			log.Printf("invalid envelope: %v", err)
 			continue
 		}
-		// The payload is now the full raw message itself. The Go service will unmarshal it again to get the nested payload.
-		env.Payload = message
+		// The client now sends a clean envelope, so env.Payload is what we need.
 
 		// Dynamic Topic Publishing: Get the topic from the envelope and publish.
 		targetTopic := c.hub.broker.GetTopic(env.Topic)

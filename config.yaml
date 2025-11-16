@@ -1,0 +1,15 @@
+http_port: 8080
+ws_port: 8081
+
+vfs:
+  default_root: /home/user
+
+auth:
+  enabled: false
+  jwt_secret: "your-super-secret-and-long-jwt-secret"
+
+permissions:
+  enabled: true
+
+logging:
+  level: info

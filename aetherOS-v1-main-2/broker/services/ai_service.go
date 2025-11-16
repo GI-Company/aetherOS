@@ -183,10 +183,11 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			if unmarshalErr := json.Unmarshal([]byte(graphJSON), &temp); unmarshalErr != nil {
 				err = unmarshalErr
 			} else {
+				// The agent service will now listen for this event to register the graph.
 				s.publishResponse(env, "agent.taskgraph.created", temp)
 			}
 		}
-		return // Exit early, response is published separately
+		return // Exit early, response is published separately by the agent service.
 
 	default: // Handle all other text-based generation topics
 		var payloadData map[string]string
@@ -238,7 +239,7 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		return
 	}
 
-	if env.Topic != "ai:agent" {
+	if env.Topic != "ai:agent" && env.Topic != "agent:execute:node" {
 		responseTopicName := env.Topic + ":resp"
 		s.publishResponse(env, responseTopicName, responsePayload)
 	}

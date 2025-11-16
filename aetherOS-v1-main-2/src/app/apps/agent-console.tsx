@@ -60,37 +60,38 @@ export default function AgentConsoleApp() {
                         }, {} as Record<string, TaskNodeStatus>),
                     };
                     newGraphs[newGraph.id] = newGraph;
-                    setSelectedGraphId(newGraph.id);
-                }
-
-                if (envelope.topic.startsWith('agent.taskgraph.')) {
-                    const graphId = payload.taskGraph?.id || payload.graphId;
-                    if (graphId && newGraphs[graphId]) {
-                        if(envelope.topic === 'agent.taskgraph.started') newGraphs[graphId].status = 'running';
-                        if(envelope.topic === 'agent.taskgraph.completed') newGraphs[graphId].status = 'completed';
-                        if(envelope.topic === 'agent.taskgraph.canceled') newGraphs[graphId].status = 'canceled';
-                        if(envelope.topic === 'agent.taskgraph.failed') newGraphs[graphId].status = 'failed';
+                    if (!selectedGraphId) {
+                        setSelectedGraphId(newGraph.id);
                     }
                 }
-                
-                if (envelope.topic.startsWith('agent.tasknode.')) {
-                    // Assuming the payload has a structure like { graphId: '...', nodeId: '...', ... }
-                    // The actual payload for task node events will come from the backend service.
-                    // For now, we'll need to parse it based on what `agent:execute:node` response gives.
-                    const taskGraphId = payload.graphId || Object.keys(newGraphs).find(gid => newGraphs[gid].nodes.some(n => n.id === payload.nodeId));
-                    const nodeId = payload.nodeId;
 
-                    if (taskGraphId && newGraphs[taskGraphId] && nodeId) {
-                        const nodeStatus = newGraphs[taskGraphId].nodesStatus[nodeId] || { nodeId, status: 'pending' };
+                const graphId = payload.graphId || payload.taskGraph?.id;
+
+                if (graphId && newGraphs[graphId]) {
+                    if (envelope.topic === 'agent.taskgraph.started') newGraphs[graphId].status = 'running';
+                    if (envelope.topic === 'agent.taskgraph.completed') newGraphs[graphId].status = 'completed';
+                    if (envelope.topic === 'agent.taskgraph.canceled') newGraphs[graphId].status = 'canceled';
+                    if (envelope.topic === 'agent.taskgraph.failed') newGraphs[graphId].status = 'failed';
+                    
+                    const nodeId = payload.nodeId;
+                    if (nodeId) {
+                         const nodeStatus = newGraphs[graphId].nodesStatus[nodeId] || { nodeId, status: 'pending' };
                         
-                        if (envelope.topic === 'agent.tasknode.started') nodeStatus.status = 'running';
-                        if (envelope.topic === 'agent.tasknode.completed') nodeStatus.status = 'completed';
+                        if (envelope.topic === 'agent.tasknode.started') {
+                            nodeStatus.status = 'running';
+                            nodeStatus.startedAt = Date.now();
+                        }
+                        if (envelope.topic === 'agent.tasknode.completed') {
+                            nodeStatus.status = 'completed';
+                            nodeStatus.finishedAt = Date.now();
+                        }
                         if (envelope.topic === 'agent.tasknode.failed') {
                             nodeStatus.status = 'failed';
                             nodeStatus.error = payload.error || 'Unknown error';
+                             nodeStatus.finishedAt = Date.now();
                         }
                         
-                        newGraphs[taskGraphId].nodesStatus[nodeId] = nodeStatus;
+                        newGraphs[graphId].nodesStatus[nodeId] = nodeStatus;
                     }
                 }
                 
@@ -104,33 +105,19 @@ export default function AgentConsoleApp() {
             subscriptions.forEach(unsubscribe => unsubscribe());
         };
 
-    }, [aether]);
+    }, [aether, selectedGraphId]);
 
     const selectedGraph = selectedGraphId ? taskGraphs[selectedGraphId] : null;
 
     const executeGraph = useCallback(() => {
         if (!selectedGraph || !aether) return;
         
-        const nodesToRun = selectedGraph.nodes.filter(
-            (node) =>
-                selectedGraph.nodesStatus[node.id]?.status === 'pending' &&
-                (node.dependsOn.length === 0 ||
-                    node.dependsOn.every(
-                        (depId) => selectedGraph.nodesStatus[depId]?.status === 'completed'
-                    ))
-        );
+        // The frontend's job is now just to request execution.
+        // The backend `AgentService` will handle the orchestration.
+        aether.publish('agent:graph:execute', { 
+            graphId: selectedGraph.id,
+        });
 
-        if (nodesToRun.length > 0) {
-            const nodeToRun = nodesToRun[0]; // Just run the first available one for now
-            aether.publish('agent:execute:node', { 
-                graphId: selectedGraph.id,
-                nodeId: nodeToRun.id,
-                tool: nodeToRun.tool,
-                input: nodeToRun.input 
-            });
-        } else {
-             console.log("No nodes to run or graph is complete.");
-        }
     }, [selectedGraph, aether]);
 
 
@@ -189,7 +176,14 @@ export default function AgentConsoleApp() {
                 </div>
                  {selectedGraph && (
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={executeGraph}><Play className="h-4 w-4 mr-2" /> Execute</Button>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={executeGraph}
+                            disabled={selectedGraph.status === 'running' || selectedGraph.status === 'completed'}
+                        >
+                            <Play className="h-4 w-4 mr-2" /> Execute Graph
+                        </Button>
                         <Button variant="outline" size="sm" disabled><Square className="h-4 w-4 mr-2" /> Cancel</Button>
                         <Button variant="outline" size="sm" disabled><RefreshCcw className="h-4 w-4 mr-2" /> Re-run</Button>
                     </div>

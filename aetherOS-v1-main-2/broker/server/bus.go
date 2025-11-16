@@ -91,6 +91,7 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("agent.tasknode.completed").Subscribe(client)
 	s.Broker.GetTopic("agent.tasknode.failed").Subscribe(client)
 	s.Broker.GetTopic("agent.tasknode.logs").Subscribe(client)
+	s.Broker.GetTopic("agent:graph:execute").Subscribe(client)
 
 
 	busTopic.Subscribe(client)

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FolderPlus, FolderOpen } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { useAppAether } from '@/lib/use-app-aether';
+import { useAether } from '@/lib/aether_sdk_client';
 
 interface WelcomeScreenProps {
     onSelectProject: (path: string) => void;
@@ -16,10 +16,10 @@ interface WelcomeScreenProps {
 export default function WelcomeScreen({ onSelectProject }: WelcomeScreenProps) {
     const { user } = useFirebase();
     const { toast } = useToast();
-    const { publish, subscribe } = useAppAether();
+    const aether = useAether();
 
     const handleCreateProject = () => {
-        if (!user) return;
+        if (!user || !aether) return;
         const projectName = window.prompt("Enter new project name:");
         if (projectName) {
             const path = `users/${user.uid}/${projectName}`;
@@ -30,9 +30,9 @@ export default function WelcomeScreen({ onSelectProject }: WelcomeScreenProps) {
                 onSelectProject(path);
                 if(sub) sub();
             }
-            sub = subscribe('vfs:create:folder:result', handleResult);
+            sub = aether.subscribe('vfs:create:folder:result', handleResult);
             
-            publish('vfs:create:folder', { path: `users/${user.uid}`, name: projectName });
+            aether.publish('vfs:create:folder', { path: `users/${user.uid}`, name: projectName });
         }
     };
     

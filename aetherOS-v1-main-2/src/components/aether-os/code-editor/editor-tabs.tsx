@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { X, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { osEvent } from "@/lib/events";
-import { useAppAether } from "@/lib/use-app-aether";
+import { useAether } from "@/lib/aether_sdk_client";
 
 const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
 
@@ -40,7 +40,7 @@ export default function EditorTabs({
 
     const activeFile = files.find(f => f.id === activeFileId);
     const editorRef = useRef<any>(null);
-    const { publish, subscribe } = useAppAether();
+    const aether = useAether();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = React.useState(false);
 
@@ -49,8 +49,8 @@ export default function EditorTabs({
     };
 
     const handleSave = () => {
-        if (!activeFile) {
-            toast({ title: "Cannot Save", description: "No active file.", variant: "destructive" });
+        if (!activeFile || !aether) {
+            toast({ title: "Cannot Save", description: "No active file or aether client unavailable.", variant: "destructive" });
             return;
         }
 
@@ -79,10 +79,10 @@ export default function EditorTabs({
             cleanup();
         };
         
-        sub = subscribe('vfs:write:result', handleResult);
-        errSub = subscribe('vfs:write:error', handleError);
+        sub = aether.subscribe('vfs:write:result', handleResult);
+        errSub = aether.subscribe('vfs:write:error', handleError);
         
-        publish('vfs:write', { path: activeFile.path, content: activeFile.content });
+        aether.publish('vfs:write', { path: activeFile.path, content: activeFile.content });
     };
 
     return (

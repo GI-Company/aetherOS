@@ -178,8 +178,8 @@ export default function Desktop() {
   }, []);
   
   const arrangeWindows = useCallback(() => {
-    const codeEditor = openApps.find(a => a.app.manifest.id === 'code-editor');
-    const browser = openApps.find(a => a.app.manifest.id === 'browser');
+    const codeEditor = openApps.find(a => a.app.manifest.id === 'system.code.editor');
+    const browser = openApps.find(a => a.app.manifest.id === 'system.browser');
     
     if (!codeEditor || !browser) {
         toast({
@@ -355,10 +355,10 @@ export default function Desktop() {
         let finalProps: Record<string, any> = { ...props };
 
         if (fileExtension && imageExtensions.includes(fileExtension)) {
-            appToOpen = APPS.find(a => a.manifest.id === 'image-viewer');
+            appToOpen = APPS.find(a => a.manifest.id === 'system.image.viewer');
             finalProps.filePath = filePath;
         } else {
-            appToOpen = APPS.find(a => a.manifest.id === 'code-editor');
+            appToOpen = APPS.find(a => a.manifest.id === 'system.code.editor');
             finalProps.fileToOpen = filePath;
         }
 
@@ -450,14 +450,14 @@ export default function Desktop() {
             const AppComponent = window.app.component;
             const componentProps: any = { ...window.props };
 
-            if (window.app.manifest.id === 'code-editor') {
+            if (window.app.manifest.id === 'system.code.editor') {
               componentProps.isDirty = window.isDirty;
               componentProps.setIsDirty = (isDirty: boolean) => setAppDirtyState(window.id, isDirty);
             }
-            if (window.app.manifest.id === 'file-explorer' || window.app.manifest.id === 'people') {
+            if (window.app.manifest.id === 'system.file.explorer' || window.app.manifest.id === 'system.people') {
               componentProps.onOpenFile = openFileOrApp;
             }
-             if (window.app.manifest.id === 'settings' || window.app.manifest.id === 'collaboration' || window.app.manifest.id === 'people') {
+             if (window.app.manifest.id === 'system.settings' || window.app.manifest.id === 'system.collaboration' || window.app.manifest.id === 'system.people') {
               componentProps.onOpenApp = openApp;
             }
 
@@ -498,5 +498,3 @@ export default function Desktop() {
     </div>
   );
 }
-
-    

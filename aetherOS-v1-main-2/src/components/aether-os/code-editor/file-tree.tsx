@@ -10,7 +10,7 @@ import FileTreeItem from "./file-tree-item";
 import { cn } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
 import { FileItem } from "@/lib/types";
-import { useAppAether } from "@/lib/use-app-aether";
+import { useAether } from "@/lib/aether_sdk_client";
 
 interface FileSystemItem extends FileItem {
     children?: FileSystemItem[];
@@ -72,18 +72,19 @@ const buildFileTree = (files: FileItem[], basePath: string): FileSystemItem[] =>
 
 
 export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
-    const { publish, subscribe } = useAppAether();
+    const aether = useAether();
     const [tree, setTree] = useState<FileSystemItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
     const fetchFiles = useCallback(async (path: string) => {
+        if (!aether) return;
         setIsLoading(true);
-        publish('vfs:list', { path });
-    }, [publish]);
+        aether.publish('vfs:list', { path });
+    }, [aether]);
 
     useEffect(() => {
-        if (!basePath) return;
+        if (!basePath || !aether) return;
 
         let listSub: (() => void) | undefined;
 
@@ -95,7 +96,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
             }
         };
         
-        listSub = subscribe('vfs:list:result', handleFileList);
+        listSub = aether.subscribe('vfs:list:result', handleFileList);
         
         const handleFileSystemChange = () => fetchFiles(basePath);
         osEvent.on('file-system-change', handleFileSystemChange);
@@ -107,11 +108,11 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
             osEvent.off('file-system-change', handleFileSystemChange);
         };
 
-    }, [basePath, fetchFiles, subscribe]);
+    }, [basePath, fetchFiles, aether]);
 
 
     const handleCreate = async (type: 'file' | 'folder', path: string, name: string) => {
-        if (!name) return;
+        if (!name || !aether) return;
         
         let sub: (() => void) | undefined, errSub: (() => void) | undefined;
         
@@ -135,14 +136,15 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         const resultTopic = `${topic}:result`;
         const errorTopic = `${topic}:error`;
         
-        sub = subscribe(resultTopic, handleResult);
-        errSub = subscribe(errorTopic, handleError);
+        sub = aether.subscribe(resultTopic, handleResult);
+        errSub = aether.subscribe(errorTopic, handleError);
 
-        publish(topic, {path, name});
+        aether.publish(topic, {path, name});
         toast({ title: `Creating ${type}...`, description: name });
     };
     
     const handleDelete = async (item: FileItem) => {
+        if (!aether) return;
        const confirm = window.confirm(`Are you sure you want to delete ${item.name}?`);
        if (confirm) {
            let sub: (() => void) | undefined, errSub: (() => void) | undefined;
@@ -162,10 +164,10 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
                cleanup();
             };
 
-           sub = subscribe('vfs:delete:result', handleResult);
-           errSub = subscribe('vfs:delete:error', handleError);
+           sub = aether.subscribe('vfs:delete:result', handleResult);
+           errSub = aether.subscribe('vfs:delete:error', handleError);
 
-           publish('vfs:delete', { path: item.path });
+           aether.publish('vfs:delete', { path: item.path });
            toast({ title: `Deleting...`, description: item.name });
        }
     };

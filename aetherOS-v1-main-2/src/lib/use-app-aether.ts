@@ -15,7 +15,6 @@ export const AppAetherProvider = AppAetherContext.Provider;
  * This client automatically includes the app's ID in all published messages.
  */
 export function useAppAether(): {
-  aether: AetherClient | null;
   publish: (topic: string, payload: any) => Promise<void>;
   subscribe: (topic: string, callback: (payload: any, envelope: Envelope) => void) => () => void;
 } {
@@ -46,5 +45,5 @@ export function useAppAether(): {
     }
   }, [aether])
 
-  return { aether, publish, subscribe };
+  return { publish, subscribe };
 }

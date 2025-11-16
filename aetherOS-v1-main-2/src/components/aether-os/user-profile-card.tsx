@@ -60,7 +60,7 @@ export default function UserProfileCard({ userId, onBack, onOpenFile }: UserProf
   
   const isLoading = isUserLoading || isPresenceLoading;
 
-  const appInfo = APPS.find(app => app.id === (presenceData as any)?.focusedApp);
+  const appInfo = APPS.find(app => app.manifest.id === (presenceData as any)?.focusedApp);
 
   if (isLoading) {
     return (
@@ -88,9 +88,7 @@ export default function UserProfileCard({ userId, onBack, onOpenFile }: UserProf
 
   const handleOpenVFS = () => {
     if (onOpenFile) {
-      // The `onOpenFile` in this context is actually the trigger to open an app with a path.
-      // Here, we open the File Explorer to the user's root directory.
-      const fileExplorerApp = APPS.find(app => app.id === 'file-explorer');
+      const fileExplorerApp = APPS.find(app => app.manifest.id === 'system.file.explorer');
       if (fileExplorerApp && onOpenFile) {
          (onOpenFile as any)(fileExplorerApp, { filePath: `users/${userId}` });
       }

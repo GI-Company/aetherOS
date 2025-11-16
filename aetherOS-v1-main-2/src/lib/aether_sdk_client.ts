@@ -111,7 +111,7 @@ export class AetherClient {
         payload: payload,
         createdAt: new Date().toISOString(),
         meta: {
-            appId: appId || 'system',
+            appId: appId || 'system.os', // Default to a system-level ID if not provided
         },
     };
 

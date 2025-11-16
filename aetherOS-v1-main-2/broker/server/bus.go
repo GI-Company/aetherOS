@@ -105,6 +105,8 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("agent:execute:node").Subscribe(client)
 	
 	s.Broker.GetTopic("telemetry:vfs").Subscribe(client)
+	s.Broker.GetTopic("system:install:app:result").Subscribe(client)
+	s.Broker.GetTopic("system:install:app:error").Subscribe(client)
 
 	busTopic.Subscribe(client)
 

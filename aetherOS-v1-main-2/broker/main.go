@@ -96,6 +96,9 @@ func main() {
 	telemetryService := services.NewTelemetryService(broker)
 	go telemetryService.Run()
 
+	installService := services.NewInstallService(broker, permissionManager)
+	go installService.Run()
+
 	// Setup router and register API routes
 	r := mux.NewRouter()
 	server.RegisterBusRoutes(r, broker)

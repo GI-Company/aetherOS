@@ -1,0 +1,15 @@
+
+{
+  "id": "collaboration",
+  "name": "Collaboration",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "Real-time chat and user presence.",
+  "permissions": ["filesystem_read", "ai_access"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 750, "height": 650 }
+  }
+}

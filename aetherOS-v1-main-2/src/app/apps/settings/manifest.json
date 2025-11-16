@@ -1,0 +1,15 @@
+
+{
+  "id": "settings",
+  "name": "Settings",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "Configure system settings, appearance, and account details.",
+  "permissions": ["ai_access"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 600, "height": 550 }
+  }
+}

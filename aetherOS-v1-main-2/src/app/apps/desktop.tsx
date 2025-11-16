@@ -82,7 +82,7 @@ export default function Desktop() {
             lastSeen: serverTimestamp(),
             displayName: user.displayName,
             photoURL: user.photoURL,
-            focusedApp: focusedApp?.app.id || null,
+            focusedApp: focusedApp?.app.manifest.id || null,
         }, { merge: true });
     };
 
@@ -126,7 +126,7 @@ export default function Desktop() {
     if (user && !user.isAnonymous && isInitialLoad.current) {
       if (userWorkspace && (userWorkspace as any).windows) {
         const restoredWindows = (userWorkspace as any).windows.map((w: any) => {
-          const app = APPS.find(app => app.id === w.appId);
+          const app = APPS.find(app => app.manifest.id === w.appId);
           if (!app) return null;
           // Find the max zIndex from restored windows to continue from there
           setHighestZIndex(prev => Math.max(prev, w.zIndex));
@@ -152,7 +152,7 @@ export default function Desktop() {
       if (userWorkspaceRef) {
         const windowsToSave = openApps.map(({ app, ...rest }) => ({
           ...rest,
-          appId: app.id,
+          appId: app.manifest.id,
           // We don't save the props or dirty state here for simplicity
           props: {},
           isDirty: false,
@@ -179,8 +179,8 @@ export default function Desktop() {
   }, []);
   
   const arrangeWindows = useCallback(() => {
-    const codeEditor = openApps.find(a => a.app.id === 'code-editor');
-    const browser = openApps.find(a => a.app.id === 'browser');
+    const codeEditor = openApps.find(a => a.app.manifest.id === 'code-editor');
+    const browser = openApps.find(a => a.app.manifest.id === 'browser');
     
     if (!codeEditor || !browser) {
         toast({
@@ -232,7 +232,7 @@ export default function Desktop() {
   }, [openApps, highestZIndex, toast]);
 
   const openApp = useCallback((app: App, props: Record<string, any> = {}) => {
-    const existingAppInstance = openApps.find(a => a.app.id === app.id);
+    const existingAppInstance = openApps.find(a => a.app.manifest.id === app.manifest.id);
     if (existingAppInstance) {
         if (existingAppInstance.isMinimized) {
             toggleMinimize(existingAppInstance.id);
@@ -251,7 +251,7 @@ export default function Desktop() {
       id: currentId,
       app: app,
       position: { x: 50 + (currentId % 10) * 20, y: 50 + (currentId % 10) * 20 },
-      size: app.defaultSize,
+      size: app.manifest.ui_hints.defaultSize,
       zIndex: highestZIndex + 1,
       isMinimized: false,
       isMaximized: false,
@@ -356,10 +356,10 @@ export default function Desktop() {
         let finalProps: Record<string, any> = { ...props };
 
         if (fileExtension && imageExtensions.includes(fileExtension)) {
-            appToOpen = APPS.find(a => a.id === 'image-viewer');
+            appToOpen = APPS.find(a => a.manifest.id === 'image-viewer');
             finalProps.filePath = filePath;
         } else {
-            appToOpen = APPS.find(a => a.id === 'code-editor');
+            appToOpen = APPS.find(a => a.manifest.id === 'code-editor');
             finalProps.fileToOpen = filePath;
         }
 
@@ -451,14 +451,14 @@ export default function Desktop() {
             const AppComponent = window.app.component;
             const componentProps: any = { ...window.props };
 
-            if (window.app.id === 'code-editor') {
+            if (window.app.manifest.id === 'code-editor') {
               componentProps.isDirty = window.isDirty;
               componentProps.setIsDirty = (isDirty: boolean) => setAppDirtyState(window.id, isDirty);
             }
-            if (window.app.id === 'file-explorer' || window.app.id === 'people') {
+            if (window.app.manifest.id === 'file-explorer' || window.app.manifest.id === 'people') {
               componentProps.onOpenFile = openFileOrApp;
             }
-             if (window.app.id === 'settings' || window.app.id === 'collaboration' || window.app.id === 'people') {
+             if (window.app.manifest.id === 'settings' || window.app.manifest.id === 'collaboration' || window.app.manifest.id === 'people') {
               componentProps.onOpenApp = openApp;
             }
 

@@ -1,0 +1,15 @@
+
+{
+  "id": "people",
+  "name": "People",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "View profiles of active users.",
+  "permissions": ["filesystem_read"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 300, "height": 500 }
+  }
+}

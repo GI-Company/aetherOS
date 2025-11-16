@@ -1,0 +1,15 @@
+
+{
+  "id": "code-editor",
+  "name": "Code Editor",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "An AI-powered code editor with cloud file system integration.",
+  "permissions": ["filesystem_read", "filesystem_write", "ai_access"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 800, "height": 600 }
+  }
+}

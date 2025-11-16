@@ -1,0 +1,15 @@
+
+{
+  "id": "file-explorer",
+  "name": "File Explorer",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "Browse and manage your cloud file system.",
+  "permissions": ["filesystem_read", "filesystem_write", "ai_access"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 700, "height": 500 }
+  }
+}

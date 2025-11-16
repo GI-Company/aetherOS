@@ -1,0 +1,16 @@
+
+{
+  "id": "image-viewer",
+  "name": "Image Viewer",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "A simple viewer for image files.",
+  "permissions": ["filesystem_read"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 800, "height": 600 },
+    "hideFromDock": true
+  }
+}

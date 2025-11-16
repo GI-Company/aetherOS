@@ -1,0 +1,15 @@
+
+{
+  "id": "browser",
+  "name": "Browser",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "A generative web browser that synthesizes content on the fly.",
+  "permissions": ["ai_access", "network"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 1024, "height": 768 }
+  }
+}

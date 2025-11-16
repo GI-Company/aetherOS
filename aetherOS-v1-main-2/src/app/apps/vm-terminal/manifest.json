@@ -1,0 +1,15 @@
+
+{
+  "id": "virtual-machine",
+  "name": "Virtual Machine",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "A natural language shell for interacting with the AI agent and running WASM binaries.",
+  "permissions": ["ai_access", "filesystem_read", "filesystem_write", "vm_run"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 640, "height": 480 }
+  }
+}

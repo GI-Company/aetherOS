@@ -1,0 +1,15 @@
+
+{
+  "id": "agent-console",
+  "name": "Agent Console",
+  "version": "1.0.0",
+  "developer": "AetherOS",
+  "description": "Monitor and debug the AI agent's task execution.",
+  "permissions": ["ai_access"],
+  "entry_point": "index.tsx",
+  "ui_hints": {
+    "resizable": true,
+    "theme": "glassmorphism",
+    "defaultSize": { "width": 900, "height": 650 }
+  }
+}

@@ -57,129 +57,79 @@ func (s *VfsService) handleRequest(env *aether.Envelope) {
 	log.Printf("VFS Service processing message ID %s on topic %s", env.ID, env.Topic)
 	rawPayload := env.Payload
 
-	var payloadData map[string]interface{}
-	if err := json.Unmarshal(rawPayload, &payloadData); err != nil {
-		s.publishError(env, "Cannot unmarshal payload")
-		return
-	}
-
-	path, _ := payloadData["path"].(string)
-
 	switch env.Topic {
 	case "vfs:list":
-		files, err := s.vfs.List(path)
-		s.publishTelemetry("list", path, err, 0)
-		if err != nil {
-			s.publishError(env, err.Error())
-			return
-		}
-		s.publishResponse(env, "vfs:list:result", map[string]interface{}{
-			"path":  path,
-			"files": files,
-		})
+		var p struct { Path string `json:"path"` }
+		if err := json.Unmarshal(rawPayload, &p); err != nil { s.publishError(env, err.Error()); return }
+		files, err := s.vfs.List(p.Path)
+		s.publishTelemetry("list", p.Path, err, 0)
+		if err != nil { s.publishError(env, err.Error()); return }
+		s.publishResponse(env, "vfs:list:result", map[string]interface{}{"path": p.Path, "files": files})
+
 	case "vfs:delete":
-		err := s.vfs.Delete(path)
-		s.publishTelemetry("delete", path, err, 0)
-		if err != nil {
-			s.publishError(env, err.Error())
-			return
-		}
-		s.publishResponse(env, "vfs:delete:result", map[string]interface{}{"success": true, "path": path})
+		var p struct { Path string `json:"path"` }
+		if err := json.Unmarshal(rawPayload, &p); err != nil { s.publishError(env, err.Error()); return }
+		err := s.vfs.Delete(p.Path)
+		s.publishTelemetry("delete", p.Path, err, 0)
+		if err != nil { s.publishError(env, err.Error()); return }
+		s.publishResponse(env, "vfs:delete:result", map[string]interface{}{"success": true, "path": p.Path})
+
 	case "vfs:create:file":
-		name, _ := payloadData["name"].(string)
-		err := s.vfs.CreateFile(path, name)
-		s.publishTelemetry("create_file", path, err, 0)
-		if err != nil {
-			s.publishError(env, err.Error())
-			return
-		}
-		s.publishResponse(env, "vfs:create:file:result", map[string]interface{}{"success": true, "path": path})
+		var p struct { Path string `json:"path"`; Name string `json:"name"` }
+		if err := json.Unmarshal(rawPayload, &p); err != nil { s.publishError(env, err.Error()); return }
+		err := s.vfs.CreateFile(p.Path, p.Name)
+		s.publishTelemetry("create_file", p.Path, err, 0)
+		if err != nil { s.publishError(env, err.Error()); return }
+		s.publishResponse(env, "vfs:create:file:result", map[string]interface{}{"success": true, "path": p.Path})
+
 	case "vfs:create:folder":
-		name, _ := payloadData["name"].(string)
-		err := s.vfs.CreateDir(path, name)
-		s.publishTelemetry("create_folder", path, err, 0)
-		if err != nil {
-			s.publishError(env, err.Error())
-			return
-		}
-		s.publishResponse(env, "vfs:create:folder:result", map[string]interface{}{"success": true, "path": path})
+		var p struct { Path string `json:"path"`; Name string `json:"name"` }
+		if err := json.Unmarshal(rawPayload, &p); err != nil { s.publishError(env, err.Error()); return }
+		err := s.vfs.CreateDir(p.Path, p.Name)
+		s.publishTelemetry("create_folder", p.Path, err, 0)
+		if err != nil { s.publishError(env, err.Error()); return }
+		s.publishResponse(env, "vfs:create:folder:result", map[string]interface{}{"success": true, "path": p.Path})
+
 	case "vfs:read":
-		content, err := s.vfs.Read(path)
-		s.publishTelemetry("read", path, err, int64(len(content)))
-		if err != nil {
-			s.publishError(env, err.Error())
-			return
-		}
-		s.publishResponse(env, "vfs:read:result", map[string]interface{}{
-			"path":    path,
-			"content": content,
-		})
+		var p struct { Path string `json:"path"` }
+		if err := json.Unmarshal(rawPayload, &p); err != nil { s.publishError(env, err.Error()); return }
+		content, err := s.vfs.Read(p.Path)
+		s.publishTelemetry("read", p.Path, err, int64(len(content)))
+		if err != nil { s.publishError(env, err.Error()); return }
+		s.publishResponse(env, "vfs:read:result", map[string]interface{}{"path": p.Path, "content": content})
+
 	case "vfs:write":
-		contentStr, _ := payloadData["content"].(string)
-		encoding, _ := payloadData["encoding"].(string)
-
-		var contentBytes []byte
-		var err error
-
-		if encoding == "base64" {
-			contentBytes, err = base64.StdEncoding.DecodeString(contentStr)
-			if err != nil {
-				s.publishTelemetry("write", path, err, 0)
-				s.publishError(env, "Invalid base64 content")
-				return
-			}
+		var p struct { Path string `json:"path"`; Content string `json:"content"`; Encoding string `json:"encoding"` }
+		if err := json.Unmarshal(rawPayload, &p); err != nil { s.publishError(env, err.Error()); return }
+		var contentBytes []byte; var err error
+		if p.Encoding == "base64" {
+			contentBytes, err = base64.StdEncoding.DecodeString(p.Content)
+			if err != nil { s.publishTelemetry("write", p.Path, err, 0); s.publishError(env, "Invalid base64 content"); return }
 		} else {
-			contentBytes = []byte(contentStr)
+			contentBytes = []byte(p.Content)
 		}
-
-		err = s.vfs.Write(path, contentBytes)
-		s.publishTelemetry("write", path, err, int64(len(contentBytes)))
-		if err != nil {
-			s.publishError(env, err.Error())
-			return
-		}
-		s.publishResponse(env, "vfs:write:result", map[string]interface{}{"success": true, "path": path})
+		err = s.vfs.Write(p.Path, contentBytes)
+		s.publishTelemetry("write", p.Path, err, int64(len(contentBytes)))
+		if err != nil { s.publishError(env, err.Error()); return }
+		s.publishResponse(env, "vfs:write:result", map[string]interface{}{"success": true, "path": p.Path})
 
 	case "vfs:search":
-		query, _ := payloadData["query"].(string)
-		availableFilesData, _ := payloadData["availableFiles"].([]interface{})
-		availableFiles := make([]string, len(availableFilesData))
-		for i, v := range availableFilesData {
-			availableFiles[i] = v.(string)
-		}
-		jsonString, err := s.aiModule.SemanticFileSearch(query, availableFiles)
-		if err != nil {
-			s.publishError(env, err.Error())
-			return
-		}
-		var temp interface{}
-		if err := json.Unmarshal([]byte(jsonString), &temp); err != nil {
-			s.publishError(env, "Failed to unmarshal search results")
-			return
-		}
+		var p struct { Query string `json:"query"`; AvailableFiles []string `json:"availableFiles"` }
+		if err := json.Unmarshal(rawPayload, &p); err != nil { s.publishError(env, err.Error()); return }
+		jsonString, err := s.aiModule.SemanticFileSearch(p.Query, p.AvailableFiles)
+		if err != nil { s.publishError(env, err.Error()); return }
+		var temp interface{}; if err := json.Unmarshal([]byte(jsonString), &temp); err != nil { s.publishError(env, "Failed to unmarshal search results"); return }
 		s.publishResponse(env, "vfs:search:result", temp)
 
 	case "vfs:summarize:code":
-		filePath, _ := payloadData["filePath"].(string)
-		fileContent, err := s.vfs.Read(filePath)
-		if err != nil {
-			s.publishError(env, "Could not read file for summarization: "+err.Error())
-			return
-		}
+		var p struct { FilePath string `json:"filePath"` }
+		if err := json.Unmarshal(rawPayload, &p); err != nil { s.publishError(env, err.Error()); return }
+		fileContent, err := s.vfs.Read(p.FilePath)
+		if err != nil { s.publishError(env, "Could not read file for summarization: "+err.Error()); return }
 		summaryJSON, err := s.aiModule.SummarizeCode(fileContent)
-		if err != nil {
-			s.publishError(env, err.Error())
-			return
-		}
-		var summaryMap map[string]string
-		if err := json.Unmarshal([]byte(summaryJSON), &summaryMap); err != nil {
-			s.publishError(env, "Failed to parse summary JSON")
-			return
-		}
-		s.publishResponse(env, "vfs:summarize:code:result", map[string]interface{}{
-			"summary":  summaryMap["summary"],
-			"filePath": filePath,
-		})
+		if err != nil { s.publishError(env, err.Error()); return }
+		var summaryMap map[string]string; if err := json.Unmarshal([]byte(summaryJSON), &summaryMap); err != nil { s.publishError(env, "Failed to parse summary JSON"); return }
+		s.publishResponse(env, "vfs:summarize:code:result", map[string]interface{}{"summary": summaryMap["summary"], "filePath": p.FilePath})
 
 	default:
 		s.publishError(env, "Unknown VFS topic: "+env.Topic)

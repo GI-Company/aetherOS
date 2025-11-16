@@ -9,7 +9,7 @@ import Window from "@/components/aether-os/window";
 import { App, APPS } from "@/lib/apps";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking, useAether } from "@/firebase";
+import { useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from "@/firebase";
 import AuthForm from "@/firebase/auth/auth-form";
 import { Loader2, PartyPopper } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
@@ -33,14 +33,13 @@ export type WindowInstance = {
     size: { width: number; height: number };
   },
   props?: Record<string, any>; // For passing props to app components
-  isDirty?: boolean; // For tracking unsaved changes in apps like CodeEditor
+  isDirty?: boolean; // For tracking unsaved changes in CodeEditor
 };
 
 export default function Desktop() {
   const { user, isUserLoading } = useUser();
   const { applyTheme } = useTheme();
   const firestore = useFirestore();
-  const aether = useAether();
 
   const userPreferencesRef = useMemoFirebase(() => {
     if (!firestore || !user?.uid || user.isAnonymous) return null;
@@ -499,3 +498,5 @@ export default function Desktop() {
     </div>
   );
 }
+
+    

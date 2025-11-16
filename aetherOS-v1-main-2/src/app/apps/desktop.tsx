@@ -346,29 +346,32 @@ export default function Desktop() {
     }));
   };
   
- const openFile = async (filePath: string, content?: string) => {
-    if (!aether) return;
-    const fileExtension = filePath.split('.').pop()?.toLowerCase();
-    const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+ const openFileOrApp = (appOrPath: App | string, props?: Record<string, any>) => {
+    if (typeof appOrPath === 'string') {
+        const filePath = appOrPath;
+        const fileExtension = filePath.split('.').pop()?.toLowerCase();
+        const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 
-    let appToOpen;
-    let props: Record<string, any> = { fileToOpen: filePath };
+        let appToOpen;
+        let finalProps: Record<string, any> = { ...props };
 
-    if (fileExtension && imageExtensions.includes(fileExtension)) {
-      appToOpen = APPS.find(a => a.id === 'image-viewer');
-      props = { filePath }; // Image viewer takes filePath directly
+        if (fileExtension && imageExtensions.includes(fileExtension)) {
+            appToOpen = APPS.find(a => a.id === 'image-viewer');
+            finalProps.filePath = filePath;
+        } else {
+            appToOpen = APPS.find(a => a.id === 'code-editor');
+            finalProps.fileToOpen = filePath;
+        }
+
+        if (appToOpen) {
+            openApp(appToOpen, finalProps);
+        } else {
+            toast({ title: "Error", description: "Could not find a suitable application to open this file.", variant: "destructive" });
+        }
     } else {
-      appToOpen = APPS.find(a => a.id === 'code-editor');
-      // For code editor, we don't need to pre-fetch content.
-      // The editor will do it when it opens the file.
+        openApp(appOrPath, props);
     }
-
-    if (appToOpen) {
-      openApp(appToOpen, props);
-    } else {
-      toast({ title: "Error", description: "Could not find a suitable application to open this file.", variant: "destructive" });
-    }
-  }
+ }
 
   const onUpgradeSuccess = () => {
     setUpgradeDialogOpen(false);
@@ -453,7 +456,7 @@ export default function Desktop() {
               componentProps.setIsDirty = (isDirty: boolean) => setAppDirtyState(window.id, isDirty);
             }
             if (window.app.id === 'file-explorer' || window.app.id === 'people') {
-              componentProps.onOpenFile = openFile;
+              componentProps.onOpenFile = openFileOrApp;
             }
              if (window.app.id === 'settings' || window.app.id === 'collaboration' || window.app.id === 'people') {
               componentProps.onOpenApp = openApp;
@@ -496,5 +499,3 @@ export default function Desktop() {
     </div>
   );
 }
-
-    

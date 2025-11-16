@@ -54,5 +54,3 @@ export default function PeopleApp({ selectedUserId: initialUserId, onOpenApp, on
     </div>
   );
 }
-
-    

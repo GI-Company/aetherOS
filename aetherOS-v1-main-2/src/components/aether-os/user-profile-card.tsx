@@ -74,7 +74,7 @@ export default function UserProfileCard({ userId, onBack, onOpenFile }: UserProf
     return (
       <div className="flex flex-col items-center justify-center h-full p-4">
         <p className="text-muted-foreground mb-4">User not found.</p>
-        <Button variant="outline" onClick={onBack} className="hidden">
+        <Button variant="outline" onClick={onBack}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to List
         </Button>
@@ -88,7 +88,12 @@ export default function UserProfileCard({ userId, onBack, onOpenFile }: UserProf
 
   const handleOpenVFS = () => {
     if (onOpenFile) {
-      onOpenFile(`users/${userId}`);
+      // The `onOpenFile` in this context is actually the trigger to open an app with a path.
+      // Here, we open the File Explorer to the user's root directory.
+      const fileExplorerApp = APPS.find(app => app.id === 'file-explorer');
+      if (fileExplorerApp && onOpenFile) {
+         (onOpenFile as any)(fileExplorerApp, { filePath: `users/${userId}` });
+      }
     }
   }
 
@@ -146,5 +151,3 @@ export default function UserProfileCard({ userId, onBack, onOpenFile }: UserProf
     </div>
   );
 }
-
-    

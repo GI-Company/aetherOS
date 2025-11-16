@@ -372,5 +372,3 @@ func (m *AIModule) Close() {
 		m.client.Close()
 	}
 }
-
-    

@@ -153,13 +153,8 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 	default: // Handle all other text-based generation topics
 		var payloadData map[string]string
 		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
-			var promptStr string
-			if errStr := json.Unmarshal(rawPayload, &promptStr); errStr == nil {
-				payloadData = map[string]string{"prompt": promptStr}
-			} else {
-				s.publishError(env, "Invalid payload format for AI generation")
-				return
-			}
+			s.publishError(env, "Invalid payload format for AI generation")
+			return
 		}
 
 		prompt, ok := payloadData["prompt"]

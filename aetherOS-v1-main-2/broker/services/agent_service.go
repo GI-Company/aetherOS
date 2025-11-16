@@ -5,7 +5,10 @@ import (
 	"aether/broker/aether"
 	"aether/broker/agent"
 	"encoding/json"
+	"fmt"
 	"log"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +22,7 @@ type AgentService struct {
 	// For this prototype, we'll store graphs and their states in memory.
 	activeGraphs   map[string]*agent.TaskGraph
 	nodeStates     map[string]map[string]*agent.TaskNodeStatus
+	nodeResults    map[string]map[string]any // Stores the 'result' payload from completed nodes. graphId -> nodeId -> result
 	mu             sync.RWMutex
 	graphUpdateSub chan *aether.Envelope
 }
@@ -26,10 +30,10 @@ type AgentService struct {
 // NewAgentService creates a new agent service.
 func NewAgentService(broker *aether.Broker) *AgentService {
 	return &AgentService{
-		broker:       broker,
-		activeGraphs: make(map[string]*agent.TaskGraph),
-		nodeStates:   make(map[string]map[string]*agent.TaskNodeStatus),
-		// A dedicated channel to serialize updates to graphs
+		broker:         broker,
+		activeGraphs:   make(map[string]*agent.TaskGraph),
+		nodeStates:     make(map[string]map[string]*agent.TaskNodeStatus),
+		nodeResults:    make(map[string]map[string]any),
 		graphUpdateSub: make(chan *aether.Envelope, 256),
 	}
 }
@@ -95,6 +99,7 @@ func (s *AgentService) handleGraphCreated(env *aether.Envelope) {
 	s.mu.Lock()
 	s.activeGraphs[graphID] = &payload.TaskGraph
 	s.nodeStates[graphID] = make(map[string]*agent.TaskNodeStatus)
+	s.nodeResults[graphID] = make(map[string]any) // Initialize results map
 	for _, node := range payload.TaskGraph.Nodes {
 		s.nodeStates[graphID][node.ID] = &agent.TaskNodeStatus{
 			NodeID: node.ID,
@@ -113,6 +118,7 @@ func (s *AgentService) handleNodeCompleted(env *aether.Envelope) {
 	var payload struct {
 		GraphID string `json:"graphId"`
 		NodeID  string `json:"nodeId"`
+		Result  any    `json:"result"` // Expect a result field
 	}
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		log.Printf("Agent Service: failed to unmarshal node completed payload: %v", err)
@@ -128,6 +134,7 @@ func (s *AgentService) handleNodeCompleted(env *aether.Envelope) {
 		if s.nodeStates[graphID][nodeID] != nil {
 			s.nodeStates[graphID][nodeID].Status = "completed"
 			s.nodeStates[graphID][nodeID].FinishedAt = time.Now().UnixMilli()
+			s.nodeResults[graphID][nodeID] = payload.Result // Store the result
 		} else {
 			log.Printf("Agent Service: Received completion for unknown node %s in graph %s", nodeID, graphID)
 		}
@@ -170,6 +177,49 @@ func (s *AgentService) handleNodeFailed(env *aether.Envelope) {
 	// Do not run next nodes, the graph is now in a failed state.
 }
 
+// resolveInput resolves template variables in a node's input map.
+func (s *AgentService) resolveInput(graphID string, input map[string]any) (map[string]any, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	resolvedInput := make(map[string]any)
+	re := regexp.MustCompile(`\{\{([a-zA-Z0-9_]+)\.output\}\}`)
+
+	for key, val := range input {
+		if strVal, ok := val.(string); ok {
+			matches := re.FindStringSubmatch(strVal)
+			if len(matches) > 1 {
+				depNodeID := matches[1]
+				depResult, ok := s.nodeResults[graphID][depNodeID]
+				if !ok {
+					return nil, fmt.Errorf("dependency result for node '%s' not found", depNodeID)
+				}
+
+				// The result itself is a map like {"output": "some value"}
+				resultMap, ok := depResult.(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("dependency result for node '%s' is not a map", depNodeID)
+				}
+
+				outputValue, ok := resultMap["output"]
+				if !ok {
+					return nil, fmt.Errorf("dependency result for node '%s' does not have an 'output' key", depNodeID)
+				}
+
+				// Replace the entire string with the output value.
+				// This handles cases where the output is not a string (e.g., a number or boolean).
+				resolvedInput[key] = outputValue
+			} else {
+				resolvedInput[key] = val // No template found, use original value
+			}
+		} else {
+			resolvedInput[key] = val // Not a string, use original value
+		}
+	}
+
+	return resolvedInput, nil
+}
+
 // evaluateAndRunNextNodes checks the graph for nodes that can now be run and triggers them.
 func (s *AgentService) evaluateAndRunNextNodes(graphID string, originalEnv *aether.Envelope) {
 	s.mu.RLock()
@@ -202,10 +252,25 @@ func (s *AgentService) evaluateAndRunNextNodes(graphID string, originalEnv *aeth
 			}
 		}
 	}
-	s.mu.RUnlock()
+	s.mu.RUnlock() // Unlock before potentially long-running operations
 
 	if len(nodesToRun) > 0 {
 		for _, node := range nodesToRun {
+			resolvedInput, err := s.resolveInput(graphID, node.Input)
+			if err != nil {
+				log.Printf("Agent Service: FAILED to resolve inputs for node %s: %v", node.ID, err)
+				// Create a synthetic failure event
+				failureEnv := &aether.Envelope{
+					ID:        uuid.New().String(),
+					Topic:     "agent.tasknode.failed",
+					Type:      "agent_event",
+					Payload:   []byte(fmt.Sprintf(`{"graphId":"%s", "nodeId":"%s", "error":"%s"}`, graphID, node.ID, err.Error())),
+					CreatedAt: time.Now(),
+				}
+				s.handleNodeFailed(failureEnv)
+				continue // Move to the next node, this one has failed.
+			}
+
 			s.mu.Lock()
 			s.nodeStates[graphID][node.ID].Status = "running"
 			s.nodeStates[graphID][node.ID].StartedAt = time.Now().UnixMilli()
@@ -216,7 +281,7 @@ func (s *AgentService) evaluateAndRunNextNodes(graphID string, originalEnv *aeth
 				"graphId": graphID,
 				"nodeId":  node.ID,
 				"tool":    node.Tool,
-				"input":   node.Input, // Pass the full input map
+				"input":   resolvedInput,
 			})
 		}
 	} else if allNodesComplete {
@@ -226,6 +291,7 @@ func (s *AgentService) evaluateAndRunNextNodes(graphID string, originalEnv *aeth
 		s.mu.Lock()
 		delete(s.activeGraphs, graphID)
 		delete(s.nodeStates, graphID)
+		delete(s.nodeResults, graphID)
 		s.mu.Unlock()
 	}
 }
@@ -239,17 +305,46 @@ func (s *AgentService) publish(originalEnv *aether.Envelope, topicName string, p
 		return
 	}
 
+	// For node completion, we need to embed the result as a raw message if it's complex
+	var finalPayload json.RawMessage
+	if topicName == "agent.tasknode.completed" {
+		// The payload for completion is already a map, so we just marshal it
+		finalPayload = payloadBytes
+	} else {
+		finalPayload = payloadBytes
+	}
+
 	responseEnv := &aether.Envelope{
 		ID:          uuid.New().String(),
 		Topic:       topicName,
 		Type:        "agent_event",
 		ContentType: "application/json",
-		Payload:     payloadBytes,
+		Payload:     finalPayload,
 		CreatedAt:   time.Now(),
 	}
 	if originalEnv != nil {
-		responseEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+		metaMap := make(map[string]string)
+		if originalEnv.ID != "" {
+			metaMap["correlationId"] = originalEnv.ID
+		}
+		// Add graphId to all outgoing metadata for easier tracking
+		if graphIDProvider, ok := payload.(map[string]string); ok {
+			if graphID, ok := graphIDProvider["graphId"]; ok {
+				metaMap["graphId"] = graphID
+			}
+		} else if graphIDProvider, ok := payload.(map[string]interface{}); ok {
+			if graphID, ok := graphIDProvider["graphId"].(string); ok {
+				metaMap["graphId"] = graphID
+			}
+		}
+
+		if len(metaMap) > 0 {
+			metaBytes, _ := json.Marshal(metaMap)
+			responseEnv.Meta = metaBytes
+		}
 	}
 
 	responseTopic.Publish(responseEnv)
 }
+
+    

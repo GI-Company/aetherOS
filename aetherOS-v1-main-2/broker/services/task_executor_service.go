@@ -45,7 +45,7 @@ func (s *TaskExecutorService) handleRequest(env *aether.Envelope) {
 		Input   map[string]any `json:"input"`
 	}
 	if err := json.Unmarshal(env.Payload, &payloadData); err != nil {
-		s.publishError(env, "Invalid payload for agent:execute:node: "+err.Error())
+		s.publishError(env, payloadData.GraphID, payloadData.NodeID, "Invalid payload for agent:execute:node: "+err.Error())
 		return
 	}
 
@@ -83,7 +83,7 @@ func (s *TaskExecutorService) handleRequest(env *aether.Envelope) {
 
 	case "vfs:write":
 		path, pathOk := payloadData.Input["path"].(string)
-		content, contentOk := payloadData.Input["content"].(string)
+		content, contentOk := payloadData.Input["content"].(string) // Assume content is now always a string after template resolution
 		if pathOk && contentOk {
 			writeErr := s.vfs.Write(path, []byte(content))
 			if writeErr != nil {
@@ -122,11 +122,7 @@ func (s *TaskExecutorService) handleRequest(env *aether.Envelope) {
 
 	if toolErr != "" {
 		log.Printf("Task Executor: FAILED tool '%s' for node %s: %s", payloadData.Tool, payloadData.NodeID, toolErr)
-		s.publish(env, "agent.tasknode.failed", map[string]string{
-			"graphId": payloadData.GraphID,
-			"nodeId":  payloadData.NodeID,
-			"error":   toolErr,
-		})
+		s.publishError(env, payloadData.GraphID, payloadData.NodeID, toolErr)
 	} else {
 		log.Printf("Task Executor: COMPLETED tool '%s' for node %s", payloadData.Tool, payloadData.NodeID)
 		s.publish(env, "agent.tasknode.completed", map[string]interface{}{
@@ -161,7 +157,12 @@ func (s *TaskExecutorService) publish(originalEnv *aether.Envelope, topicName st
 	responseTopic.Publish(responseEnv)
 }
 
-func (s *TaskExecutorService) publishError(originalEnv *aether.Envelope, errorMsg string) {
-	// This service publishes node failures, not generic errors
-	log.Printf("Task Executor Service: Error in handler: %s", errorMsg)
+func (s *TaskExecutorService) publishError(originalEnv *aether.Envelope, graphId, nodeId, errorMsg string) {
+	s.publish(originalEnv, "agent.tasknode.failed", map[string]string{
+		"graphId": graphId,
+		"nodeId":  nodeId,
+		"error":   errorMsg,
+	})
 }
+
+    

@@ -340,15 +340,15 @@ Return only the raw JSON object.`),
 			resultText += string(txt)
 		}
 	}
-	
+
 	// Clean the response from markdown formatting
-    cleanedJSON := resultText
+	cleanedJSON := resultText
 	if strings.HasPrefix(cleanedJSON, "```json") {
 		cleanedJSON = strings.TrimPrefix(cleanedJSON, "```json")
 		cleanedJSON = strings.TrimSuffix(cleanedJSON, "```")
 	}
 	cleanedJSON = strings.TrimSpace(cleanedJSON)
-	
+
 	// Validate JSON
 	var temp interface{}
 	if err := json.Unmarshal([]byte(cleanedJSON), &temp); err != nil {
@@ -358,7 +358,6 @@ Return only the raw JSON object.`),
 	return cleanedJSON, nil
 }
 
-
 // GenerateImage generates an image from a text prompt.
 func (m *AIModule) GenerateImage(prompt string) (string, error) {
 	// In a real implementation, this would call a text-to-image model.
@@ -366,7 +365,6 @@ func (m *AIModule) GenerateImage(prompt string) (string, error) {
 	// This is a 1x1 transparent GIF.
 	return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", nil
 }
-
 
 // Close releases resources used by the AI module.
 func (m *AIModule) Close() {

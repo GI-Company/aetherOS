@@ -40,6 +40,7 @@ func (s *AIService) Run() {
 		"ai:generate:accent",
 		"ai:summarize:code",
 		"ai:generate:image",
+		"agent:execute:node",
 	}
 
 	for _, topicName := range aiTopics {
@@ -72,6 +73,20 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 
 	// Route based on topic
 	switch env.Topic {
+	case "agent:execute:node":
+		var payloadData map[string]interface{}
+		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
+			s.publishError(env, "Invalid payload for agent:execute:node")
+			return
+		}
+		// In a real implementation, this would dispatch to a tool executor.
+		// For now, we simulate success.
+		log.Printf("Simulating execution for tool: %v", payloadData["tool"])
+		s.publishResponse(env, "agent.tasknode.started", payloadData)
+		time.Sleep(2 * time.Second) // Simulate work
+		s.publishResponse(env, "agent.tasknode.completed", payloadData)
+		return // Exit early as we have handled the full lifecycle here
+
 	case "ai:generate:image":
 		var payloadData struct {
 			Prompt string `json:"prompt"`
@@ -156,10 +171,10 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 				err = unmarshalErr
 			} else {
 				// Publish the created graph to the agent.taskgraph.created topic
-				s.publishResponse(env, temp)
+				s.publishResponse(env, "agent.taskgraph.created", temp)
 			}
 		}
-
+		return // Exit early, response is published separately
 
 	default: // Handle all other text-based generation topics
 		var payloadData map[string]string
@@ -212,22 +227,16 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		s.publishError(env, err.Error())
 		return
 	}
-    
-    // For agent topic, response is published separately.
-    if env.Topic != "ai:agent" {
-	    s.publishResponse(env, responsePayload)
-    }
+
+	// For agent topic, response is published separately.
+	if env.Topic != "ai:agent" {
+		responseTopicName := env.Topic + ":resp"
+		s.publishResponse(env, responseTopicName, responsePayload)
+	}
 }
 
-func (s *AIService) publishResponse(originalEnv *aether.Envelope, payload interface{}) {
-	var responseTopicName string
-	if originalEnv.Topic == "ai:agent" {
-		responseTopicName = "agent.taskgraph.created"
-	} else {
-		responseTopicName = originalEnv.Topic + ":resp"
-	}
-
-	responseTopic := s.broker.GetTopic(responseTopicName)
+func (s *AIService) publishResponse(originalEnv *aether.Envelope, topicName string, payload interface{}) {
+	responseTopic := s.broker.GetTopic(topicName)
 
 	// The payload is already a Go struct/map, json.Marshal will handle it.
 	responsePayloadBytes, err := json.Marshal(payload)
@@ -239,7 +248,7 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, payload interf
 
 	responseEnv := &aether.Envelope{
 		ID:          uuid.New().String(),
-		Topic:       responseTopicName,
+		Topic:       topicName,
 		Type:        "ai_response",
 		ContentType: "application/json",
 		Payload:     responsePayloadBytes, // Already marshaled
@@ -247,7 +256,7 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, payload interf
 		Meta:        []byte(`{"correlationId": "` + originalEnv.ID + `"}`),
 	}
 
-	log.Printf("AI Service publishing response to topic: %s", responseTopicName)
+	log.Printf("AI Service publishing response to topic: %s", topicName)
 	responseTopic.Publish(responseEnv)
 }
 

@@ -2,18 +2,18 @@
 'use client';
 
 import { Bot, GitCommitHorizontal, History, List, Terminal, ChevronRight, Play, Square, RefreshCcw } from 'lucide-react';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAether } from '@/lib/aether_sdk_client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { TaskGraph, TaskGraphEvent, TaskGraphPayload, TaskNode } from '@/lib/agent-types';
+import { TaskGraph, TaskGraphEvent, TaskGraphPayload, TaskNode, TaskNodeStatus } from '@/lib/agent-types';
 
 interface FullTaskGraph extends TaskGraph {
     status: 'pending' | 'running' | 'completed' | 'canceled' | 'failed';
-    nodesStatus: Record<string, any>;
+    nodesStatus: Record<string, TaskNodeStatus>;
 }
 
 export default function AgentConsoleApp() {
@@ -46,16 +46,51 @@ export default function AgentConsoleApp() {
 
              setEvents(prev => [...prev, newEvent]);
 
-             if (envelope.topic === 'agent.taskgraph.created') {
-                const graphPayload = payload as TaskGraphPayload;
-                const newGraph: FullTaskGraph = {
-                    ...graphPayload.taskGraph,
-                    status: 'pending',
-                    nodesStatus: {},
-                };
-                 setTaskGraphs(prev => ({...prev, [newGraph.id]: newGraph}));
-                 setSelectedGraphId(newGraph.id);
-             }
+             setTaskGraphs(prev => {
+                const newGraphs = {...prev};
+                
+                if (envelope.topic === 'agent.taskgraph.created') {
+                    const graphPayload = payload as TaskGraphPayload;
+                    const newGraph: FullTaskGraph = {
+                        ...graphPayload.taskGraph,
+                        status: 'pending',
+                        nodesStatus: graphPayload.taskGraph.nodes.reduce((acc, node) => {
+                            acc[node.id] = { nodeId: node.id, status: 'pending' };
+                            return acc;
+                        }, {} as Record<string, TaskNodeStatus>),
+                    };
+                    newGraphs[newGraph.id] = newGraph;
+                    setSelectedGraphId(newGraph.id);
+                }
+
+                if (envelope.topic.startsWith('agent.taskgraph.')) {
+                    const graphId = payload.taskGraph?.id || payload.graphId;
+                    if (graphId && newGraphs[graphId]) {
+                        if(envelope.topic === 'agent.taskgraph.started') newGraphs[graphId].status = 'running';
+                        if(envelope.topic === 'agent.taskgraph.completed') newGraphs[graphId].status = 'completed';
+                        if(envelope.topic === 'agent.taskgraph.canceled') newGraphs[graphId].status = 'canceled';
+                        if(envelope.topic === 'agent.taskgraph.failed') newGraphs[graphId].status = 'failed';
+                    }
+                }
+                
+                if (envelope.topic.startsWith('agent.tasknode.')) {
+                    const { graphId, nodeId, status, error, logs } = payload;
+                    if (graphId && newGraphs[graphId] && nodeId) {
+                        const nodeStatus = newGraphs[graphId].nodesStatus[nodeId] || { nodeId, status: 'pending' };
+                        if (status) nodeStatus.status = status;
+                        if (error) nodeStatus.error = error;
+                        if (logs) nodeStatus.logs = [...(nodeStatus.logs || []), ...logs];
+                        
+                        if (envelope.topic === 'agent.tasknode.started') nodeStatus.status = 'running';
+                        if (envelope.topic === 'agent.tasknode.completed') nodeStatus.status = 'completed';
+                        if (envelope.topic === 'agent.tasknode.failed') nodeStatus.status = 'failed';
+                        
+                        newGraphs[graphId].nodesStatus[nodeId] = nodeStatus;
+                    }
+                }
+                
+                return newGraphs;
+             });
         };
         
         const subscriptions = topics.map(topic => aether.subscribe(topic, handleEvent));
@@ -67,6 +102,23 @@ export default function AgentConsoleApp() {
     }, [aether]);
 
     const selectedGraph = selectedGraphId ? taskGraphs[selectedGraphId] : null;
+
+    const executeGraph = useCallback(() => {
+        if (!selectedGraph || !aether) return;
+        
+        // In a real implementation, you'd have an orchestrator service.
+        // For now, we'll just execute the first node.
+        const firstNode = selectedGraph.nodes.find(n => n.dependsOn.length === 0);
+        if(firstNode) {
+            aether.publish('agent:execute:node', { 
+                graphId: selectedGraph.id,
+                nodeId: firstNode.id,
+                tool: firstNode.tool,
+                input: firstNode.input 
+            });
+        }
+    }, [selectedGraph, aether]);
+
 
     const renderStatusBadge = (status: string) => {
         const color = {
@@ -123,7 +175,7 @@ export default function AgentConsoleApp() {
                 </div>
                  {selectedGraph && (
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm"><Play className="h-4 w-4 mr-2" /> Execute</Button>
+                        <Button variant="outline" size="sm" onClick={executeGraph}><Play className="h-4 w-4 mr-2" /> Execute</Button>
                         <Button variant="outline" size="sm"><Square className="h-4 w-4 mr-2" /> Cancel</Button>
                         <Button variant="outline" size="sm"><RefreshCcw className="h-4 w-4 mr-2" /> Re-run</Button>
                     </div>
@@ -133,28 +185,31 @@ export default function AgentConsoleApp() {
             {selectedGraph ? (
                 <ScrollArea className="flex-grow">
                     <div className='p-4 space-y-4'>
-                        {selectedGraph.nodes.map(node => (
-                            <Card key={node.id}>
-                                <CardHeader>
-                                    <CardTitle className='flex justify-between items-center'>
-                                        <div className='flex items-center gap-2'>
-                                            <GitCommitHorizontal />
-                                            <span>{node.id}: <span className='font-mono text-accent/80'>{node.tool}</span></span>
-                                        </div>
-                                         {renderStatusBadge('pending')}
-                                    </CardTitle>
-                                    {node.dependsOn.length > 0 && (
-                                        <CardDescription>Depends on: {node.dependsOn.join(', ')}</CardDescription>
-                                    )}
-                                </CardHeader>
-                                <CardContent>
-                                    <p className='text-sm font-medium mb-2'>Inputs:</p>
-                                    <pre className="text-xs whitespace-pre-wrap p-2 bg-muted/50 rounded-sm">
-                                        {JSON.stringify(node.input, null, 2)}
-                                    </pre>
-                                </CardContent>
-                            </Card>
-                        ))}
+                        {selectedGraph.nodes.map(node => {
+                            const nodeStatus = selectedGraph.nodesStatus[node.id] || { status: 'pending' };
+                            return (
+                                <Card key={node.id}>
+                                    <CardHeader>
+                                        <CardTitle className='flex justify-between items-center'>
+                                            <div className='flex items-center gap-2'>
+                                                <GitCommitHorizontal />
+                                                <span>{node.id}: <span className='font-mono text-accent/80'>{node.tool}</span></span>
+                                            </div>
+                                            {renderStatusBadge(nodeStatus.status)}
+                                        </CardTitle>
+                                        {node.dependsOn.length > 0 && (
+                                            <CardDescription>Depends on: {node.dependsOn.join(', ')}</CardDescription>
+                                        )}
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className='text-sm font-medium mb-2'>Inputs:</p>
+                                        <pre className="text-xs whitespace-pre-wrap p-2 bg-muted/50 rounded-sm">
+                                            {JSON.stringify(node.input, null, 2)}
+                                        </pre>
+                                    </CardContent>
+                                </Card>
+                            )
+                        })}
                     </div>
                 </ScrollArea>
             ) : (
@@ -198,3 +253,5 @@ export default function AgentConsoleApp() {
     </div>
   );
 }
+
+    

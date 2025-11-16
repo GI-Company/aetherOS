@@ -4,24 +4,26 @@ package services
 import (
 	"aether/broker/aether"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/google/uuid"
-	"fmt"
 )
 
 // AIService handles AI-related requests from the message bus.
 type AIService struct {
-	broker   *aether.Broker
-	aiModule *aether.AIModule
+	broker      *aether.Broker
+	aiModule    *aether.AIModule
+	permissions *aether.PermissionManager
 }
 
 // NewAIService creates a new AI service.
-func NewAIService(broker *aether.Broker, aiModule *aether.AIModule) *AIService {
+func NewAIService(broker *aether.Broker, aiModule *aether.AIModule, permissions *aether.PermissionManager) *AIService {
 	return &AIService{
-		broker:   broker,
-		aiModule: aiModule,
+		broker:      broker,
+		aiModule:    aiModule,
+		permissions: permissions,
 	}
 }
 
@@ -51,7 +53,21 @@ func (s *AIService) Run() {
 }
 
 func (s *AIService) handleRequest(env *aether.Envelope) {
-	log.Printf("AI Service processing message ID %s on topic %s", env.ID, env.Topic)
+	var meta struct {
+		AppId string `json:"appId"`
+	}
+	if err := json.Unmarshal(env.Meta, &meta); err != nil {
+		s.publishError(env, "Invalid metadata: could not determine origin app")
+		return
+	}
+	appId := meta.AppId
+
+	log.Printf("AI Service processing message ID %s on topic %s from app %s", env.ID, env.Topic, appId)
+
+	if !s.permissions.HasPermission(appId, "ai_access") {
+		s.publishError(env, "Permission denied: ai_access")
+		return
+	}
 
 	var responsePayload interface{}
 	var err error
@@ -162,9 +178,7 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, topicName stri
 		ContentType: "application/json",
 		Payload:     responsePayloadBytes,
 		CreatedAt:   time.Now(),
-	}
-	if originalEnv != nil {
-		responseEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+		Meta:        originalEnv.Meta,
 	}
 
 	log.Printf("AI Service publishing response to topic: %s", topicName)
@@ -185,12 +199,8 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 		ContentType: "application/json",
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now(),
-	}
-	if originalEnv != nil {
-		errorEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+		Meta:        originalEnv.Meta,
 	}
 	log.Printf("AI Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
 }
-
-    

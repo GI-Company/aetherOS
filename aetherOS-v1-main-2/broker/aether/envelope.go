@@ -9,7 +9,6 @@ import (
 // Envelope is the core message used across Aether's broker.
 type Envelope struct {
 	ID          string          `json:"id"` // uuid
-	From        string          `json:"from,omitempty"`
 	To          string          `json:"to,omitempty"`
 	Topic       string          `json:"topic,omitempty"`
 	Type        string          `json:"type,omitempty"`

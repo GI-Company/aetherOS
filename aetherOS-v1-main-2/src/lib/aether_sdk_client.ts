@@ -15,7 +15,6 @@ const FAKE_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmcm9udGVuZC11c
 
 export interface Envelope {
     id: string;
-    from?: string; // App ID
     topic: string;
     payload: any;
     contentType: string;
@@ -105,13 +104,15 @@ export class AetherClient {
   }
 
   async publish(topic: string, payload: any, appId?: string): Promise<void> {
-    const fullEnvelope: Envelope = {
+    const fullEnvelope = {
         id: crypto.randomUUID(),
-        from: appId,
         topic: topic,
         contentType: 'application/json',
         payload: payload,
         createdAt: new Date().toISOString(),
+        meta: {
+            appId: appId || 'system',
+        },
     };
 
     const message = JSON.stringify(fullEnvelope);

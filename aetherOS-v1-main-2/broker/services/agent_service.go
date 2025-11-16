@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strings"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -21,15 +20,17 @@ import (
 // AgentService handles the orchestration of multi-step AI tasks (TaskGraphs).
 type AgentService struct {
 	broker         *aether.Broker
-	firestore      *firestore.Client // Add firestore client
+	firestore      *firestore.Client
+	permissions    *aether.PermissionManager
 	graphUpdateSub chan *aether.Envelope
 }
 
 // NewAgentService creates a new agent service.
-func NewAgentService(broker *aether.Broker, firestore *firestore.Client) *AgentService {
+func NewAgentService(broker *aether.Broker, firestore *firestore.Client, permissions *aether.PermissionManager) *AgentService {
 	return &AgentService{
 		broker:         broker,
 		firestore:      firestore,
+		permissions:    permissions,
 		graphUpdateSub: make(chan *aether.Envelope, 256),
 	}
 }
@@ -375,24 +376,7 @@ func (s *AgentService) publish(originalEnv *aether.Envelope, topicName string, p
 		CreatedAt:   time.Now(),
 	}
 	if originalEnv != nil {
-		metaMap := make(map[string]string)
-		if originalEnv.ID != "" {
-			metaMap["correlationId"] = originalEnv.ID
-		}
-		if graphIDProvider, ok := payload.(map[string]string); ok {
-			if graphID, ok := graphIDProvider["graphId"]; ok {
-				metaMap["graphId"] = graphID
-			}
-		} else if graphIDProvider, ok := payload.(map[string]interface{}); ok {
-			if graphID, ok := graphIDProvider["graphId"].(string); ok {
-				metaMap["graphId"] = graphID
-			}
-		}
-
-		if len(metaMap) > 0 {
-			metaBytes, _ := json.Marshal(metaMap)
-			responseEnv.Meta = metaBytes
-		}
+        responseEnv.Meta = originalEnv.Meta
 	}
 
 	responseTopic.Publish(responseEnv)

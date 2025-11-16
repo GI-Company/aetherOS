@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+    "path/filepath"
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
@@ -42,6 +43,15 @@ func main() {
 	// Initialize the central message broker
 	broker := aether.NewBroker()
 	go broker.Run()
+    
+    // Initialize Permission Manager
+    // This assumes the Go binary is run from the root of the `aetherOS-v1-main-2` directory.
+    // In a real production build, this path would be configured.
+    appsPath := filepath.Join("src", "app", "apps")
+    permissionManager, err := aether.NewPermissionManager(appsPath)
+    if err != nil {
+        log.Fatalf("failed to create permission manager: %v", err)
+    }
 
 	// Initialize VFS Module (backed by Firebase Storage)
 	vfsModule, err := aether.NewVFSModule(app)
@@ -68,19 +78,19 @@ func main() {
 
 
 	// Initialize Services
-	aiService := services.NewAIService(broker, aiModule)
+	aiService := services.NewAIService(broker, aiModule, permissionManager)
 	go aiService.Run()
 
-	vfsService := services.NewVfsService(broker, vfsModule, aiModule)
+	vfsService := services.NewVfsService(broker, vfsModule, aiModule, permissionManager)
 	go vfsService.Run()
 
-	computeService := services.NewComputeService(broker, computeRuntime)
+	computeService := services.NewComputeService(broker, computeRuntime, permissionManager)
 	go computeService.Run()
 
-	agentService := services.NewAgentService(broker, firestoreClient)
+	agentService := services.NewAgentService(broker, firestoreClient, permissionManager)
 	go agentService.Run()
 
-	taskExecutorService := services.NewTaskExecutorService(broker, vfsModule, aiModule)
+	taskExecutorService := services.NewTaskExecutorService(broker, vfsModule, aiModule, permissionManager)
 	go taskExecutorService.Run()
 	
 	telemetryService := services.NewTelemetryService(broker)
@@ -122,5 +132,3 @@ func main() {
 
 	log.Println("Server exiting")
 }
-
-    

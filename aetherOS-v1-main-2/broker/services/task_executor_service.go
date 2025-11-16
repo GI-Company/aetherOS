@@ -4,6 +4,7 @@ package services
 import (
 	"aether/broker/aether"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -12,17 +13,19 @@ import (
 
 // TaskExecutorService handles the actual execution of a single tool from a TaskGraph node.
 type TaskExecutorService struct {
-	broker   *aether.Broker
-	vfs      *aether.VFSModule
-	aiModule *aether.AIModule
+	broker      *aether.Broker
+	vfs         *aether.VFSModule
+	aiModule    *aether.AIModule
+	permissions *aether.PermissionManager
 }
 
 // NewTaskExecutorService creates a new task executor service.
-func NewTaskExecutorService(broker *aether.Broker, vfs *aether.VFSModule, aiModule *aether.AIModule) *TaskExecutorService {
+func NewTaskExecutorService(broker *aether.Broker, vfs *aether.VFSModule, aiModule *aether.AIModule, permissions *aether.PermissionManager) *TaskExecutorService {
 	return &TaskExecutorService{
-		broker:   broker,
-		vfs:      vfs,
-		aiModule: aiModule,
+		broker:      broker,
+		vfs:         vfs,
+		aiModule:    aiModule,
+		permissions: permissions,
 	}
 }
 
@@ -49,75 +52,89 @@ func (s *TaskExecutorService) handleRequest(env *aether.Envelope) {
 		return
 	}
 
+	var meta struct {
+		AppId string `json:"appId"`
+	}
+	if err := json.Unmarshal(env.Meta, &meta); err != nil {
+		s.publishError(env, payloadData.GraphID, payloadData.NodeID, "Invalid metadata: could not determine origin app for permission check")
+		return
+	}
+	appId := meta.AppId
+
 	s.publish(env, "agent.tasknode.started", map[string]string{
 		"graphId": payloadData.GraphID,
 		"nodeId":  payloadData.NodeID,
 	})
 
-	log.Printf("Task Executor: Executing tool '%s' for node %s", payloadData.Tool, payloadData.NodeID)
+	log.Printf("Task Executor: Executing tool '%s' for node %s (requested by app: %s)", payloadData.Tool, payloadData.NodeID, appId)
 
 	var toolResult map[string]any
 	var toolErr string
 
-	switch payloadData.Tool {
-	case "vm:run":
-		if wasm, ok := payloadData.Input["wasmBase64"].(string); ok {
-			// Delegate to the ComputeService by publishing a message
-			s.publish(env, "vm:create", map[string]any{"wasmBase64": wasm})
-			toolResult = map[string]any{"output": "WASM execution started."}
-		} else {
-			toolErr = "Invalid input for vm:run: wasmBase64 must be a string."
-		}
-
-	case "vfs:read":
-		if path, ok := payloadData.Input["path"].(string); ok {
-			content, readErr := s.vfs.Read(path)
-			if readErr != nil {
-				toolErr = readErr.Error()
+	// Check permissions before executing the tool
+	if !s.checkPermissionsForTool(appId, payloadData.Tool) {
+		toolErr = fmt.Sprintf("Permission denied for app '%s' to use tool '%s'", appId, payloadData.Tool)
+	} else {
+		switch payloadData.Tool {
+		case "vm:run":
+			if wasm, ok := payloadData.Input["wasmBase64"].(string); ok {
+				// Delegate to the ComputeService by publishing a message, inheriting metadata
+				s.publish(env, "vm:create", map[string]any{"wasmBase64": wasm})
+				toolResult = map[string]any{"output": "WASM execution started."}
 			} else {
-				toolResult = map[string]any{"output": content}
+				toolErr = "Invalid input for vm:run: wasmBase64 must be a string."
 			}
-		} else {
-			toolErr = "Invalid input for vfs:read: path must be a string."
-		}
 
-	case "vfs:write":
-		path, pathOk := payloadData.Input["path"].(string)
-		content, contentOk := payloadData.Input["content"].(string) // Assume content is now always a string after template resolution
-		if pathOk && contentOk {
-			writeErr := s.vfs.Write(path, []byte(content))
-			if writeErr != nil {
-				toolErr = writeErr.Error()
-			} else {
-				toolResult = map[string]any{"output": "File written successfully."}
-			}
-		} else {
-			toolErr = "Invalid input for vfs:write: path and content must be strings."
-		}
-
-	case "ai:summarize:code":
-		if path, ok := payloadData.Input["filePath"].(string); ok {
-			fileContent, readErr := s.vfs.Read(path)
-			if readErr != nil {
-				toolErr = readErr.Error()
-			} else {
-				summaryJSON, sumErr := s.aiModule.SummarizeCode(fileContent)
-				if sumErr != nil {
-					toolErr = sumErr.Error()
+		case "vfs:read":
+			if path, ok := payloadData.Input["path"].(string); ok {
+				content, readErr := s.vfs.Read(path)
+				if readErr != nil {
+					toolErr = readErr.Error()
 				} else {
-					var summaryMap map[string]string
-					if jsonErr := json.Unmarshal([]byte(summaryJSON), &summaryMap); jsonErr != nil {
-						toolErr = "Failed to parse summary JSON: " + jsonErr.Error()
+					toolResult = map[string]any{"output": content}
+				}
+			} else {
+				toolErr = "Invalid input for vfs:read: path must be a string."
+			}
+
+		case "vfs:write":
+			path, pathOk := payloadData.Input["path"].(string)
+			content, contentOk := payloadData.Input["content"].(string) // Assume content is now always a string after template resolution
+			if pathOk && contentOk {
+				writeErr := s.vfs.Write(path, []byte(content))
+				if writeErr != nil {
+					toolErr = writeErr.Error()
+				} else {
+					toolResult = map[string]any{"output": "File written successfully."}
+				}
+			} else {
+				toolErr = "Invalid input for vfs:write: path and content must be strings."
+			}
+
+		case "ai:summarize:code": // Note: This tool name is kept for backward compatibility with existing graph generation logic
+			if path, ok := payloadData.Input["filePath"].(string); ok {
+				fileContent, readErr := s.vfs.Read(path)
+				if readErr != nil {
+					toolErr = readErr.Error()
+				} else {
+					summaryJSON, sumErr := s.aiModule.SummarizeCode(fileContent)
+					if sumErr != nil {
+						toolErr = sumErr.Error()
 					} else {
-						toolResult = map[string]any{"output": summaryMap["summary"]}
+						var summaryMap map[string]string
+						if jsonErr := json.Unmarshal([]byte(summaryJSON), &summaryMap); jsonErr != nil {
+							toolErr = "Failed to parse summary JSON: " + jsonErr.Error()
+						} else {
+							toolResult = map[string]any{"output": summaryMap["summary"]}
+						}
 					}
 				}
+			} else {
+				toolErr = "Invalid input for ai:summarize:code: filePath must be a string."
 			}
-		} else {
-			toolErr = "Invalid input for ai:summarize:code: filePath must be a string."
+		default:
+			toolErr = "Unknown tool: " + payloadData.Tool
 		}
-	default:
-		toolErr = "Unknown tool: " + payloadData.Tool
 	}
 
 	if toolErr != "" {
@@ -130,6 +147,20 @@ func (s *TaskExecutorService) handleRequest(env *aether.Envelope) {
 			"nodeId":  payloadData.NodeID,
 			"result":  toolResult,
 		})
+	}
+}
+
+func (s *TaskExecutorService) checkPermissionsForTool(appId string, toolName string) bool {
+	switch toolName {
+	case "vfs:read", "ai:summarize:code": // summarize needs to read
+		return s.permissions.HasPermission(appId, "filesystem_read")
+	case "vfs:write":
+		return s.permissions.HasPermission(appId, "filesystem_write")
+	case "vm:run":
+		return s.permissions.HasPermission(appId, "vm_run")
+	default:
+		// By default, deny unknown tools.
+		return false
 	}
 }
 
@@ -149,9 +180,7 @@ func (s *TaskExecutorService) publish(originalEnv *aether.Envelope, topicName st
 		ContentType: "application/json",
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now(),
-	}
-	if originalEnv != nil {
-		responseEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+		Meta:        originalEnv.Meta,
 	}
 
 	responseTopic.Publish(responseEnv)
@@ -164,5 +193,3 @@ func (s *TaskExecutorService) publishError(originalEnv *aether.Envelope, graphId
 		"error":   errorMsg,
 	})
 }
-
-    

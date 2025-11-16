@@ -6,7 +6,9 @@ import (
 	"aether/broker/compute"
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"time"
@@ -14,20 +16,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
-    "encoding/base64"
 )
 
 // ComputeService handles WASM execution requests from the message bus.
 type ComputeService struct {
-	broker  *aether.Broker
-	runtime *compute.WazeroRuntime
+	broker      *aether.Broker
+	runtime     *compute.WazeroRuntime
+	permissions *aether.PermissionManager
 }
 
 // NewComputeService creates a new compute service.
-func NewComputeService(broker *aether.Broker, runtime *compute.WazeroRuntime) *ComputeService {
+func NewComputeService(broker *aether.Broker, runtime *compute.WazeroRuntime, permissions *aether.PermissionManager) *ComputeService {
 	return &ComputeService{
-		broker:  broker,
-		runtime: runtime,
+		broker:      broker,
+		runtime:     runtime,
+		permissions: permissions,
 	}
 }
 
@@ -48,7 +51,21 @@ func (s *ComputeService) Run() {
 }
 
 func (s *ComputeService) handleRequest(env *aether.Envelope) {
-	log.Printf("Compute Service processing message ID %s on topic %s", env.ID, env.Topic)
+	var meta struct {
+		AppId string `json:"appId"`
+	}
+	if err := json.Unmarshal(env.Meta, &meta); err != nil {
+		s.publishError(env, "Invalid metadata: could not determine origin app")
+		return
+	}
+	appId := meta.AppId
+	log.Printf("Compute Service processing message ID %s on topic %s from app %s", env.ID, env.Topic, appId)
+
+	if !s.permissions.HasPermission(appId, "vm_run") {
+		s.publishError(env, "Permission denied: vm_run")
+		return
+	}
+
 	rawPayload := env.Payload
 
 	switch env.Topic {
@@ -102,7 +119,7 @@ func (s *ComputeService) createInstance(originalEnv *aether.Envelope, wasmBase64
 
 	wasmBytes, err := base64.StdEncoding.DecodeString(wasmBase64)
 	if err != nil {
-		s.publishError(originalEnv, "Failed to decode wasm binary: " + err.Error())
+		s.publishError(originalEnv, "Failed to decode wasm binary: "+err.Error())
 		cancel()
 		return
 	}
@@ -123,8 +140,8 @@ func (s *ComputeService) createInstance(originalEnv *aether.Envelope, wasmBase64
 	s.publishResponse(originalEnv, "vm:started", map[string]string{"instanceId": instanceID})
 
 	// Goroutines to stream stdout and stderr
-	go s.streamPipe(instanceID, instance.Stdout(), "vm:stdout")
-	go s.streamPipe(instanceID, instance.Stderr(), "vm:stderr")
+	go s.streamPipe(instanceID, originalEnv, instance.Stdout(), "vm:stdout")
+	go s.streamPipe(instanceID, originalEnv, instance.Stderr(), "vm:stderr")
 
 	// Goroutine to wait for the instance to finish
 	go func() {
@@ -157,17 +174,17 @@ func (s *ComputeService) writeToStdin(originalEnv *aether.Envelope, instanceID s
 	}
 }
 
-func (s *ComputeService) streamPipe(instanceID string, pipe io.ReadCloser, topicName string) {
+func (s *ComputeService) streamPipe(instanceID string, originalEnv *aether.Envelope, pipe io.ReadCloser, topicName string) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
-		s.publishResponse(nil, topicName, map[string]string{
+		s.publishResponse(originalEnv, topicName, map[string]string{
 			"instanceId": instanceID,
 			"data":       scanner.Text(),
 		})
 	}
 	if err := scanner.Err(); err != nil && err != io.EOF {
 		log.Printf("Error reading from pipe for instance %s on topic %s: %v", instanceID, topicName, err)
-		s.publishError(nil, "Error reading from instance pipe: "+err.Error())
+		s.publishError(originalEnv, "Error reading from instance pipe: "+err.Error())
 	}
 }
 
@@ -187,10 +204,7 @@ func (s *ComputeService) publishResponse(originalEnv *aether.Envelope, topicName
 		ContentType: "application/json",
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now(),
-	}
-
-	if originalEnv != nil {
-		responseEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+		Meta:        originalEnv.Meta,
 	}
 
 	responseTopic.Publish(responseEnv)
@@ -201,6 +215,8 @@ func (s *ComputeService) publishError(originalEnv *aether.Envelope, errorMsg str
 	if originalEnv != nil {
 		errorTopicName = originalEnv.Topic + ":error"
 	} else {
+		// This case is for when an error happens in a background stream,
+		// where the original envelope might not be available.
 		errorTopicName = "vm:crashed"
 	}
 
@@ -218,7 +234,7 @@ func (s *ComputeService) publishError(originalEnv *aether.Envelope, errorMsg str
 		CreatedAt:   time.Now(),
 	}
 	if originalEnv != nil {
-		errorEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+		errorEnv.Meta = originalEnv.Meta
 	}
 	log.Printf("Compute Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)

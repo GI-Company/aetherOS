@@ -185,7 +185,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         
         const searchResultItems = results.map((result: any) => {
           const foundFile = allFiles.find(f => f.path === result.path);
-          return foundFile || { name: result.path.split('/').pop()!, type: result.type, path: result.path, size: 0, modTime: new Date() };
+          return foundFile || { name: result.path.split('/').pop()!, isDir: result.type === 'folder', path: result.path, size: 0, modTime: new Date() };
         }) as FileItem[];
 
         setDisplayedFiles(searchResultItems);
@@ -225,9 +225,9 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }
   
   const handleDoubleClick = (file: FileItem) => {
-    if (file.type === 'folder' || file.isDir) {
+    if (file.isDir) {
         navigateToPath(file.path);
-    } else if ((file.type === 'file' || !file.isDir) && onOpenFile) {
+    } else if (onOpenFile) {
       onOpenFile(file.path);
     }
   }
@@ -329,7 +329,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the {itemToDelete?.type} "{itemToDelete?.name}" and all of its contents.
+                    This action cannot be undone. This will permanently delete the item "{itemToDelete?.name}" and all of its contents.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -440,5 +440,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
-
-    

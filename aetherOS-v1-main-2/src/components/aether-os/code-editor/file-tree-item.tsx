@@ -7,11 +7,9 @@ import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FileItem } from '@/lib/types';
 
-export interface FileSystemItem {
-    name: string;
-    path: string;
-    type: 'folder' | 'file';
+export interface FileSystemItem extends FileItem {
     children?: FileSystemItem[];
 }
 
@@ -19,7 +17,7 @@ interface FileTreeItemProps {
     item: FileSystemItem;
     onFileSelect: (filePath: string) => void;
     onCreate: (type: 'file' | 'folder', path: string, name: string) => void;
-    onDelete: (item: FileSystemItem) => void;
+    onDelete: (item: FileItem) => void;
     level?: number;
 }
 
@@ -55,7 +53,7 @@ export default function FileTreeItem({ item, onFileSelect, onCreate, onDelete, l
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState<'file' | 'folder' | null>(null);
 
-    const isFolder = item.type === 'folder';
+    const isFolder = item.isDir;
 
     const handleSelect = () => {
         if (isFolder) {

@@ -10,11 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import FileTreeItem from "./file-tree-item";
 import { cn } from "@/lib/utils";
 import { osEvent } from "@/lib/events";
+import { FileItem } from "@/lib/types";
 
-interface FileSystemItem {
-    name: string;
-    path: string;
-    type: 'folder' | 'file';
+interface FileSystemItem extends FileItem {
     children?: FileSystemItem[];
 }
 
@@ -23,7 +21,7 @@ interface FileTreeProps {
     onFileSelect: (filePath: string) => void;
 }
 
-const buildFileTree = (files: any[], basePath: string): FileSystemItem[] => {
+const buildFileTree = (files: FileItem[], basePath: string): FileSystemItem[] => {
     const allNodes: { [key: string]: FileSystemItem } = {};
     const rootItems: FileSystemItem[] = [];
 
@@ -32,9 +30,7 @@ const buildFileTree = (files: any[], basePath: string): FileSystemItem[] => {
     // First pass: create all nodes and map them by path
     files.forEach(file => {
         allNodes[file.path] = {
-            name: file.name,
-            path: file.path,
-            type: file.isDir ? 'folder' : 'file',
+            ...file,
             children: file.isDir ? [] : undefined,
         };
     });
@@ -59,8 +55,8 @@ const buildFileTree = (files: any[], basePath: string): FileSystemItem[] => {
 
     const sortChildren = (nodes: FileSystemItem[]) => {
         nodes.sort((a, b) => {
-            if (a.type === 'folder' && b.type === 'file') return -1;
-            if (a.type === 'file' && b.type === 'folder') return 1;
+            if (a.isDir && !b.isDir) return -1;
+            if (!a.isDir && b.isDir) return 1;
             return a.name.localeCompare(b.name);
         });
         nodes.forEach(node => {
@@ -148,7 +144,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         toast({ title: `Creating ${type}...`, description: name });
     };
     
-    const handleDelete = async (item: FileSystemItem) => {
+    const handleDelete = async (item: FileItem) => {
        if (!aether) return;
        const confirm = window.confirm(`Are you sure you want to delete ${item.name}?`);
        if (confirm) {

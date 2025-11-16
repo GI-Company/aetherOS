@@ -1,8 +1,10 @@
-
 {
-  "name": "nextn",
-  "version": "0.1.0",
+  "name": "aether-os-shell",
+  "version": "1.0.0",
   "private": true,
+  "description": "The frontend shell for AetherOS, a next-generation AI-native operating system.",
+  "author": "Firebase (google.com)",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "NODE_ENV=production next build",

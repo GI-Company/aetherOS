@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -225,9 +224,9 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   }
   
   const handleDoubleClick = (file: FileItem) => {
-    if (file.type === 'folder') {
+    if (file.type === 'folder' || file.isDir) {
         navigateToPath(file.path);
-    } else if (file.type === 'file' && onOpenFile) {
+    } else if ((file.type === 'file' || !file.isDir) && onOpenFile) {
       onOpenFile(file.path);
     }
   }
@@ -425,5 +424,3 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
-
-    

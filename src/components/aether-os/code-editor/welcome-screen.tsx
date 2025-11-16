@@ -4,10 +4,10 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FolderPlus, FolderOpen, History } from 'lucide-react';
+import { FolderPlus, FolderOpen } from 'lucide-react';
 import { useFirebase } from '@/firebase';
-import { osEvent } from '@/lib/events';
 import { useToast } from '@/hooks/use-toast';
+import { useAppAether } from '@/lib/use-app-aether';
 
 interface WelcomeScreenProps {
     onSelectProject: (path: string) => void;
@@ -16,26 +16,30 @@ interface WelcomeScreenProps {
 export default function WelcomeScreen({ onSelectProject }: WelcomeScreenProps) {
     const { user } = useFirebase();
     const { toast } = useToast();
+    const { publish, subscribe } = useAppAether();
 
     const handleCreateProject = () => {
         if (!user) return;
         const projectName = window.prompt("Enter new project name:");
         if (projectName) {
             const path = `users/${user.uid}/${projectName}`;
-            onSelectProject(path);
-            // We can emit an event to create the placeholder if needed,
-            // or let the file tree handle it on first load.
-            toast({title: "Project Created", description: `Switched to new project: ${projectName}`})
-            osEvent.emit('file-system-change');
+            
+            let sub: (()=>void) | undefined;
+            const handleResult = () => {
+                toast({title: "Project Created", description: `Switched to new project: ${projectName}`})
+                onSelectProject(path);
+                if(sub) sub();
+            }
+            sub = subscribe('vfs:create:folder:result', handleResult);
+            
+            publish('vfs:create:folder', { path: `users/${user.uid}`, name: projectName });
         }
     };
     
     const handleOpenProject = () => {
-        // This is a placeholder. A real implementation might open the File Explorer
-        // in a specific "project selection" mode.
         toast({
             title: "Action Not Implemented",
-            description: "Opening projects from the File Explorer will be supported soon.",
+            description: "Opening projects from the File Explorer will be supported soon. For now, double-click a folder in the File Explorer to open it as a project.",
             variant: "default"
         });
     }
@@ -61,5 +65,3 @@ export default function WelcomeScreen({ onSelectProject }: WelcomeScreenProps) {
         </div>
     );
 }
-
-    

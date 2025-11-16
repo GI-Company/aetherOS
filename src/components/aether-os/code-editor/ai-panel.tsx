@@ -7,8 +7,8 @@ import { useState } from "react";
 import { Wand2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { useAether } from "@/lib/aether_sdk_client";
 import type { EditorFile } from "./editor-tabs";
+import { useAppAether } from "@/lib/use-app-aether";
 
 interface AiPanelProps {
     activeFile: EditorFile | null;
@@ -19,9 +19,9 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState<"generate" | "refactor" | null>(null);
   const { toast } = useToast();
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
 
-  const handleGenerateCode = async () => {
+  const handleGenerateCode = () => {
     if (!prompt) {
       toast({
         title: "Prompt is empty",
@@ -30,69 +30,82 @@ export default function AiPanel({ activeFile, onCodeUpdate }: AiPanelProps) {
       });
       return;
     }
-    if (!aether || !activeFile) {
-      toast({ title: "No active file or Aether client not available", variant: "destructive" });
+    if (!activeFile) {
+      toast({ title: "No active file", variant: "destructive" });
       return;
     }
     
     setIsLoading("generate");
 
-    aether.publish('ai:generate', { prompt: `Given the existing code:\n\n${activeFile.content}\n\nGenerate new code based on this request: ${prompt}` });
-
-    const handleResponse = (env: any) => {
-      // The payload is now the raw code string
-      const cleanedCode = env.payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
-      onCodeUpdate(cleanedCode);
-      setIsLoading(null);
-      aether.subscribe('ai:generate:resp', handleResponse)(); // Unsubscribe
+    publish('ai:generate', { prompt: `Given the existing code:\n\n${activeFile.content}\n\nGenerate new code based on this request: ${prompt}` });
+    
+    let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
+    
+    const cleanup = () => {
+        if (resSub) resSub();
+        if (errSub) errSub();
     };
 
-    const handleError = (env: any) => {
-      console.error("Error generating code:", env.payload.error);
+    const handleResponse = (payload: any) => {
+      const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
+      onCodeUpdate(cleanedCode);
+      setIsLoading(null);
+      cleanup();
+    };
+
+    const handleError = (payload: any) => {
+      console.error("Error generating code:", payload.error);
       toast({
         title: "Generation Failed",
-        description: env.payload.error || "An error occurred while generating code.",
+        description: payload.error || "An error occurred while generating code.",
         variant: "destructive"
       });
       setIsLoading(null);
-      aether.subscribe('ai:generate:error', handleError)(); // Unsubscribe
+      cleanup();
     };
     
-    aether.subscribe('ai:generate:resp', handleResponse);
-    aether.subscribe('ai:generate:error', handleError);
+    resSub = subscribe('ai:generate:resp', handleResponse);
+    errSub = subscribe('ai:generate:error', handleError);
   };
   
-  const handleRefactorCode = async () => {
-    if (!activeFile || !aether) {
-      toast({ title: "No active file or Aether client not available", variant: "destructive" });
+  const handleRefactorCode = () => {
+    if (!activeFile) {
+      toast({ title: "No active file", variant: "destructive" });
       return;
     }
     setIsLoading("refactor");
     
     const refactorPrompt = `Refactor this code to improve its structure, readability, and performance. Keep the functionality the same.\n\nCode:\n${activeFile.content}`;
     
-    aether.publish('ai:generate', { prompt: refactorPrompt });
+    publish('ai:generate', { prompt: refactorPrompt });
+    
+    let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
 
-    const handleResponse = (env: any) => {
-      const cleanedCode = env.payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
-      onCodeUpdate(cleanedCode);
-      setIsLoading(null);
-      aether.subscribe('ai:generate:resp', handleResponse)();
+    const cleanup = () => {
+        if (resSub) resSub();
+        if (errSub) errSub();
     };
 
-    const handleError = (env: any) => {
-      console.error("Error refactoring code:", env.payload.error);
+    const handleResponse = (payload: any) => {
+      const cleanedCode = payload.replace(/```(?:\w+\n)?/g, '').replace(/```/g, '').trim();
+      onCodeUpdate(cleanedCode);
+      setIsLoading(null);
+      cleanup();
+    };
+
+    const handleError = (payload: any) => {
+      console.error("Error refactoring code:", payload.error);
       toast({
         title: "Refactor Failed",
-        description: env.payload.error || "An error occurred during refactoring.",
+        description: payload.error || "An error occurred during refactoring.",
         variant: "destructive"
       });
       setIsLoading(null);
-      aether.subscribe('ai:generate:error', handleError)();
+      cleanup();
     };
     
-    aether.subscribe('ai:generate:resp', handleResponse);
-    aether.subscribe('ai:generate:error', handleError);
+    resSub = subscribe('ai:generate:resp', handleResponse);
+    errSub = subscribe('ai:generate:error', handleError);
   };
 
   return (

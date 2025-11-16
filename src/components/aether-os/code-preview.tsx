@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Skeleton } from '../ui/skeleton';
 import { AlertTriangle, Code2 } from 'lucide-react';
-import { useAether } from '@/lib/aether_sdk_client';
+import { useAppAether } from '@/lib/use-app-aether';
 
 interface CodePreviewProps {
   filePath: string;
@@ -14,62 +14,55 @@ interface CodePreviewProps {
 const summaryCache = new Map<string, string>();
 
 const CodePreview = ({ filePath }: CodePreviewProps) => {
-  const aether = useAether();
+  const { publish, subscribe } = useAppAether();
   const [summary, setSummary] = useState<string | null>(summaryCache.get(filePath) || null);
   const [isLoading, setIsLoading] = useState(!summary);
   const [error, setError] = useState<string | null>(null);
 
-  // Memoize the request ID to ensure we only process the response for the current component instance
-  const requestId = useMemo(() => `summary-${filePath}-${Date.now()}`, [filePath]);
-
   useEffect(() => {
-    if (summary || !aether || !filePath) return;
+    if (summary || !filePath) return;
 
     let isMounted = true;
+    let summarySub: (() => void) | undefined;
+    let errorSub: (() => void) | undefined;
     
-    const handleSummaryResponse = (env: any) => {
-        if (env.payload.filePath === filePath && isMounted) {
-            try {
-                const result = JSON.parse(env.payload.summary);
-                if (result.summary) {
-                    setSummary(result.summary);
-                    summaryCache.set(filePath, result.summary);
-                } else {
-                    setError("Invalid summary format received.");
-                }
-            } catch (e) {
-                setError("Failed to parse summary.");
+    const cleanup = () => {
+        if(summarySub) summarySub();
+        if(errorSub) errorSub();
+    };
+
+    const handleSummaryResponse = (payload: any, envelope: any) => {
+        if (payload.filePath === filePath && isMounted) {
+            if (payload.summary) {
+                setSummary(payload.summary);
+                summaryCache.set(filePath, payload.summary);
+            } else {
+                 setError("Invalid summary format received.");
             }
             setIsLoading(false);
-            unsubscribe();
+            cleanup();
         }
     };
 
-    const handleErrorResponse = (env: any) => {
-        // This is a rough check. Correlation ID would be better.
+    const handleErrorResponse = (payload: any, envelope: any) => {
         if (isMounted) {
-            setError(env.payload.error || 'Summarization failed');
+            setError(payload.error || 'Summarization failed');
             setIsLoading(false);
-            unsubscribe();
+            cleanup();
         }
     };
     
-    const summarySub = aether.subscribe('ai:summarize:code:resp', handleSummaryResponse);
-    const errorSub = aether.subscribe('ai:summarize:code:error', handleErrorResponse);
-
-    const unsubscribe = () => {
-        summarySub();
-        errorSub();
-    };
+    summarySub = subscribe('vfs:summarize:code:result', handleSummaryResponse);
+    errorSub = subscribe('vfs:summarize:code:error', handleErrorResponse);
 
     setIsLoading(true);
-    aether.publish('ai:summarize:code', { filePath });
+    publish('vfs:summarize:code', { filePath });
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      cleanup();
     };
-  }, [filePath, aether, summary, requestId]);
+  }, [filePath, summary, publish, subscribe]);
 
   if (isLoading) {
     return <Skeleton className="w-full h-full p-2 space-y-1">
@@ -103,5 +96,3 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 };
 
 export default CodePreview;
-
-    

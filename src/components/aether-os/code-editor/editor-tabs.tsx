@@ -7,8 +7,8 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { X, Loader2, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAether } from "@/lib/aether_sdk_client";
 import { osEvent } from "@/lib/events";
+import { useAppAether } from "@/lib/use-app-aether";
 
 const MonacoEditor = lazy(() => import("@/components/aether-os/monaco-editor"));
 
@@ -39,8 +39,8 @@ export default function EditorTabs({
 }: EditorTabsProps) {
 
     const activeFile = files.find(f => f.id === activeFileId);
-    const editorRef = useRef<any>(null); // To hold Monaco editor instance
-    const aether = useAether();
+    const editorRef = useRef<any>(null);
+    const { publish, subscribe } = useAppAether();
     const { toast } = useToast();
     const [isSaving, setIsSaving] = React.useState(false);
 
@@ -49,32 +49,40 @@ export default function EditorTabs({
     };
 
     const handleSave = () => {
-        if (!activeFile || !aether) {
-            toast({ title: "Cannot Save", description: "No active file or aether client unavailable.", variant: "destructive" });
+        if (!activeFile) {
+            toast({ title: "Cannot Save", description: "No active file.", variant: "destructive" });
             return;
         }
 
         setIsSaving(true);
         toast({ title: "Saving...", description: `Saving ${activeFile.name}` });
 
-        aether.publish('vfs:write', { path: activeFile.path, content: activeFile.content });
+        let sub: (() => void) | undefined, errSub: (() => void) | undefined;
+        
+        const cleanup = () => {
+            if (sub) sub();
+            if (errSub) errSub();
+        };
 
-        const sub = aether.subscribe('vfs:write:result', (env) => {
-            if (env.payload.path === activeFile.path) { // Match response to the file being saved
+        const handleResult = (payload: any) => {
+            if (payload.path === activeFile.path) {
                 toast({ title: "File Saved!", description: `${activeFile.name} has been saved.` });
                 onSave(activeFile.id);
                 setIsSaving(false);
                 osEvent.emit('file-system-change');
-                sub(); // unsubscribe
+                cleanup();
             }
-        });
-        const errSub = aether.subscribe('vfs:write:error', (env) => {
-            if (env.meta?.correlationId) { // This assumes backend sends correlationId
-                toast({ title: "Save failed", description: env.payload.error, variant: 'destructive'});
-                setIsSaving(false);
-                errSub();
-            }
-        });
+        };
+        const handleError = (payload: any) => {
+            toast({ title: "Save failed", description: payload.error, variant: 'destructive'});
+            setIsSaving(false);
+            cleanup();
+        };
+        
+        sub = subscribe('vfs:write:result', handleResult);
+        errSub = subscribe('vfs:write:error', handleError);
+        
+        publish('vfs:write', { path: activeFile.path, content: activeFile.content });
     };
 
     return (

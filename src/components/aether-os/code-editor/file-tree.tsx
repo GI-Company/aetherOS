@@ -2,18 +2,17 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { useAether } from '@/lib/aether_sdk_client';
 import { Loader2, RefreshCw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import FileTreeItem from "./file-tree-item";
 import { cn } from "@/lib/utils";
+import { osEvent } from "@/lib/events";
+import { FileItem } from "@/lib/types";
+import { useAppAether } from "@/lib/use-app-aether";
 
-interface FileSystemItem {
-    name: string;
-    path: string;
-    type: 'folder' | 'file';
+interface FileSystemItem extends FileItem {
     children?: FileSystemItem[];
 }
 
@@ -22,41 +21,42 @@ interface FileTreeProps {
     onFileSelect: (filePath: string) => void;
 }
 
-const buildFileTree = (files: any[], basePath: string): FileSystemItem[] => {
-    const rootItems: FileSystemItem[] = [];
+const buildFileTree = (files: FileItem[], basePath: string): FileSystemItem[] => {
     const allNodes: { [key: string]: FileSystemItem } = {};
+    const rootItems: FileSystemItem[] = [];
 
     if (!files) return [];
 
-    // Create all nodes
+    // First pass: create all nodes and map them by path
     files.forEach(file => {
-        const node: FileSystemItem = {
-            name: file.name,
-            path: file.path,
-            type: file.isDir ? 'folder' : 'file',
+        allNodes[file.path] = {
+            ...file,
             children: file.isDir ? [] : undefined,
         };
-        allNodes[file.path] = node;
     });
 
-    // Build the tree
+    // Second pass: build the tree structure
     Object.values(allNodes).forEach(node => {
+        // Find the parent path by slicing the string up to the last '/'
         const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
+
         if (parentPath === basePath || (basePath === '/' && parentPath === '')) {
-            if (!rootItems.some(item => item.path === node.path)) {
+            // This is a root item
+             if (!rootItems.some(item => item.path === node.path)) {
                 rootItems.push(node);
             }
         } else if (allNodes[parentPath] && allNodes[parentPath].children) {
+            // This is a child of another folder in the list
             if (!allNodes[parentPath].children!.some(child => child.path === node.path)) {
-                allNodes[parentPath].children!.push(node);
+                 allNodes[parentPath].children!.push(node);
             }
         }
     });
 
     const sortChildren = (nodes: FileSystemItem[]) => {
         nodes.sort((a, b) => {
-            if (a.type === 'folder' && b.type === 'file') return -1;
-            if (a.type === 'file' && b.type === 'folder') return 1;
+            if (a.isDir && !b.isDir) return -1;
+            if (!a.isDir && b.isDir) return 1;
             return a.name.localeCompare(b.name);
         });
         nodes.forEach(node => {
@@ -72,58 +72,100 @@ const buildFileTree = (files: any[], basePath: string): FileSystemItem[] => {
 
 
 export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
-    const aether = useAether();
+    const { publish, subscribe } = useAppAether();
     const [tree, setTree] = useState<FileSystemItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
     const fetchFiles = useCallback(async (path: string) => {
-        if (!aether) return;
         setIsLoading(true);
-        aether.publish('vfs:list', { path });
-    }, [aether]);
+        publish('vfs:list', { path });
+    }, [publish]);
 
     useEffect(() => {
-        if (!aether || !basePath) return;
+        if (!basePath) return;
 
-        const handleFileList = (env: any) => {
-            if (env.payload.path === basePath) {
-                const fileTree = buildFileTree(env.payload.files, basePath);
+        let listSub: (() => void) | undefined;
+
+        const handleFileList = (payload: any) => {
+            if (payload.path === basePath) {
+                const fileTree = buildFileTree(payload.files, basePath);
                 setTree(fileTree);
                 setIsLoading(false);
             }
         };
         
-        const sub = aether.subscribe('vfs:list:result', handleFileList);
+        listSub = subscribe('vfs:list:result', handleFileList);
+        
+        const handleFileSystemChange = () => fetchFiles(basePath);
+        osEvent.on('file-system-change', handleFileSystemChange);
         
         fetchFiles(basePath);
 
-        const mutationSub = aether.subscribe('vfs:delete:result', () => fetchFiles(basePath));
-        const createFileSub = aether.subscribe('vfs:create:file:result', () => fetchFiles(basePath));
-        const createFolderSub = aether.subscribe('vfs:create:folder:result', () => fetchFiles(basePath));
-
         return () => {
-            sub();
-            mutationSub();
-            createFileSub();
-            createFolderSub();
+            if(listSub) listSub();
+            osEvent.off('file-system-change', handleFileSystemChange);
         };
 
-    }, [aether, basePath, fetchFiles]);
+    }, [basePath, fetchFiles, subscribe]);
 
 
     const handleCreate = async (type: 'file' | 'folder', path: string, name: string) => {
-        if (!aether || !name) return;
+        if (!name) return;
+        
+        let sub: (() => void) | undefined, errSub: (() => void) | undefined;
+        
+        const cleanup = () => {
+            if (sub) sub();
+            if (errSub) errSub();
+        };
+
+        const handleResult = () => {
+            toast({ title: `${type.charAt(0).toUpperCase() + type.slice(1)} Created`, description: name });
+            osEvent.emit('file-system-change');
+            cleanup();
+        };
+
+        const handleError = (payload: any) => {
+            toast({ title: 'Creation failed', description: payload.error, variant: 'destructive'});
+            cleanup();
+        };
+        
         const topic = `vfs:create:${type}`;
-        aether.publish(topic, {path, name});
+        const resultTopic = `${topic}:result`;
+        const errorTopic = `${topic}:error`;
+        
+        sub = subscribe(resultTopic, handleResult);
+        errSub = subscribe(errorTopic, handleError);
+
+        publish(topic, {path, name});
         toast({ title: `Creating ${type}...`, description: name });
     };
     
-    const handleDelete = async (item: FileSystemItem) => {
-       if (!aether) return;
+    const handleDelete = async (item: FileItem) => {
        const confirm = window.confirm(`Are you sure you want to delete ${item.name}?`);
        if (confirm) {
-           aether.publish('vfs:delete', { path: item.path });
+           let sub: (() => void) | undefined, errSub: (() => void) | undefined;
+           
+           const cleanup = () => {
+               if(sub) sub();
+               if(errSub) errSub();
+           };
+           
+           const handleResult = () => {
+               toast({ title: 'Deleted', description: item.name });
+               osEvent.emit('file-system-change');
+               cleanup();
+           };
+            const handleError = (payload: any) => {
+               toast({ title: 'Delete failed', description: payload.error, variant: 'destructive'});
+               cleanup();
+            };
+
+           sub = subscribe('vfs:delete:result', handleResult);
+           errSub = subscribe('vfs:delete:error', handleError);
+
+           publish('vfs:delete', { path: item.path });
            toast({ title: `Deleting...`, description: item.name });
        }
     };

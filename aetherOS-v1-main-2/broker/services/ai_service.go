@@ -3,7 +3,6 @@ package services
 
 import (
 	"aether/broker/aether"
-	"encoding/base64"
 	"encoding/json"
 	"log"
 	"strings"
@@ -73,33 +72,77 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 	switch env.Topic {
 	case "agent:execute:node":
 		var payloadData struct {
-			GraphID string `json:"graphId"`
-			NodeID  string `json:"nodeId"`
-			Tool    string `json:"tool"`
+			GraphID string         `json:"graphId"`
+			NodeID  string         `json:"nodeId"`
+			Tool    string         `json:"tool"`
+			Input   map[string]any `json:"input"`
 		}
 		if err = json.Unmarshal(rawPayload, &payloadData); err != nil {
 			s.publishError(env, "Invalid payload for agent:execute:node")
 			return
 		}
 
-		// This is a simplified tool executor. In a real system, this would
-		// dispatch to different services (VFS, Compute, etc.) based on the tool.
-		log.Printf("Simulating execution for tool: %s (Node: %s)", payloadData.Tool, payloadData.NodeID)
-
-		// Publish 'started' event
 		s.publishResponse(env, "agent.tasknode.started", map[string]string{
 			"graphId": payloadData.GraphID,
 			"nodeId":  payloadData.NodeID,
 		})
 
-		time.Sleep(2 * time.Second) // Simulate work
+		var toolResult map[string]any
+		toolErr := "Unknown tool: " + payloadData.Tool
 
-		// Publish 'completed' event
-		s.publishResponse(env, "agent.tasknode.completed", map[string]interface{}{
-			"graphId": payloadData.GraphID,
-			"nodeId":  payloadData.NodeID,
-			"result":  map[string]string{"output": "Simulated result for " + payloadData.Tool},
-		})
+		switch payloadData.Tool {
+		case "vfs:read":
+			if path, ok := payloadData.Input["path"].(string); ok {
+				content, readErr := s.vfs.Read(path)
+				if readErr != nil {
+					toolErr = readErr.Error()
+				} else {
+					toolResult = map[string]any{"output": content}
+					toolErr = ""
+				}
+			}
+		case "vfs:write":
+			path, pathOk := payloadData.Input["path"].(string)
+			content, contentOk := payloadData.Input["content"].(string)
+			if pathOk && contentOk {
+				writeErr := s.vfs.Write(path, []byte(content))
+				if writeErr != nil {
+					toolErr = writeErr.Error()
+				} else {
+					toolResult = map[string]any{"output": "File written successfully."}
+					toolErr = ""
+				}
+			}
+		case "ai:summarize:code":
+			if path, ok := payloadData.Input["filePath"].(string); ok {
+				fileContent, readErr := s.vfs.Read(path)
+				if readErr != nil {
+					toolErr = readErr.Error()
+				} else {
+					summaryJSON, sumErr := s.aiModule.SummarizeCode(fileContent)
+					if sumErr != nil {
+						toolErr = sumErr.Error()
+					} else {
+						toolResult = map[string]any{"output": summaryJSON}
+						toolErr = ""
+					}
+				}
+			}
+		}
+
+		if toolErr != "" {
+			s.publishResponse(env, "agent.tasknode.failed", map[string]string{
+				"graphId": payloadData.GraphID,
+				"nodeId":  payloadData.NodeID,
+				"error":   toolErr,
+			})
+		} else {
+			s.publishResponse(env, "agent.tasknode.completed", map[string]interface{}{
+				"graphId": payloadData.GraphID,
+				"nodeId":  payloadData.NodeID,
+				"result":  toolResult,
+			})
+		}
 		return // Exit early as we have handled the full lifecycle here
 
 	case "ai:generate:image":
@@ -155,14 +198,9 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 		if sumErr != nil {
 			err = sumErr
 		} else {
-			var summaryData map[string]string
-			if jsonErr := json.Unmarshal([]byte(summaryJSON), &summaryData); jsonErr != nil {
-				err = jsonErr
-			} else {
-				responsePayload = map[string]interface{}{
-					"summary":  summaryData["summary"],
-					"filePath": payloadData.FilePath,
-				}
+			responsePayload = map[string]interface{}{
+				"summary":  summaryJSON,
+				"filePath": payloadData.FilePath,
 			}
 		}
 
@@ -183,7 +221,6 @@ func (s *AIService) handleRequest(env *aether.Envelope) {
 			if unmarshalErr := json.Unmarshal([]byte(graphJSON), &temp); unmarshalErr != nil {
 				err = unmarshalErr
 			} else {
-				// The agent service will now listen for this event to register the graph.
 				s.publishResponse(env, "agent.taskgraph.created", temp)
 			}
 		}
@@ -262,7 +299,9 @@ func (s *AIService) publishResponse(originalEnv *aether.Envelope, topicName stri
 		ContentType: "application/json",
 		Payload:     responsePayloadBytes,
 		CreatedAt:   time.Now(),
-		Meta:        []byte(`{"correlationId": "` + originalEnv.ID + `"}`),
+	}
+	if originalEnv != nil {
+		responseEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
 	}
 
 	log.Printf("AI Service publishing response to topic: %s", topicName)
@@ -283,13 +322,12 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 		ContentType: "application/json",
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now(),
-		Meta:        []byte(`{"correlationId": "` + originalEnv.ID + `"}`),
+	}
+	if originalEnv != nil {
+		errorEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
 	}
 	log.Printf("AI Service publishing error to topic: %s", errorTopicName)
 	errorTopic.Publish(errorEnv)
 }
 
-func isBase64(s string) bool {
-	_, err := base64.StdEncoding.DecodeString(s)
-	return err == nil
-}
+    

@@ -24,32 +24,35 @@ interface FileTreeProps {
 }
 
 const buildFileTree = (files: any[], basePath: string): FileSystemItem[] => {
-    const rootItems: FileSystemItem[] = [];
     const allNodes: { [key: string]: FileSystemItem } = {};
+    const rootItems: FileSystemItem[] = [];
 
     if (!files) return [];
 
-    // Create all nodes
+    // First pass: create all nodes and map them by path
     files.forEach(file => {
-        const node: FileSystemItem = {
+        allNodes[file.path] = {
             name: file.name,
             path: file.path,
             type: file.isDir ? 'folder' : 'file',
             children: file.isDir ? [] : undefined,
         };
-        allNodes[file.path] = node;
     });
 
-    // Build the tree
+    // Second pass: build the tree structure
     Object.values(allNodes).forEach(node => {
+        // Find the parent path by slicing the string up to the last '/'
         const parentPath = node.path.substring(0, node.path.lastIndexOf('/'));
+
         if (parentPath === basePath || (basePath === '/' && parentPath === '')) {
-            if (!rootItems.some(item => item.path === node.path)) {
+            // This is a root item
+             if (!rootItems.some(item => item.path === node.path)) {
                 rootItems.push(node);
             }
         } else if (allNodes[parentPath] && allNodes[parentPath].children) {
+            // This is a child of another folder in the list
             if (!allNodes[parentPath].children!.some(child => child.path === node.path)) {
-                allNodes[parentPath].children!.push(node);
+                 allNodes[parentPath].children!.push(node);
             }
         }
     });
@@ -104,7 +107,7 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         fetchFiles(basePath);
 
         return () => {
-            listSub();
+            if(listSub) listSub();
             osEvent.off('file-system-change', handleFileSystemChange);
         };
 
@@ -196,3 +199,5 @@ export default function FileTree({ basePath, onFileSelect }: FileTreeProps) {
         </div>
     );
 }
+
+    

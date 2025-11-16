@@ -272,8 +272,18 @@ func (m *AIModule) SummarizeCode(code string) (string, error) {
 			resultText += string(txt)
 		}
 	}
-	return resultText, nil
+
+	// Clean the response
+	cleanedJSON := resultText
+	if strings.HasPrefix(cleanedJSON, "```json") {
+		cleanedJSON = strings.TrimPrefix(cleanedJSON, "```json")
+		cleanedJSON = strings.TrimSuffix(cleanedJSON, "```")
+	}
+	cleanedJSON = strings.TrimSpace(cleanedJSON)
+	
+	return cleanedJSON, nil
 }
+
 
 // GenerateTaskGraph generates a multi-step task plan from a user prompt.
 func (m *AIModule) GenerateTaskGraph(prompt string) (string, error) {
@@ -291,14 +301,14 @@ func (m *AIModule) GenerateTaskGraph(prompt string) (string, error) {
 - You can reference the output of a previous step using the handlebars-style syntax '{{step_id.output}}'.
 
 Available Tools:
-- 'file.write': Writes content to a file.
+- 'vfs:write': Writes content to a file.
   - Input: { "path": string, "content": string }
-- 'web.search': Searches the web for information.
-  - Input: { "query": string }
-- 'file.read': Reads the content of a file.
+- 'vfs:read': Reads the content of a file.
   - Input: { "path": string }
-- 'file.list': Lists the files in a directory.
+- 'vfs:list': Lists the files in a directory.
   - Input: { "path": string }
+- 'ai:summarize:code': Summarizes a code file.
+  - Input: { "filePath": string }
 
 Example User Prompt: "Research the latest news about WebAssembly and save it to a file called wasm_news.md"
 
@@ -315,7 +325,7 @@ Example Output:
       },
       {
         "id": "step2",
-        "tool": "file.write",
+        "tool": "vfs:write",
         "input": { "path": "/home/user/documents/wasm_news.md", "content": "{{step1.output}}" },
         "dependsOn": ["step1"]
       }
@@ -372,3 +382,5 @@ func (m *AIModule) Close() {
 		m.client.Close()
 	}
 }
+
+    

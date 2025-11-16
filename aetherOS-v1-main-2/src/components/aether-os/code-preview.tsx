@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Skeleton } from '../ui/skeleton';
 import { AlertTriangle, Code2 } from 'lucide-react';
 import { useAether } from '@/lib/aether_sdk_client';
@@ -28,15 +28,21 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
     
     const handleSummaryResponse = (payload: any) => {
         if (payload.filePath === filePath && isMounted) {
-            if (payload.summary) {
-                setSummary(payload.summary);
-                summaryCache.set(filePath, payload.summary);
-            } else {
-                setError("Invalid summary format received.");
+            try {
+                const result = JSON.parse(payload.summary);
+                if (result.summary) {
+                    setSummary(result.summary);
+                    summaryCache.set(filePath, result.summary);
+                } else {
+                     setError("Invalid summary format received.");
+                }
+            } catch (e) {
+                 setError("Failed to parse summary.");
+            } finally {
+                setIsLoading(false);
+                if(summarySub) summarySub();
+                if(errorSub) errorSub();
             }
-            setIsLoading(false);
-            if(summarySub) summarySub();
-            if(errorSub) errorSub();
         }
     };
 
@@ -94,3 +100,5 @@ const CodePreview = ({ filePath }: CodePreviewProps) => {
 };
 
 export default CodePreview;
+
+    

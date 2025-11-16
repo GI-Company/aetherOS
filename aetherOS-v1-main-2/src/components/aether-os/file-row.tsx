@@ -25,7 +25,6 @@ const FileRow = ({ file, onDoubleClick, onDelete }: FileRowProps) => {
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
 
   const isImage = file.type === 'file' && /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
-  // Only attempt to generate code previews for specific known text-based file types
   const isCode = file.type === 'file' && /\.(ts|tsx|js|jsx|json|css|md)$/i.test(file.name);
 
   useEffect(() => {
@@ -102,3 +101,5 @@ const FileRow = ({ file, onDoubleClick, onDelete }: FileRowProps) => {
 }
 
 export default FileRow;
+
+    

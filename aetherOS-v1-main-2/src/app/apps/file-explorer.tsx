@@ -178,6 +178,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     
     aether.publish('ai:search:files', { query, availableFiles: allFiles.map(f => f.path) });
     
+    let resSub: (() => void) | undefined, errSub: (() => void) | undefined;
+    
     const handleResponse = (payload: any) => {
         const results = payload.results || [];
         
@@ -204,8 +206,8 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         if (errSub) errSub();
     };
 
-    const resSub = aether.subscribe('ai:search:files:resp', handleResponse);
-    const errSub = aether.subscribe('ai:search:files:error', handleError);
+    resSub = aether.subscribe('ai:search:files:resp', handleResponse);
+    errSub = aether.subscribe('ai:search:files:error', handleError);
 
   }, [allFiles, toast, aether]);
 
@@ -248,14 +250,15 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     reader.onload = () => {
       const base64Content = reader.result?.toString().split(',')[1];
       if (base64Content) {
-        aether.publish('vfs:write', { path: `${currentPath}/${file.name}`, content: base64Content, encoding: 'base64' });
-
-        const sub = aether.subscribe('vfs:write:result', () => {
+        let sub: (() => void) | undefined;
+        sub = aether.subscribe('vfs:write:result', () => {
           toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
           setIsUploading(false);
           refresh();
           if (sub) sub();
         });
+        aether.publish('vfs:write', { path: `${currentPath}/${file.name}`, content: base64Content, encoding: 'base64' });
+
       }
     };
     reader.onerror = () => {
@@ -268,7 +271,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
       if (!name || !user || !creatingItemType || !aether) return;
       const topic = `vfs:create:${creatingItemType}`;
       aether.publish(topic, {path: currentPath, name});
-      setCreatingItemType(null);
+      // The useEffect subscription will handle the refresh
   }
 
   const confirmDelete = () => {
@@ -422,3 +425,5 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
+
+    

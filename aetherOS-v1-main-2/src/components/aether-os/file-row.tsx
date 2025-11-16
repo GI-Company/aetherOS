@@ -80,7 +80,7 @@ const FileRow = ({ file, onDoubleClick, onDelete }: FileRowProps) => {
         <span>{file.name}</span>
       </TableCell>
       <TableCell>{file.type === 'file' ? formatBytes(file.size) : '--'}</TableCell>
-      <TableCell className="hidden md:table-cell">{format(new Date(file.modTime), "PPp")}</TableCell>
+      <TableCell className="hidden md:table-cell">{format(file.modTime, "PPp")}</TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
             <DropdownMenuTrigger asChild>

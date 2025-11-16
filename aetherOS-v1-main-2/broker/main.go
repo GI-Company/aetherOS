@@ -85,12 +85,6 @@ func main() {
 	computeService := services.NewComputeService(broker, computeRuntime, permissionManager)
 	go computeService.Run()
 
-	agentService := services.NewAgentService(broker, firestoreClient, permissionManager)
-	go agentService.Run()
-
-	taskExecutorService := services.NewTaskExecutorService(broker, vfsModule, aiModule, permissionManager)
-	go taskExecutorService.Run()
-
 	telemetryService := services.NewTelemetryService(broker)
 	go telemetryService.Run()
 

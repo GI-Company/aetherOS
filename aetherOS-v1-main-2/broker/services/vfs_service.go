@@ -263,3 +263,4 @@ func (s *VfsService) publishError(originalEnv *aether.Envelope, errorMsg string)
 	errorTopic.Publish(errorEnv)
 }
 
+    

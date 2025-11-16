@@ -68,7 +68,7 @@ func main() {
 
 
 	// Initialize Services
-	aiService := services.NewAIService(broker, aiModule, vfsModule)
+	aiService := services.NewAIService(broker, aiModule)
 	go aiService.Run()
 
 	vfsService := services.NewVfsService(broker, vfsModule, aiModule)
@@ -123,3 +123,4 @@ func main() {
 	log.Println("Server exiting")
 }
 
+    

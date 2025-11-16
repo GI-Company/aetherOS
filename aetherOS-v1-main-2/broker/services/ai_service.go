@@ -8,21 +8,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"fmt"
 )
 
 // AIService handles AI-related requests from the message bus.
 type AIService struct {
 	broker   *aether.Broker
 	aiModule *aether.AIModule
-	vfs      *aether.VFSModule // No longer needed here
 }
 
 // NewAIService creates a new AI service.
-func NewAIService(broker *aether.Broker, aiModule *aether.AIModule, vfs *aether.VFSModule) *AIService {
+func NewAIService(broker *aether.Broker, aiModule *aether.AIModule) *AIService {
 	return &AIService{
 		broker:   broker,
 		aiModule: aiModule,
-		vfs:      vfs,
 	}
 }
 
@@ -194,3 +193,4 @@ func (s *AIService) publishError(originalEnv *aether.Envelope, errorMsg string) 
 	errorTopic.Publish(errorEnv)
 }
 
+    

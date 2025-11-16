@@ -5,9 +5,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAether } from '@/lib/aether_sdk_client';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
+import { TaskGraphEvent } from '@/lib/agent-types';
 
 type HistoryItem = {
-  type: 'command' | 'response' | 'system';
+  type: 'command' | 'response' | 'system' | 'agent';
   content: string;
 };
 
@@ -16,13 +17,12 @@ export default function VmTerminalApp() {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<HistoryItem[]>(() => [
     { type: 'response', content: 'AetherOS Natural Language Shell [Version 1.0.0]' },
-    { type: 'response', content: 'Use natural language to interact with the OS. Try "open the browser" or "what is AetherOS?"' },
+    { type: 'response', content: 'Use natural language to interact with the OS. Try "Summarize my main layout file and save it to summary.md"' },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const endOfHistoryRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Simplified user/host for demo purposes
   const username = 'user';
   const hostname = 'aether-ai';
   const prompt = `${username}@${hostname}:~$`;
@@ -34,6 +34,55 @@ export default function VmTerminalApp() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Listen for agent events to provide real-time feedback
+  useEffect(() => {
+    if (!aether) return;
+
+    const agentTopics = [
+      "agent.taskgraph.created", "agent.taskgraph.started",
+      "agent.taskgraph.completed", "agent.taskgraph.failed",
+      "agent.tasknode.started", "agent.tasknode.completed", "agent.tasknode.failed"
+    ];
+
+    const handleAgentEvent = (payload: any, envelope: TaskGraphEvent) => {
+        let message = '';
+        switch(envelope.topic) {
+            case 'agent.taskgraph.created':
+                message = `[Agent] Task graph created. Starting execution...`;
+                break;
+            case 'agent.taskgraph.started':
+                message = `[Agent] Executing ${payload.graphId}...`;
+                break;
+            case 'agent.taskgraph.completed':
+                message = `[Agent] Task completed successfully.`;
+                setIsLoading(false);
+                break;
+            case 'agent.taskgraph.failed':
+                message = `[Agent] Task failed: ${payload.error}`;
+                setIsLoading(false);
+                break;
+            case 'agent.tasknode.started':
+                message = `[Node: ${payload.nodeId}] Running tool: ${payload.tool}...`;
+                break;
+            case 'agent.tasknode.completed':
+                message = `[Node: ${payload.nodeId}] Completed.`;
+                break;
+            case 'agent.tasknode.failed':
+                message = `[Node: ${payload.nodeId}] Failed: ${payload.error}`;
+                break;
+        }
+        if (message) {
+            setHistory(prev => [...prev, { type: 'agent', content: message }]);
+        }
+    };
+
+    const subscriptions = agentTopics.map(topic => aether.subscribe(topic, handleAgentEvent));
+
+    return () => {
+        subscriptions.forEach(unsubscribe => unsubscribe());
+    };
+  }, [aether]);
 
   const handleCommand = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -48,24 +97,8 @@ export default function VmTerminalApp() {
     setInput('');
     setIsLoading(true);
 
-    aether.publish('ai:generate', command);
-
-    const handleResponse = (payload: any) => {
-      setHistory(prev => [...prev, { type: 'response', content: payload }]);
-      setIsLoading(false);
-      if (resSub) resSub();
-      if (errSub) errSub();
-    };
-
-    const handleError = (payload: any) => {
-       setHistory(prev => [...prev, { type: 'response', content: `Error: ${payload.error}` }]);
-       setIsLoading(false);
-       if (resSub) resSub();
-       if (errSub) errSub();
-    };
-    
-    const resSub = aether.subscribe('ai:generate:resp', handleResponse);
-    const errSub = aether.subscribe('ai:generate:error', handleError);
+    // Publish to the agent topic to trigger a TaskGraph
+    aether.publish('ai:agent', { prompt: command });
   };
   
   const handleTerminalClick = () => {
@@ -81,26 +114,33 @@ export default function VmTerminalApp() {
         <div key={index} className={cn('whitespace-pre-wrap break-words', {
             'text-green-400': item.type === 'command',
             'text-cyan-400': item.type === 'system',
+            'text-yellow-400': item.type === 'agent',
         })}>
           {item.content}
         </div>
       ))}
 
-      <form onSubmit={handleCommand} className="flex">
-        <span className="text-green-400">{prompt}</span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="flex-grow bg-transparent text-white outline-none pl-2"
-          autoComplete="off"
-          autoCapitalize="off"
-          autoCorrect="off"
-          disabled={isLoading}
-        />
-        {isLoading && <Loader2 className="h-4 w-4 ml-2 animate-spin" />}
-      </form>
+      { isLoading ? (
+         <div className="flex items-center">
+            <span className="text-yellow-400 mr-2">[Agent] Processing...</span>
+            <Loader2 className="h-4 w-4 text-yellow-400 animate-spin" />
+        </div>
+      ) : (
+        <form onSubmit={handleCommand} className="flex">
+            <span className="text-green-400">{prompt}</span>
+            <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="flex-grow bg-transparent text-white outline-none pl-2"
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+            disabled={isLoading}
+            />
+        </form>
+      )}
       <div ref={endOfHistoryRef} />
     </div>
   );

@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Wand2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import type { EditorFile } from "./code-editor/editor-tabs";
+import type { EditorFile } from "@/app/apps/code-editor/editor-tabs";
 import { useAppAether } from "../../lib/use-app-aether";
 
 interface AiPanelProps {

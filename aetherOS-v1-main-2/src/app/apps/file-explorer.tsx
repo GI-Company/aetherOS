@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -144,24 +145,24 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         }
     };
     
-    const handleMutationResult = () => {
-        setIsDeleting(false);
-        setItemToDelete(null);
-        setCreatingItemType(null);
-        refresh();
+    // This handles local mutations and direct refreshes
+    const listSub = aether.subscribe('vfs:list:result', handleFileList);
+    
+    // This handles global file system changes from other apps
+    const handleVFSTelemetry = (payload: any) => {
+        // A VFS operation happened somewhere. If it's in our current path, refresh.
+        const eventPath = payload.payload?.path;
+        if (eventPath && (eventPath.startsWith(currentPath) || currentPath.startsWith(eventPath))) {
+            refresh();
+        }
     };
-
-    const subs = [
-      aether.subscribe('vfs:list:result', handleFileList),
-      aether.subscribe('vfs:delete:result', handleMutationResult),
-      aether.subscribe('vfs:create:file:result', handleMutationResult),
-      aether.subscribe('vfs:create:folder:result', handleMutationResult),
-    ];
+    const telemetrySub = aether.subscribe('telemetry:vfs', handleVFSTelemetry);
     
     refresh();
 
     return () => {
-      subs.forEach(sub => sub && sub());
+      listSub();
+      telemetrySub();
     };
   }, [aether, currentPath, refresh]);
 
@@ -253,7 +254,7 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
         sub = aether.subscribe('vfs:write:result', () => {
           toast({ title: "Upload Complete", description: `${file.name} has been uploaded.` });
           setIsUploading(false);
-          refresh();
+          // Telemetry event will trigger the refresh now
           if (sub) sub();
         });
         aether.publish('vfs:write', { path: `${currentPath}/${file.name}`, content: base64Content, encoding: 'base64' });
@@ -269,13 +270,28 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
   const handleCreate = async (name: string) => {
       if (!name || !user || !creatingItemType || !aether) return;
       const topic = `vfs:create:${creatingItemType}`;
+      
+      let sub: (() => void) | undefined;
+      sub = aether.subscribe(`${topic}:result`, () => {
+        setCreatingItemType(null);
+        // Telemetry will handle the refresh
+        if (sub) sub();
+      });
       aether.publish(topic, {path: currentPath, name});
-      // The useEffect subscription will handle the refresh
   }
 
   const confirmDelete = () => {
     if (!itemToDelete || !aether) return;
     setIsDeleting(true);
+
+    let sub: (() => void) | undefined;
+    sub = aether.subscribe('vfs:delete:result', () => {
+        setIsDeleting(false);
+        setItemToDelete(null);
+        // Telemetry will handle the refresh
+        if (sub) sub();
+    });
+
     aether.publish('vfs:delete', { path: itemToDelete.path });
   };
   
@@ -424,3 +440,5 @@ export default function FileExplorerApp({ onOpenFile, searchQuery: initialSearch
     </>
   );
 }
+
+    

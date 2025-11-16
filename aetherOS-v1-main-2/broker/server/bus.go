@@ -85,3 +85,8 @@ func (s *BusServer) handleWSGateway(w http.ResponseWriter, r *http.Request) {
 	s.Broker.GetTopic("vm.crashed").Subscribe(client)
 
 
+	busTopic.Subscribe(client)
+
+	go client.WritePump()
+	go client.ReadPump()
+}

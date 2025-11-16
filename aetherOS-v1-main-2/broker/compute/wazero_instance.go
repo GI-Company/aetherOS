@@ -1,3 +1,4 @@
+
 package compute
 
 import (
@@ -19,6 +20,18 @@ type wazeroInstance struct {
     done    chan struct{}
     closed  bool
 }
+
+func NewWazeroInstance(ctx context.Context, mod api.Module, stdin io.WriteCloser, stdout io.ReadCloser, stderr io.ReadCloser, cancel context.CancelFunc) *wazeroInstance {
+	return &wazeroInstance{
+		mod:    mod,
+		stdin:  stdin,
+		stdout: stdout,
+		stderr: stderr,
+		cancel: cancel,
+		done:   make(chan struct{}),
+	}
+}
+
 
 func (i *wazeroInstance) Stdin() io.WriteCloser  { return i.stdin }
 func (i *wazeroInstance) Stdout() io.ReadCloser { return i.stdout }

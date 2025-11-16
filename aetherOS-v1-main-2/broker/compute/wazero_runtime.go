@@ -22,6 +22,10 @@ func NewWazeroRuntime(rt wazero.Runtime) *WazeroRuntime {
     }
 }
 
+func (w *WazeroRuntime) GetRuntime() wazero.Runtime {
+	return w.rt
+}
+
 func (w *WazeroRuntime) Register(id string, inst *wazeroInstance) {
     w.mu.Lock()
     defer w.mu.Unlock()
@@ -59,4 +63,5 @@ func (w *WazeroRuntime) Shutdown(ctx context.Context) error {
     case <-ctx.Done():
     }
 
-    return w.
+    return w.rt.Close(ctx)
+}

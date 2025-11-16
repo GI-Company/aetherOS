@@ -150,4 +150,85 @@ func (s *ComputeService) killInstance(originalEnv *aether.Envelope, instanceID s
 	s.publishResponse(originalEnv, "vm.killed", map[string]string{"instanceId": instanceID})
 }
 
-func (s *ComputeS
+func (s *ComputeService) writeToStdin(originalEnv *aether.Envelope, instanceID string, data string) {
+	instance, ok := s.runtime.Get(instanceID)
+	if !ok {
+		s.publishError(originalEnv, "Instance not found")
+		return
+	}
+	if _, err := instance.Stdin().Write([]byte(data)); err != nil {
+		s.publishError(originalEnv, "Failed to write to stdin: "+err.Error())
+	}
+}
+
+func (s *ComputeService) streamPipe(instanceID string, pipe io.ReadCloser, topicName string) {
+	scanner := bufio.NewScanner(pipe)
+	for scanner.Scan() {
+		s.publishResponse(nil, topicName, map[string]string{
+			"instanceId": instanceID,
+			"data":       scanner.Text(),
+		})
+	}
+	if err := scanner.Err(); err != nil && err != io.EOF {
+		log.Printf("Error reading from pipe for instance %s on topic %s: %v", instanceID, topicName, err)
+		s.publishError(nil, "Error reading from instance pipe: "+err.Error())
+	}
+}
+
+func (s *ComputeService) publishResponse(originalEnv *aether.Envelope, topicName string, payload interface{}) {
+	responseTopic := s.broker.GetTopic(topicName)
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Compute Service: Failed to marshal response payload: %v", err)
+		return
+	}
+
+	responseEnv := &aether.Envelope{
+		ID:          uuid.New().String(),
+		Topic:       topicName,
+		Type:        "compute_response",
+		ContentType: "application/json",
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now(),
+	}
+
+	if originalEnv != nil {
+		responseEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+	}
+
+	responseTopic.Publish(responseEnv)
+}
+
+func (s *ComputeService) publishError(originalEnv *aether.Envelope, errorMsg string) {
+	var errorTopicName string
+	if originalEnv != nil {
+		errorTopicName = originalEnv.Topic + ":error"
+	} else {
+		errorTopicName = "vm.crashed"
+	}
+
+	errorTopic := s.broker.GetTopic(errorTopicName)
+
+	errorPayload := map[string]string{"error": errorMsg}
+	payloadBytes, _ := json.Marshal(errorPayload)
+
+	errorEnv := &aether.Envelope{
+		ID:          uuid.New().String(),
+		Topic:       errorTopicName,
+		Type:        "error",
+		ContentType: "application/json",
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now(),
+	}
+	if originalEnv != nil {
+		errorEnv.Meta = []byte(`{"correlationId": "` + originalEnv.ID + `"}`)
+	}
+	log.Printf("Compute Service publishing error to topic: %s", errorTopicName)
+	errorTopic.Publish(errorEnv)
+}
+
+// Helper to decode base64, as it's used here specifically
+func (b *aether.Broker) DecodeBase64(s string) ([]byte, error) {
+	return json.Marshal(s)
+}

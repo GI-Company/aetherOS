@@ -10,7 +10,7 @@ import { useSpring, animated } from "@react-spring/web";
 import { useDrag } from "@use-gesture/react";
 import TutorialDialog from "./tutorial-dialog";
 import { TUTORIALS } from "@/lib/tutorials";
-import { AppAetherProvider } from "@/lib/use-app-aether";
+import { AetherAppProvider } from "@/components/aether-os/aether-app-context";
 
 type WindowProps = {
   instance: WindowInstance;
@@ -213,7 +213,7 @@ export default function Window({
       onPointerDownCapture={onFocus}
       {...bindResize()}
     >
-      <AppAetherProvider value={app.manifest.id}>
+      <AetherAppProvider appId={app.manifest.id}>
         <Card
             className={cn(
             "w-full h-full flex flex-col bg-card/80 backdrop-blur-xl border-white/20 overflow-hidden transition-colors duration-200",
@@ -262,7 +262,7 @@ export default function Window({
             )}
             </CardContent>
         </Card>
-      </AppAetherProvider>
+      </AetherAppProvider>
     </animated.div>
   );
 }

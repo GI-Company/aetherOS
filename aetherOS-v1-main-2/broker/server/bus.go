@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"aether/broker/aether"
-	"github.comcom/gorilla/mux"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 )
 

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Bot, GitCommitHorizontal, History, List, Terminal, ChevronRight, Play, Square, RefreshCcw } from 'lucide-react';
@@ -109,16 +110,6 @@ export default function AgentConsoleApp() {
 
     const selectedGraph = selectedGraphId ? taskGraphs[selectedGraphId] : null;
 
-    const executeGraph = useCallback(() => {
-        if (!selectedGraph || !aether) return;
-        
-        aether.publish('agent:graph:execute', { 
-            graphId: selectedGraph.id,
-        });
-
-    }, [selectedGraph, aether]);
-
-
     const renderStatusBadge = (status: string) => {
         const color = {
             'pending': 'bg-gray-500',
@@ -174,14 +165,6 @@ export default function AgentConsoleApp() {
                 </div>
                  {selectedGraph && (
                     <div className="flex items-center gap-2">
-                        <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={executeGraph}
-                            disabled={selectedGraph.status === 'running' || selectedGraph.status === 'completed' || selectedGraph.status === 'failed'}
-                        >
-                            <Play className="h-4 w-4 mr-2" /> Execute Graph
-                        </Button>
                         <Button variant="outline" size="sm" disabled><Square className="h-4 w-4 mr-2" /> Cancel</Button>
                         <Button variant="outline" size="sm" disabled><RefreshCcw className="h-4 w-4 mr-2" /> Re-run</Button>
                     </div>

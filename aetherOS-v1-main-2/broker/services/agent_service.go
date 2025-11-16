@@ -38,21 +38,13 @@ func NewAgentService(broker *aether.Broker) *AgentService {
 func (s *AgentService) Run() {
 	log.Println("Agent Service is running.")
 
-	// Listen for new task graphs being created
+	// Listen for new task graphs being created. This is the entry point for autonomous execution.
 	graphCreatedTopic := s.broker.GetTopic("agent.taskgraph.created")
 	go func(ch chan *aether.Envelope) {
 		for envelope := range ch {
 			s.graphUpdateSub <- envelope
 		}
 	}(graphCreatedTopic.GetBroadcastChan())
-
-	// Listen for requests to execute a graph
-	graphExecuteTopic := s.broker.GetTopic("agent:graph:execute")
-	go func(ch chan *aether.Envelope) {
-		for envelope := range ch {
-			s.graphUpdateSub <- envelope
-		}
-	}(graphExecuteTopic.GetBroadcastChan())
 
 	// Listen for node completion events to trigger the next steps
 	nodeCompletedTopic := s.broker.GetTopic("agent.tasknode.completed")
@@ -82,8 +74,6 @@ func (s *AgentService) processGraphUpdates() {
 		switch env.Topic {
 		case "agent.taskgraph.created":
 			s.handleGraphCreated(env)
-		case "agent:graph:execute":
-			s.handleGraphExecute(env)
 		case "agent.tasknode.completed":
 			s.handleNodeCompleted(env)
 		case "agent.tasknode.failed":
@@ -101,10 +91,8 @@ func (s *AgentService) handleGraphCreated(env *aether.Envelope) {
 		return
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	graphID := payload.TaskGraph.ID
+	s.mu.Lock()
 	s.activeGraphs[graphID] = &payload.TaskGraph
 	s.nodeStates[graphID] = make(map[string]*agent.TaskNodeStatus)
 	for _, node := range payload.TaskGraph.Nodes {
@@ -113,31 +101,11 @@ func (s *AgentService) handleGraphCreated(env *aether.Envelope) {
 			Status: "pending",
 		}
 	}
-	log.Printf("Agent Service: Registered new task graph ID %s", graphID)
-}
+	s.mu.Unlock()
 
-func (s *AgentService) handleGraphExecute(env *aether.Envelope) {
-	var payload struct {
-		GraphID string `json:"graphId"`
-	}
-	if err := json.Unmarshal(env.Payload, &payload); err != nil {
-		log.Printf("Agent Service: failed to unmarshal graph execute payload: %v", err)
-		return
-	}
-	graphID := payload.GraphID
-
-	s.mu.RLock()
-	_, ok := s.activeGraphs[graphID]
-	s.mu.RUnlock()
-
-	if !ok {
-		log.Printf("Agent Service: attempt to execute unknown graph ID %s", graphID)
-		return
-	}
-
-	log.Printf("Agent Service: Starting execution for graph ID %s", graphID)
+	log.Printf("Agent Service: Registered and starting execution for new task graph ID %s", graphID)
+	// AUTONOMOUS TRIGGER: Immediately start the execution process.
 	s.publish(env, "agent.taskgraph.started", map[string]string{"graphId": graphID})
-	// Trigger the first set of runnable nodes
 	s.evaluateAndRunNextNodes(graphID, env)
 }
 
@@ -156,8 +124,13 @@ func (s *AgentService) handleNodeCompleted(env *aether.Envelope) {
 
 	s.mu.Lock()
 	if _, ok := s.activeGraphs[graphID]; ok {
-		s.nodeStates[graphID][nodeID].Status = "completed"
-		s.nodeStates[graphID][nodeID].FinishedAt = time.Now().UnixMilli()
+		// Check if the node exists before trying to update it
+		if s.nodeStates[graphID][nodeID] != nil {
+			s.nodeStates[graphID][nodeID].Status = "completed"
+			s.nodeStates[graphID][nodeID].FinishedAt = time.Now().UnixMilli()
+		} else {
+			log.Printf("Agent Service: Received completion for unknown node %s in graph %s", nodeID, graphID)
+		}
 	}
 	s.mu.Unlock()
 
@@ -181,9 +154,11 @@ func (s *AgentService) handleNodeFailed(env *aether.Envelope) {
 
 	s.mu.Lock()
 	if _, ok := s.activeGraphs[graphID]; ok {
-		s.nodeStates[graphID][nodeID].Status = "failed"
-		s.nodeStates[graphID][nodeID].FinishedAt = time.Now().UnixMilli()
-		s.nodeStates[graphID][nodeID].Error = payload.Error
+		if s.nodeStates[graphID][nodeID] != nil {
+			s.nodeStates[graphID][nodeID].Status = "failed"
+			s.nodeStates[graphID][nodeID].FinishedAt = time.Now().UnixMilli()
+			s.nodeStates[graphID][nodeID].Error = payload.Error
+		}
 	}
 	s.mu.Unlock()
 

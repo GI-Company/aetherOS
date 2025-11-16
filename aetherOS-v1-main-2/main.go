@@ -109,6 +109,9 @@ func main() {
 
 	taskExecutorService := services.NewTaskExecutorService(broker, vfsModule, aiModule)
 	go taskExecutorService.Run()
+	
+	telemetryService := services.NewTelemetryService(broker)
+	go telemetryService.Run()
 
 	// Setup router and register API routes
 	r := mux.NewRouter()

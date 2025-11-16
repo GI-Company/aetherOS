@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Bot, GitCommitHorizontal, History, List, Terminal, ChevronRight, Play, Square, RefreshCcw } from 'lucide-react';
+import { Bot, GitCommitHorizontal, History, List, Terminal, ChevronRight, Play, Square, RefreshCcw, Download } from 'lucide-react';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppAether } from '@/lib/use-app-aether';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,10 @@ import { Button } from '@/components/ui/button';
 import { TaskGraphEvent, TaskNodeStatus } from '@/lib/agent-types';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { HELLO_WORLD_WASM_BASE64 } from '@/app/apps/hello-world/hello-world.wasm';
+import helloWorldManifest from '@/app/apps/hello-world/manifest.json';
+
 
 interface FullTaskGraph {
   id: string;
@@ -22,10 +26,12 @@ interface FullTaskGraph {
 }
 
 export default function AgentConsoleApp() {
-    const { subscribe } = useAppAether();
+    const { publish, subscribe } = useAppAether();
     const { firestore } = useFirebase();
     const [events, setEvents] = useState<TaskGraphEvent[]>([]);
     const [selectedGraphId, setSelectedGraphId] = useState<string | null>(null);
+    const { toast } = useToast();
+    const [isInstalling, setIsInstalling] = useState(false);
 
     const taskGraphsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -58,6 +64,8 @@ export default function AgentConsoleApp() {
             "vm:exited",
             "vm:killed",
             "vm:crashed",
+            "system:install:app:result",
+            "system:install:app:error",
         ];
 
         const handleEvent = (payload: any, envelope: any) => {
@@ -68,6 +76,14 @@ export default function AgentConsoleApp() {
                 timestamp: envelope.createdAt,
             };
             setEvents(prev => [...prev, newEvent]);
+
+            if (envelope.topic === "system:install:app:result") {
+                toast({ title: 'Installation Success', description: payload.message });
+                setIsInstalling(false);
+            } else if (envelope.topic === "system:install:app:error") {
+                toast({ title: 'Installation Failed', description: payload.error, variant: 'destructive' });
+                setIsInstalling(false);
+            }
         };
         
         const subscriptions = topics.map(topic => subscribe(topic, handleEvent));
@@ -76,7 +92,19 @@ export default function AgentConsoleApp() {
             subscriptions.forEach(unsubscribe => unsubscribe());
         };
 
-    }, [subscribe]);
+    }, [subscribe, toast]);
+    
+    const handleInstallHelloWorld = () => {
+        setIsInstalling(true);
+        toast({
+            title: 'Installing "Hello World"...',
+            description: "Sending application bundle to the kernel."
+        })
+        publish("system:install:app", {
+            manifest: helloWorldManifest,
+            wasmBase64: HELLO_WORLD_WASM_BASE64,
+        });
+    }
 
     const selectedGraph = selectedGraphId ? taskGraphs?.find(g => g.id === selectedGraphId) : null;
 
@@ -130,12 +158,12 @@ export default function AgentConsoleApp() {
                     <Bot className="h-5 w-5 text-accent" />
                     <h3 className="font-headline text-lg">AI Agent Console</h3>
                 </div>
-                 {selectedGraph && (
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" disabled><Square className="h-4 w-4 mr-2" /> Cancel</Button>
-                        <Button variant="outline" size="sm" disabled><RefreshCcw className="h-4 w-4 mr-2" /> Re-run</Button>
-                    </div>
-                )}
+                 <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={handleInstallHelloWorld} disabled={isInstalling}>
+                        {isInstalling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                         Install "Hello World" App
+                    </Button>
+                </div>
             </div>
             
             {selectedGraph ? (

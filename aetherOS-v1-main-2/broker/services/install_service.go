@@ -3,9 +3,11 @@ package services
 
 import (
 	"aether/broker/aether"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,13 +16,15 @@ import (
 // InstallService handles application installation requests.
 type InstallService struct {
 	broker      *aether.Broker
+	vfs         *aether.VFSModule
 	permissions *aether.PermissionManager
 }
 
 // NewInstallService creates a new installation service.
-func NewInstallService(broker *aether.Broker, permissions *aether.PermissionManager) *InstallService {
+func NewInstallService(broker *aether.Broker, vfs *aether.VFSModule, permissions *aether.PermissionManager) *InstallService {
 	return &InstallService{
 		broker:      broker,
+		vfs:         vfs,
 		permissions: permissions,
 	}
 }
@@ -59,13 +63,42 @@ func (s *InstallService) handleRequest(env *aether.Envelope) {
 	// --- 2. Verify Signature (Placeholder) ---
 	log.Printf("Install Service: Signature verification for app '%s' would happen here.", manifest.ID)
 
-	// --- 3. Install Files (Placeholder) ---
-	log.Printf("Install Service: Simulating installation of app '%s' to the system.", manifest.ID)
-	// In a real implementation, we would:
-	// - Create a directory for the app, e.g., /system/apps/{appId}
-	// - Write the manifest.json to that directory.
-	// - Decode wasmBase64 and write the app.wasm file.
-	// - Write any other assets.
+	// --- 3. Install Files to VFS ---
+	appInstallPath := filepath.Join("src", "app", "apps", manifest.ID)
+	log.Printf("Install Service: Installing app '%s' to VFS path: %s", manifest.ID, appInstallPath)
+
+	// Create the main app directory (CreateDir is idempotent)
+	// We pass the parent path and the directory name to create
+	parentDir := filepath.Dir(appInstallPath)
+	appDirName := filepath.Base(appInstallPath)
+	if err := s.vfs.CreateDir(parentDir, appDirName); err != nil {
+		s.publishError(env, "Failed to create app directory: "+err.Error())
+		return
+	}
+
+	// Write the manifest.json
+	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		s.publishError(env, "Failed to serialize manifest for writing: "+err.Error())
+		return
+	}
+	manifestPath := filepath.Join(appInstallPath, "manifest.json")
+	if err := s.vfs.Write(manifestPath, manifestBytes); err != nil {
+		s.publishError(env, "Failed to write manifest.json: "+err.Error())
+		return
+	}
+
+	// Decode and write the WASM binary
+	wasmBytes, err := base64.StdEncoding.DecodeString(payloadData.WasmBase64)
+	if err != nil {
+		s.publishError(env, "Failed to decode wasm binary: "+err.Error())
+		return
+	}
+	wasmPath := filepath.Join(appInstallPath, manifest.Entry)
+	if err := s.vfs.Write(wasmPath, wasmBytes); err != nil {
+		s.publishError(env, "Failed to write wasm binary: "+err.Error())
+		return
+	}
 
 	// --- 4. Notify System of New App ---
 	// This triggers a reload of the permission manager.

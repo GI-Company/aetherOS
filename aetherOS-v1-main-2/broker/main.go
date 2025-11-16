@@ -94,7 +94,7 @@ func main() {
 	telemetryService := services.NewTelemetryService(broker)
 	go telemetryService.Run()
 
-	installService := services.NewInstallService(broker, permissionManager)
+	installService := services.NewInstallService(broker, vfsModule, permissionManager)
 	go installService.Run()
 
 	// Setup router and register API routes

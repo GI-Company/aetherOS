@@ -62,6 +62,14 @@ func (s *AgentService) Run() {
 		}
 	}(nodeCompletedTopic.GetBroadcastChan())
 
+	// Listen for node failure events to halt the graph
+	nodeFailedTopic := s.broker.GetTopic("agent.tasknode.failed")
+	go func(ch chan *aether.Envelope) {
+		for envelope := range ch {
+			s.graphUpdateSub <- envelope
+		}
+	}(nodeFailedTopic.GetBroadcastChan())
+
 	// Start the main processing loop
 	go s.processGraphUpdates()
 
@@ -78,6 +86,8 @@ func (s *AgentService) processGraphUpdates() {
 			s.handleGraphExecute(env)
 		case "agent.tasknode.completed":
 			s.handleNodeCompleted(env)
+		case "agent.tasknode.failed":
+			s.handleNodeFailed(env)
 		}
 	}
 }
@@ -153,6 +163,36 @@ func (s *AgentService) handleNodeCompleted(env *aether.Envelope) {
 
 	log.Printf("Agent Service: Node %s in graph %s completed. Evaluating next steps.", nodeID, graphID)
 	s.evaluateAndRunNextNodes(graphID, env)
+}
+
+func (s *AgentService) handleNodeFailed(env *aether.Envelope) {
+	var payload struct {
+		GraphID string `json:"graphId"`
+		NodeID  string `json:"nodeId"`
+		Error   string `json:"error"`
+	}
+	if err := json.Unmarshal(env.Payload, &payload); err != nil {
+		log.Printf("Agent Service: failed to unmarshal node failed payload: %v", err)
+		return
+	}
+
+	graphID := payload.GraphID
+	nodeID := payload.NodeID
+
+	s.mu.Lock()
+	if _, ok := s.activeGraphs[graphID]; ok {
+		s.nodeStates[graphID][nodeID].Status = "failed"
+		s.nodeStates[graphID][nodeID].FinishedAt = time.Now().UnixMilli()
+		s.nodeStates[graphID][nodeID].Error = payload.Error
+	}
+	s.mu.Unlock()
+
+	log.Printf("Agent Service: Node %s in graph %s FAILED. Halting graph execution.", nodeID, graphID)
+	s.publish(env, "agent.taskgraph.failed", map[string]string{
+		"graphId": graphID,
+		"error":   "Execution failed at node " + nodeID,
+	})
+	// Do not run next nodes, the graph is now in a failed state.
 }
 
 // evaluateAndRunNextNodes checks the graph for nodes that can now be run and triggers them.

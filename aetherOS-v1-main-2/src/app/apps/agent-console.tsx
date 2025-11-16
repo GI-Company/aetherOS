@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Bot, GitCommitHorizontal, History, List, Terminal, ChevronRight, Play, Square, RefreshCcw } from 'lucide-react';
@@ -30,6 +29,7 @@ export default function AgentConsoleApp() {
             "agent.taskgraph.started",
             "agent.taskgraph.completed",
             "agent.taskgraph.canceled",
+            "agent.taskgraph.failed",
             "agent.tasknode.started",
             "agent.tasknode.completed",
             "agent.tasknode.failed",
@@ -112,8 +112,6 @@ export default function AgentConsoleApp() {
     const executeGraph = useCallback(() => {
         if (!selectedGraph || !aether) return;
         
-        // The frontend's job is now just to request execution.
-        // The backend `AgentService` will handle the orchestration.
         aether.publish('agent:graph:execute', { 
             graphId: selectedGraph.id,
         });
@@ -180,7 +178,7 @@ export default function AgentConsoleApp() {
                             variant="outline" 
                             size="sm" 
                             onClick={executeGraph}
-                            disabled={selectedGraph.status === 'running' || selectedGraph.status === 'completed'}
+                            disabled={selectedGraph.status === 'running' || selectedGraph.status === 'completed' || selectedGraph.status === 'failed'}
                         >
                             <Play className="h-4 w-4 mr-2" /> Execute Graph
                         </Button>
@@ -196,7 +194,7 @@ export default function AgentConsoleApp() {
                         {selectedGraph.nodes.map(node => {
                             const nodeStatus = selectedGraph.nodesStatus[node.id] || { status: 'pending' };
                             return (
-                                <Card key={node.id}>
+                                <Card key={node.id} className={cn(nodeStatus.status === 'failed' && 'border-destructive')}>
                                     <CardHeader>
                                         <CardTitle className='flex justify-between items-center'>
                                             <div className='flex items-center gap-2'>
@@ -214,6 +212,14 @@ export default function AgentConsoleApp() {
                                         <pre className="text-xs whitespace-pre-wrap p-2 bg-muted/50 rounded-sm">
                                             {JSON.stringify(node.input, null, 2)}
                                         </pre>
+                                        {nodeStatus.status === 'failed' && nodeStatus.error && (
+                                            <>
+                                                <p className='text-sm font-medium mt-4 mb-2 text-destructive'>Error:</p>
+                                                <pre className="text-xs whitespace-pre-wrap p-2 bg-destructive/10 text-destructive-foreground rounded-sm">
+                                                    {nodeStatus.error}
+                                                </pre>
+                                            </>
+                                        )}
                                     </CardContent>
                                 </Card>
                             )

@@ -322,6 +322,7 @@ func (s *AgentService) evaluateAndRunNextNodes(graphID string, originalEnv *aeth
 					Type:      "agent_event",
 					Payload:   []byte(fmt.Sprintf(`{"graphId":"%s", "nodeId":"%s", "error":"%s"}`, graphID, node.ID, err.Error())),
 					CreatedAt: time.Now(),
+					Meta:      originalEnv.Meta,
 				}
 				s.handleNodeFailed(failureEnv)
 				continue 
@@ -381,3 +382,6 @@ func (s *AgentService) publish(originalEnv *aether.Envelope, topicName string, p
 
 	responseTopic.Publish(responseEnv)
 }
+
+
+    
